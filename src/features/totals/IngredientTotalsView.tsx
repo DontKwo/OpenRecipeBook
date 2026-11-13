@@ -1,6 +1,7 @@
 import { useState, useMemo, type FC, type ReactElement } from "react";
 import type { Recipe, Combo } from "../../domain/recipe/types";
 import { computeIngredientTotals, type TotalsSelectionItem } from "../../domain/ingredients/totals";
+import { parseIngredient } from "../../domain/scaling/parseIngredient";
 import { BUILT_IN_INGREDIENTS } from "../../data/defaultIngredients";
 import { QuickUnitConverterModal } from "../recipe-view/QuickUnitConverterModal";
 import { ConvertIcon } from "../../ui/icons";
@@ -164,7 +165,11 @@ export const IngredientTotalsView: FC<IngredientTotalsViewProps> = ({
                 {onDeleteCombo && (
                   <button
                     type="button"
-                    onClick={() => onDeleteCombo(combo.id)}
+                    onClick={() => {
+                      if (window.confirm(`Delete saved combination "${combo.name}"?`)) {
+                        onDeleteCombo(combo.id);
+                      }
+                    }}
                     style={{
                       background: "none",
                       border: "none",
@@ -293,11 +298,16 @@ export const IngredientTotalsView: FC<IngredientTotalsViewProps> = ({
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                       <button
                         type="button"
-                        onClick={(): void => setActiveConverter({
-                          value: item.totalNumeric,
-                          unit: item.canonicalUnit,
-                          ingredient: item.normalizedIngredientName
-                        })}
+                        onClick={(): void => {
+                          const parsedTotal = parseIngredient(item.totalDisplay.replace("≈", "").trim(), `total-${index}`);
+                          const qty = parsedTotal.ingredient.quantity;
+                          const totalNumeric = qty ? (qty.kind === "single" ? qty.value : qty.max) : 1;
+                          setActiveConverter({
+                            value: totalNumeric,
+                            unit: parsedTotal.ingredient.unit || (item.unitFamily === "weight" ? "g" : "cup"),
+                            ingredient: item.displayName || parsedTotal.ingredient.name || "ingredient"
+                          });
+                        }}
                         style={{
                           background: "var(--surface-alt)",
                           color: "var(--text)",

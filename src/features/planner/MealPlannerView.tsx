@@ -195,6 +195,7 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
 
   const handleDeleteSlot = (slotToRemove: string): void => {
     if (slots.length <= 1) return;
+    if (!window.confirm(`Remove meal slot "${slotToRemove}"?`)) return;
     setSlots((prev) => prev.filter((s) => s !== slotToRemove));
   };
 
@@ -777,7 +778,9 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
                                   </span>
                                   <button
                                     type="button"
-                                    onClick={(): void => onDeleteEntry(entry.id)}
+                                    onClick={(): void => {
+                                      if (window.confirm("Remove this meal from the plan?")) onDeleteEntry(entry.id);
+                                    }}
                                     style={{
                                       background: "none",
                                       border: "none",
@@ -953,7 +956,9 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
                           </span>
                           <button
                             type="button"
-                            onClick={(): void => onDeleteEntry(entry.id)}
+                            onClick={(): void => {
+                              if (window.confirm("Remove this meal from the plan?")) onDeleteEntry(entry.id);
+                            }}
                             style={{
                               background: "none",
                               border: "none",
@@ -1328,7 +1333,9 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
                     {onDeleteMenu && (
                       <button
                         type="button"
-                        onClick={() => onDeleteMenu(menu.id)}
+                        onClick={(): void => {
+                          if (window.confirm(`Delete saved menu "${menu.name}"?`)) onDeleteMenu(menu.id);
+                        }}
                         style={{
                           background: "none",
                           border: "1px solid var(--border)",

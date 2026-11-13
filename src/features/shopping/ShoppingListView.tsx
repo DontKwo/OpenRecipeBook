@@ -54,6 +54,7 @@ export const ShoppingListView: FC<ShoppingListViewProps> = ({
   const handleDeleteItem = (itemId: string, e: MouseEvent<HTMLButtonElement>): void => {
     e.stopPropagation();
     if (!currentList) return;
+    if (!window.confirm("Remove this item from the shopping list?")) return;
     const remaining = currentList.items.filter((item: ShoppingItem): boolean => item.id !== itemId);
     onSaveList({ ...currentList, items: remaining });
   };

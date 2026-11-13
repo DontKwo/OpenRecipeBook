@@ -1048,16 +1048,20 @@ export const RecipeView: FC<RecipeViewProps> = ({
             />
           ) : (
             <div
-              onClick={(): void => setIsEditingTitle(true)}
-              title="Click to edit title directly"
-              style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}
+              onClick={(): void => {
+                if (isQuickEditMode) setIsEditingTitle(true);
+              }}
+              title={isQuickEditMode ? "Click to edit title directly" : undefined}
+              style={{ display: "flex", alignItems: "center", gap: "8px", cursor: isQuickEditMode ? "pointer" : "default" }}
             >
               <h1 style={{ fontFamily: "var(--font-serif)", fontSize: "2rem", lineHeight: 1.2, color: "var(--text)", margin: 0 }}>
                 {recipe.title}
               </h1>
-              <span style={{ color: "var(--muted)", opacity: 0.6 }}>
-                <EditIcon width={16} height={16} />
-              </span>
+              {isQuickEditMode && (
+                <span style={{ color: "var(--muted)", opacity: 0.6 }}>
+                  <EditIcon width={16} height={16} />
+                </span>
+              )}
             </div>
           )}
 
@@ -1099,19 +1103,21 @@ export const RecipeView: FC<RecipeViewProps> = ({
             />
           ) : (
             <div
-              onClick={(): void => setIsEditingDescription(true)}
-              title="Click to edit description directly"
-              style={{ cursor: "pointer", marginTop: "4px" }}
+              onClick={(): void => {
+                if (isQuickEditMode) setIsEditingDescription(true);
+              }}
+              title={isQuickEditMode ? "Click to edit description directly" : undefined}
+              style={{ cursor: isQuickEditMode ? "pointer" : "default", marginTop: "4px" }}
             >
               {recipe.description ? (
                 <p style={{ color: "var(--muted)", fontSize: "0.95rem", margin: 0 }}>
                   {recipe.description}
                 </p>
-              ) : (
+              ) : isQuickEditMode ? (
                 <span style={{ color: "var(--muted)", fontSize: "0.85rem", fontStyle: "italic" }}>
                   + Add description...
                 </span>
-              )}
+              ) : null}
             </div>
           )}
         </div>
@@ -1219,9 +1225,11 @@ export const RecipeView: FC<RecipeViewProps> = ({
             </div>
           ) : (
             <div
-              onClick={(): void => setIsEditingTimes(true)}
-              title="Click to edit times"
-              style={{ display: "flex", gap: "var(--space-6)", cursor: "pointer" }}
+              onClick={(): void => {
+                if (isQuickEditMode) setIsEditingTimes(true);
+              }}
+              title={isQuickEditMode ? "Click to edit times" : undefined}
+              style={{ display: "flex", gap: "var(--space-6)", cursor: isQuickEditMode ? "pointer" : "default" }}
             >
               <div>
                 <div style={{ fontSize: "0.75rem", textTransform: "uppercase", color: "var(--muted)", fontWeight: 600 }}>Prep</div>
@@ -1284,9 +1292,11 @@ export const RecipeView: FC<RecipeViewProps> = ({
             </div>
           ) : (
             <div
-              onClick={(): void => setIsEditingServings(true)}
-              title="Click to edit servings"
-              style={{ cursor: "pointer" }}
+              onClick={(): void => {
+                if (isQuickEditMode) setIsEditingServings(true);
+              }}
+              title={isQuickEditMode ? "Click to edit servings" : undefined}
+              style={{ cursor: isQuickEditMode ? "pointer" : "default" }}
             >
               <div style={{ fontSize: "0.75rem", textTransform: "uppercase", color: "var(--muted)", fontWeight: 600 }}>Servings</div>
               <div style={{ fontWeight: 600 }}>{currentServings} {recipe.servingsLabel || "servings"}</div>
@@ -1353,7 +1363,7 @@ export const RecipeView: FC<RecipeViewProps> = ({
                 cursor: "pointer"
               }}
             >
-              {val === 0.5 ? "1/2\u00D7" : `${val}\u00D7`}
+              {val === 0.5 ? "1/2×" : `${val}×`}
             </button>
           ))}
         </div>
@@ -1477,30 +1487,32 @@ export const RecipeView: FC<RecipeViewProps> = ({
               <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "1.4rem", margin: 0 }}>
                 Ingredients
               </h2>
-              <button
-                type="button"
-                onClick={(): void => {
-                  const { recipe: updated, newId } = addIngredientLine(recipe, 0, "");
-                  commitRecipeUpdate(updated, "Added new ingredient");
-                  setEditingIngredientId(newId);
-                  setEditingIngredientRaw("");
-                }}
-                style={{
-                  background: "var(--surface-alt)",
-                  color: "var(--accent)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "var(--radius-full)",
-                  padding: "4px 10px",
-                  fontSize: "0.8rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "4px"
-                }}
-              >
-                <PlusIcon width={13} height={13} /> Add
-              </button>
+              {isQuickEditMode && (
+                <button
+                  type="button"
+                  onClick={(): void => {
+                    const { recipe: updated, newId } = addIngredientLine(recipe, 0, "");
+                    commitRecipeUpdate(updated, "Added new ingredient");
+                    setEditingIngredientId(newId);
+                    setEditingIngredientRaw("");
+                  }}
+                  style={{
+                    background: "var(--surface-alt)",
+                    color: "var(--accent)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "var(--radius-full)",
+                    padding: "4px 10px",
+                    fontSize: "0.8rem",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "4px"
+                  }}
+                >
+                  <PlusIcon width={13} height={13} /> Add
+                </button>
+              )}
             </div>
 
             {recipe.ingredientGroups.map((group, groupIndex) => (
@@ -1512,10 +1524,11 @@ export const RecipeView: FC<RecipeViewProps> = ({
                 )}
                 <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
                   {group.items.map((item, itemIndex) => {
-                    const isEditing = editingIngredientId === item.id;
-                    const scaled = scaleIngredient(item, multiplier, { unitPromotion });
+                    const isEditing = isQuickEditMode && editingIngredientId === item.id;
+                    const parsedItem = (!item.quantity || !item.unit) ? parseIngredient(item.raw, item.id).ingredient : item;
+                    const scaled = scaleIngredient(parsedItem, multiplier, { unitPromotion });
                     const displayItem = unitSystem === "metric"
-                      ? convertIngredientUnitSystem(item, "metric", { unitPromotion })
+                      ? convertIngredientUnitSystem(parsedItem, "metric", { multiplier, unitPromotion, preferGramsForDry: true })
                       : scaled;
 
                     const isChecked = !!checkedIngredients[item.id];
@@ -1629,14 +1642,21 @@ export const RecipeView: FC<RecipeViewProps> = ({
                       );
                     }
 
-                    const baseNumericValue = item.quantity
-                      ? (item.quantity.kind === "single" ? item.quantity.value : item.quantity.max)
+                    const effectiveUnit = parsedItem.unit || "";
+                    const effectiveName = parsedItem.name || item.name || item.raw;
+                    const baseNumericValue = parsedItem.quantity
+                      ? (parsedItem.quantity.kind === "single" ? parsedItem.quantity.value : parsedItem.quantity.max)
                       : undefined;
                     const scaledNumericValue = baseNumericValue !== undefined ? baseNumericValue * multiplier : undefined;
                     const customTargetUnit = ingredientUnitOverrides[item.id];
-                    const activeConversion = (scaledNumericValue !== undefined && item.unit && customTargetUnit)
-                      ? convertIngredientUnit(scaledNumericValue, item.unit, customTargetUnit, item.name, undefined, combinedDictionary)
+                    const canConvert = scaledNumericValue !== undefined && effectiveUnit !== "";
+                    const activeConversion = (scaledNumericValue !== undefined && effectiveUnit && customTargetUnit)
+                      ? convertIngredientUnit(scaledNumericValue, effectiveUnit, customTargetUnit, effectiveName, undefined, combinedDictionary)
                       : null;
+                    const openInlineConverter = (): void => {
+                      if (!canConvert || scaledNumericValue === undefined) return;
+                      setInlineConverterTarget({ id: item.id, value: scaledNumericValue, unit: effectiveUnit, ingredient: effectiveName });
+                    };
 
                     return (
                       <li
@@ -1670,13 +1690,36 @@ export const RecipeView: FC<RecipeViewProps> = ({
                             <span style={{ fontVariantNumeric: "tabular-nums", lineHeight: 1.4 }}>
                               {activeConversion?.success ? (
                                 <span>
-                                  <strong>{activeConversion.formattedAmount} {activeConversion.targetUnit}</strong> {item.name || ""}
+                                  <strong
+                                    onClick={(e): void => {
+                                      e.stopPropagation();
+                                      openInlineConverter();
+                                    }}
+                                    style={{ color: "var(--accent)", cursor: "pointer", textDecoration: "underline" }}
+                                    title="Click to convert this amount to other units"
+                                  >
+                                    {activeConversion.formattedAmount} {activeConversion.targetUnit}
+                                  </strong>{" "}
+                                  {effectiveName}
                                   <span style={{ fontSize: "0.75rem", color: "var(--accent)", fontStyle: "italic", marginLeft: "6px" }}>
                                     (from {displayItem.formattedText})
                                   </span>
                                 </span>
                               ) : (
-                                displayItem.formattedText
+                                <span
+                                  onClick={(e): void => {
+                                    if (!canConvert) return;
+                                    e.stopPropagation();
+                                    openInlineConverter();
+                                  }}
+                                  title={canConvert ? "Click the amount to convert to other units" : undefined}
+                                  style={{
+                                    cursor: canConvert ? "pointer" : "inherit",
+                                    borderBottom: canConvert ? "1px dashed var(--accent)" : "none"
+                                  }}
+                                >
+                                  {displayItem.formattedText}
+                                </span>
                               )}
                               {scaled.hint && (
                                 <span style={{ display: "block", fontSize: "0.78rem", color: "var(--muted)", fontStyle: "italic" }}>
@@ -1687,7 +1730,7 @@ export const RecipeView: FC<RecipeViewProps> = ({
                           </div>
 
                           {/* Unit conversion selector pill */}
-                          {scaledNumericValue !== undefined && item.unit && (
+                          {canConvert && (
                             <button
                               type="button"
                               onClick={(e): void => {
@@ -1709,11 +1752,12 @@ export const RecipeView: FC<RecipeViewProps> = ({
                               }}
                               title="Click to convert unit (e.g. cup to tbsp, grams, oz...)"
                             >
-                              <ConvertIcon width={11} height={11} /> {customTargetUnit || item.unit}
+                              <ConvertIcon width={11} height={11} /> {customTargetUnit || effectiveUnit}
                             </button>
                           )}
 
-                          {/* Inline Actions on Hover */}
+                          {/* Inline Actions, visible only in Quick Edit mode */}
+                          {isQuickEditMode && (
                           <div style={{ display: "flex", gap: "2px", alignItems: "center", marginLeft: "6px" }}>
                             <button
                               type="button"
@@ -1749,10 +1793,11 @@ export const RecipeView: FC<RecipeViewProps> = ({
                               <TrashIcon width={14} height={14} />
                             </button>
                           </div>
+                          )}
                         </div>
 
                         {/* Dropdown Menu for Unit Conversion on this ingredient */}
-                        {activeUnitMenuId === item.id && scaledNumericValue !== undefined && item.unit && (
+                        {activeUnitMenuId === item.id && scaledNumericValue !== undefined && effectiveUnit && (
                           <div
                             onClick={(e): void => e.stopPropagation()}
                             style={{
@@ -1767,7 +1812,7 @@ export const RecipeView: FC<RecipeViewProps> = ({
                           >
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
                               <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase" }}>
-                                Convert Unit for {item.name || "ingredient"}
+                                Convert Unit for {effectiveName}
                               </span>
                               {customTargetUnit && (
                                 <button
@@ -1789,7 +1834,7 @@ export const RecipeView: FC<RecipeViewProps> = ({
                                     fontWeight: 600
                                   }}
                                 >
-                                  Reset to {item.unit}
+                                  Reset to {effectiveUnit}
                                 </button>
                               )}
                             </div>
@@ -1801,8 +1846,8 @@ export const RecipeView: FC<RecipeViewProps> = ({
                               </div>
                               <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
                                 {VOLUME_UNITS.map((u: SupportedUnit) => {
-                                  const preview = convertIngredientUnit(scaledNumericValue, item.unit || "cup", u, item.name, undefined, combinedDictionary);
-                                  const isCurrent = (customTargetUnit || item.unit) === u;
+                                  const preview = convertIngredientUnit(scaledNumericValue, effectiveUnit || "cup", u, effectiveName, undefined, combinedDictionary);
+                                  const isCurrent = (customTargetUnit || effectiveUnit) === u;
                                   return (
                                     <button
                                       key={u}
@@ -1835,8 +1880,8 @@ export const RecipeView: FC<RecipeViewProps> = ({
                               </div>
                               <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
                                 {WEIGHT_UNITS.map((u: SupportedUnit) => {
-                                  const preview = convertIngredientUnit(scaledNumericValue, item.unit || "cup", u, item.name, undefined, combinedDictionary);
-                                  const isCurrent = (customTargetUnit || item.unit) === u;
+                                  const preview = convertIngredientUnit(scaledNumericValue, effectiveUnit || "cup", u, effectiveName, undefined, combinedDictionary);
+                                  const isCurrent = (customTargetUnit || effectiveUnit) === u;
                                   return (
                                     <button
                                       key={u}
@@ -1870,8 +1915,8 @@ export const RecipeView: FC<RecipeViewProps> = ({
                                   setQuickConverterState({
                                     isOpen: true,
                                     initialValue: scaledNumericValue,
-                                    initialUnit: item.unit || "cup",
-                                    initialIngredient: item.name || "All-Purpose Flour"
+                                    initialUnit: effectiveUnit || "cup",
+                                    initialIngredient: effectiveName
                                   });
                                   setActiveUnitMenuId(null);
                                 }}
@@ -1909,6 +1954,7 @@ export const RecipeView: FC<RecipeViewProps> = ({
             <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "1.4rem", margin: 0 }}>
               Directions
             </h2>
+            {isQuickEditMode && (
             <button
               type="button"
               onClick={(): void => {
@@ -1933,6 +1979,7 @@ export const RecipeView: FC<RecipeViewProps> = ({
             >
               <PlusIcon width={13} height={13} /> Add Step
             </button>
+            )}
           </div>
 
           {recipe.directionGroups.map((group, groupIndex) => (
@@ -1944,8 +1991,8 @@ export const RecipeView: FC<RecipeViewProps> = ({
               )}
               <ol style={{ listStyle: "none", padding: 0, margin: 0 }}>
                 {group.steps.map((step: Step, stepIndex: number) => {
-                  const isEditingStep = editingStepId === step.id;
-                  const isEditingNote = editingStepNoteId === step.id;
+                  const isEditingStep = isQuickEditMode && editingStepId === step.id;
+                  const isEditingNote = isQuickEditMode && editingStepNoteId === step.id;
                   const convertedStepText = convertStepTemperatures(step.text, unitSystem);
 
                   return (
@@ -2006,11 +2053,12 @@ export const RecipeView: FC<RecipeViewProps> = ({
                           <div>
                             <div
                               onClick={(): void => {
+                                if (!isQuickEditMode) return;
                                 setEditingStepId(step.id);
                                 setEditingStepText(step.text);
                               }}
-                              title="Click to edit step text"
-                              style={{ cursor: "pointer" }}
+                              title={isQuickEditMode ? "Click to edit step text" : undefined}
+                              style={{ cursor: isQuickEditMode ? "pointer" : "default" }}
                             >
                               {convertedStepText}
                             </div>
@@ -2031,6 +2079,7 @@ export const RecipeView: FC<RecipeViewProps> = ({
                                 }}
                               >
                                 <span>Note: {step.note}</span>
+                                {isQuickEditMode && (
                                 <div style={{ display: "flex", gap: "4px" }}>
                                   <button
                                     type="button"
@@ -2055,6 +2104,7 @@ export const RecipeView: FC<RecipeViewProps> = ({
                                     <XIcon width={12} height={12} />
                                   </button>
                                 </div>
+                                )}
                               </div>
                             )}
 
@@ -2114,6 +2164,7 @@ export const RecipeView: FC<RecipeViewProps> = ({
                             )}
 
                             {/* Action Buttons for Step */}
+                            {isQuickEditMode && (
                             <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
                               <button
                                 type="button"
@@ -2166,6 +2217,7 @@ export const RecipeView: FC<RecipeViewProps> = ({
                                 Delete step
                               </button>
                             </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -2182,7 +2234,7 @@ export const RecipeView: FC<RecipeViewProps> = ({
               <h3 style={{ fontFamily: "var(--font-serif)", fontSize: "1.15rem", margin: 0 }}>
                 Cook's Notes
               </h3>
-              {!isEditingNotes && (
+              {isQuickEditMode && !isEditingNotes && (
                 <button
                   type="button"
                   onClick={(): void => setIsEditingNotes(true)}
@@ -2200,7 +2252,7 @@ export const RecipeView: FC<RecipeViewProps> = ({
               )}
             </div>
 
-            {isEditingNotes ? (
+            {isQuickEditMode && isEditingNotes ? (
               <div>
                 {/* Format Helper Toolbar */}
                 <div style={{ display: "flex", gap: "6px", marginBottom: "6px" }}>
@@ -2275,13 +2327,15 @@ export const RecipeView: FC<RecipeViewProps> = ({
               </div>
             ) : recipe.notes ? (
               <p
-                onClick={(): void => setIsEditingNotes(true)}
-                title="Click to edit notes"
-                style={{ color: "var(--text)", lineHeight: 1.5, margin: 0, cursor: "pointer", whiteSpace: "pre-line" }}
+                onClick={(): void => {
+                  if (isQuickEditMode) setIsEditingNotes(true);
+                }}
+                title={isQuickEditMode ? "Click to edit notes" : undefined}
+                style={{ color: "var(--text)", lineHeight: 1.5, margin: 0, cursor: isQuickEditMode ? "pointer" : "default", whiteSpace: "pre-line" }}
               >
                 {recipe.notes}
               </p>
-            ) : (
+            ) : isQuickEditMode ? (
               <div
                 onClick={(): void => setIsEditingNotes(true)}
                 style={{
@@ -2296,6 +2350,10 @@ export const RecipeView: FC<RecipeViewProps> = ({
               >
                 + Click here to add your first cook's note...
               </div>
+            ) : (
+              <p style={{ color: "var(--muted)", fontSize: "0.88rem", fontStyle: "italic", margin: 0 }}>
+                No cook's notes yet.
+              </p>
             )}
           </div>
 
@@ -2489,13 +2547,19 @@ export const RecipeView: FC<RecipeViewProps> = ({
       )}
 
       {/* Universal Unit & Density Converter Modal */}
-      {quickConverterState?.isOpen && (
+      {(quickConverterState?.isOpen || inlineConverterTarget) && (
         <QuickUnitConverterModal
-          initialValue={quickConverterState.initialValue}
-          initialUnit={quickConverterState.initialUnit}
-          initialIngredient={quickConverterState.initialIngredient}
+          initialValue={inlineConverterTarget ? inlineConverterTarget.value : quickConverterState?.initialValue}
+          initialUnit={inlineConverterTarget ? inlineConverterTarget.unit : quickConverterState?.initialUnit}
+          initialIngredient={inlineConverterTarget ? inlineConverterTarget.ingredient : quickConverterState?.initialIngredient}
           userIngredients={userIngredients}
-          onClose={(): void => setQuickConverterState(null)}
+          onApplyConversion={inlineConverterTarget ? (_convertedText: string, targetUnit: string): void => {
+            setIngredientUnitOverrides((prev) => ({ ...prev, [inlineConverterTarget.id]: targetUnit }));
+          } : undefined}
+          onClose={(): void => {
+            setQuickConverterState(null);
+            setInlineConverterTarget(null);
+          }}
         />
       )}
     </div>

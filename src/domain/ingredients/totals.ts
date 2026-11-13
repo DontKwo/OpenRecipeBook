@@ -231,7 +231,7 @@ export function computeIngredientTotals(
         formattedNumber = formatFractionalNumber(totalG);
         unitStr = "g";
       }
-      totalDisplay = `\u2248 ${formattedNumber} ${unitStr} ${group.fallbackName}`.trim();
+      totalDisplay = `≈ ${formattedNumber} ${unitStr} ${group.fallbackName}`.trim();
     } else if (group.allSameUnit) {
       if (isRange) {
         const promotedMin = promoteUnit(totalNumericMin, group.allSameUnit);

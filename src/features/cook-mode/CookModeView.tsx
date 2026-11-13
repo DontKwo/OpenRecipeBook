@@ -421,7 +421,7 @@ export const CookModeView: FC<CookModeViewProps> = ({
                 opacity: currentStepIndex >= allSteps.length - 1 ? 0.5 : 1
               }}
             >
-              {currentStepIndex >= allSteps.length - 1 ? "Finished Cooking!" : "Next Step \u2192"}
+              {currentStepIndex >= allSteps.length - 1 ? "Finished Cooking!" : "Next Step"}
             </button>
           </div>
         </div>
