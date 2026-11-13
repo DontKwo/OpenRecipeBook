@@ -8,14 +8,15 @@ Choose the version that fits your workflow:
 
 | Platform | Download / Link | Notes |
 |---|---|---|
+| **Android** | [Download Android APK](https://github.com/DontKwo/OpenRecipeBook/releases/latest/download/OpenRecipeBook-Android.apk) | Standalone native Android application (.apk). Direct install with offline storage, camera support, and native URL import. |
+| **Windows PC** | [Download Windows Package](https://github.com/DontKwo/OpenRecipeBook/releases/latest/download/OpenRecipeBook-Windows-Portable.zip) | Native desktop app with unconstrained HTTP for direct website recipe importing. |
 | **Web App (PWA)** | [Open Web App](https://dontkwo.github.io/OpenRecipeBook/) | Instant access in any modern browser. Supports offline use and browser installation. |
-| **Windows PC** | [Download Windows Package](https://github.com/DontKwo/OpenRecipeBook/releases) | Native desktop app with unconstrained HTTP for direct website recipe importing. |
-| **Android** | [Install Web App](https://dontkwo.github.io/OpenRecipeBook/) or [Releases](https://github.com/DontKwo/OpenRecipeBook/releases) | In Chrome or mobile browsers, tap "Install" or "Add to Home screen" to install instantly with offline support. Release packages published under Releases. |
 
 ### Which Version Should You Use?
 
-- **Web App (PWA):** Best for quick access without downloading installers. Runs offline after initial visit. On Android or desktop Chromium, tap "Install" in your browser address bar or menu.
+- **Android App:** Download the `.apk` file directly to your Android device and tap to install. Operates fully offline, uses native file and photo picking, and allows sharing recipe links from your browser straight into OpenRecipeBook.
 - **Windows Desktop:** Best for importing recipes directly from URLs without browser CORS restrictions. Available as a portable zip from [GitHub Releases](https://github.com/DontKwo/OpenRecipeBook/releases). Unsigned releases may show a standard Windows SmartScreen prompt on first run; click "More info" then "Run anyway".
+- **Web App (PWA):** Best for instant access in any browser without downloading files. Runs offline after initial visit. On Android or desktop Chromium, tap "Install" in your browser address bar or menu.
 - **Bridging Devices:** Each device maintains its own local IndexedDB storage. Use the built-in full backup export (`.openrecipebook.zip`) or single recipe export (`.recipe.json`) to transfer recipes between PC and Android.
 
 ## Key Features

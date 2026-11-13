@@ -14,10 +14,10 @@ This document records technical decisions and architectural choices made during 
 - Context: Section 0 of DESIGN.md requires every user-facing occurrence of the name and package id in one location.
 - Rationale: Allows rebranding or configuration updates with minimal edits.
 
-### D-003: Mobile Wrapper: Capacitor
-- Choice: Capacitor container for Android packaging.
+### D-003: Mobile Wrapper: Android Native Container with WebViewAssetLoader
+- Choice: Standard Android Gradle container with AndroidX WebViewAssetLoader.
 - Context: Section 2 and Section 10 of DESIGN.md require an installable APK for Android distribution.
-- Rationale: First-class Android WebView support, access to native sharing sheets, and native HTTP capabilities without requiring an external proxy server.
+- Rationale: First-class Android WebView support with secure `https://appassets.androidplatform.net` origin, access to native sharing sheets, camera file picking, and native HTTP capabilities without requiring an external proxy server or complex CLI toolchain.
 
 ### D-004: Desktop Wrapper: Electron
 - Choice: Electron shell for Windows desktop installer.

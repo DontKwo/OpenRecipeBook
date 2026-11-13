@@ -22,6 +22,12 @@ interface NativeElectronWindow {
   };
 }
 
+interface NativeAndroidWindow {
+  AndroidBridge?: {
+    fetchUrl: (url: string) => string;
+  };
+}
+
 interface NativeCapacitorWindow {
   Capacitor?: {
     isNativePlatform?: () => boolean;
@@ -43,6 +49,7 @@ export async function fetchRecipePage(targetUrl: string): Promise<FetchPageResul
   }
 
   const electronWindow = window as unknown as NativeElectronWindow;
+  const androidWindow = window as unknown as NativeAndroidWindow;
   const capacitorWindow = window as unknown as NativeCapacitorWindow;
 
   // 1. Electron desktop native environment
@@ -58,7 +65,21 @@ export async function fetchRecipePage(targetUrl: string): Promise<FetchPageResul
     }
   }
 
-  // 2. Capacitor Android native environment
+  // 2. Android native environment via AndroidBridge
+  if (androidWindow.AndroidBridge?.fetchUrl) {
+    try {
+      const raw = androidWindow.AndroidBridge.fetchUrl(targetUrl);
+      const parsed = JSON.parse(raw) as { ok?: boolean; html?: string; error?: string };
+      if (parsed.ok && parsed.html) {
+        return { ok: true, html: parsed.html };
+      }
+      return { ok: false, error: parsed.error || "Failed to fetch webpage" };
+    } catch (err: unknown) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  // 3. Capacitor Android native environment
   if (capacitorWindow.Capacitor?.isNativePlatform?.() && capacitorWindow.Capacitor.Plugins?.CapacitorHttp) {
     try {
       const response = await capacitorWindow.Capacitor.Plugins.CapacitorHttp.get({ url: targetUrl });

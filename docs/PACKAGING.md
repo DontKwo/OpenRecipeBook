@@ -61,13 +61,13 @@ Compress-Archive -Path build/windows/* -DestinationPath build/OpenRecipeBook-Win
 
 ---
 
-## 3. Android Mobile Application (Capacitor)
+## 3. Android Mobile Application
 
-OpenRecipeBook includes a root `capacitor.config.ts` configured for the package identifier `org.openrecipebook.app`.
+The Android project is housed under `android/` and uses standard Android Gradle with AndroidX WebKit Asset Loader to run OpenRecipeBook in a native app container with offline storage and native HTTP URL fetching.
 
 ### Prerequisites
 
-- Android Studio with Android SDK Platform 34+.
+- Android Studio or Android SDK Command-line Tools (Platform 34).
 - Java Development Kit (JDK) 17+.
 - Node.js 18+.
 
@@ -77,19 +77,18 @@ OpenRecipeBook includes a root `capacitor.config.ts` configured for the package 
 # 1. Build production web assets
 npm run build
 
-# 2. Add Android platform (first time only)
-npx cap add android
+# 2. Sync web assets into Android project
+mkdir -p android/app/src/main/assets
+cp -r dist/* android/app/src/main/assets/
 
-# 3. Sync web assets into Android project
-npx cap sync android
-
-# 4. Open in Android Studio or build via Gradle
+# 3. Build via Gradle
 cd android
-./gradlew assembleDebug
+gradle assembleRelease
 ```
 
-The compiled APK will be output to:
-`android/app/build/outputs/apk/debug/app-debug.apk`
+The compiled APK is output to:
+`android/app/build/outputs/apk/release/app-release.apk`
+(Packaged as `OpenRecipeBook-Android.apk` in GitHub Releases).
 
 ### Android Integrations
 

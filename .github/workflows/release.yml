@@ -10,7 +10,7 @@ permissions:
   contents: write
 
 jobs:
-  build-and-release:
+  build-windows:
     runs-on: windows-latest
     steps:
       - name: Checkout Code
@@ -40,15 +40,92 @@ jobs:
           Copy-Item package.json build/windows/package.json
           Compress-Archive -Path build/windows/* -DestinationPath build/OpenRecipeBook-Windows-Portable.zip -Force
 
-      - name: Generate Checksums
-        shell: pwsh
+      - name: Upload Windows Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-package
+          path: build/OpenRecipeBook-Windows-Portable.zip
+
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Web Application
+        run: npm run build
+
+      - name: Sync Web Assets to Android App
         run: |
-          Get-FileHash -Algorithm SHA256 build/OpenRecipeBook-Windows-Portable.zip | ForEach-Object { "$($_.Hash)  $($_.Path | Split-Path -Leaf)" } | Out-File -Encoding ASCII build/SHA256SUMS.txt
+          mkdir -p android/app/src/main/assets
+          cp -r dist/* android/app/src/main/assets/
+
+      - name: Build Android APK
+        run: |
+          cd android
+          gradle assembleRelease
+
+      - name: Prepare APK Package
+        run: |
+          mkdir -p build
+          cp android/app/build/outputs/apk/release/app-release.apk build/OpenRecipeBook-Android.apk
+
+      - name: Upload Android Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-package
+          path: build/OpenRecipeBook-Android.apk
+
+  publish-release:
+    needs: [build-windows, build-android]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Create Build Directory
+        run: mkdir -p build
+
+      - name: Download Windows Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-package
+          path: build
+
+      - name: Download Android Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: android-package
+          path: build
+
+      - name: Generate Checksums
+        run: |
+          cd build
+          sha256sum OpenRecipeBook-Windows-Portable.zip OpenRecipeBook-Android.apk > SHA256SUMS.txt
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             build/OpenRecipeBook-Windows-Portable.zip
+            build/OpenRecipeBook-Android.apk
             build/SHA256SUMS.txt
           generate_release_notes: true

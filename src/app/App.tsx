@@ -187,7 +187,7 @@ export const App: FC = (): ReactElement => {
       }
     }
 
-    // Check for bookmarklet hash import: #import=<json>
+    // Check for bookmarklet hash import: #import=<json> or #import-url=<url>
     if (window.location.hash.startsWith("#import=")) {
       try {
         const rawJson = decodeURIComponent(window.location.hash.substring(8));
@@ -197,6 +197,20 @@ export const App: FC = (): ReactElement => {
           setImportCandidates(imported);
         }
         window.history.replaceState(null, "", window.location.pathname);
+      } catch {
+        // Ignore invalid hash
+      }
+    } else if (window.location.hash.startsWith("#import-url=")) {
+      try {
+        const rawUrl = decodeURIComponent(window.location.hash.substring(12));
+        window.history.replaceState(null, "", window.location.pathname);
+        importRecipesFromUrl(rawUrl)
+          .then((result) => {
+            if (result.ok && result.recipes.length > 0) {
+              setImportCandidates(result.recipes);
+            }
+          })
+          .catch(() => {});
       } catch {
         // Ignore invalid hash
       }
