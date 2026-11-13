@@ -181,11 +181,16 @@ This document tracks development progress, technical learnings, and next steps a
   - Explicitly flagged unmatched ingredients (`isMatched: false`).
 
 ### Phase 4: Distribution (COMPLETED)
-- [x] Android wrapper packaging configuration (`capacitor.config.ts`).
+- [x] Android native wrapper application (`android/`):
+  - Built with AndroidX WebKit Asset Loader (`WebViewAssetLoader`) serving app assets over secure origin `https://appassets.androidplatform.net`.
+  - Offline IndexedDB and local storage support.
+  - Native file chooser with gallery photo picking and camera capture.
+  - Native HTTP fetch bridge (`AndroidBridge.fetchUrl`) for CORS-free recipe importing on mobile.
+  - Android Share sheet target: receives shared recipe URLs directly from Chrome, Firefox, and mobile browsers.
 - [x] Windows desktop Electron wrapper with native CORS-free HTTP fetching (`electron/main.cjs`, `electron/preload.cjs`, `src/domain/import/nativeFetch.ts`).
-- [x] GitHub Releases automated packaging workflow (`.github/workflows/release.yml`) building portable Windows desktop release and SHA-256 checksums on `v*` tags.
+- [x] GitHub Releases automated packaging workflow (`.github/workflows/release.yml`) building both portable Windows desktop package (`OpenRecipeBook-Windows-Portable.zip`) and Android APK (`OpenRecipeBook-Android.apk`) with SHA-256 checksums on `v*` tags.
 - [x] Packaging and Distribution documentation guide (`docs/PACKAGING.md`).
-- [x] README documentation updated with download table, install links, architecture guide, and bookmarklet instructions.
+- [x] README documentation updated with direct APK download link, Windows package download, web app launch, and architecture guide.
 - [x] Open file format specification documented (`docs/FILE_FORMAT.md`).
 - [x] Synthetic Recipe Keeper multi-recipe fixtures and 100% dictionary match coverage tests (`tests/fixtures/syntheticRecipeKeeper.ts`, `tests/samples.test.ts`).
 
