@@ -1,0 +1,121 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border-radius: var(--radius-full);
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  user-select: none;
+  text-decoration: none;
+  min-height: var(--touch-target);
+  padding: 0 var(--space-4);
+  font-size: 0.9375rem;
+  background: transparent;
+  color: var(--text);
+  box-sizing: border-box;
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Variants */
+.primary {
+  background-color: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
+}
+
+.primary:hover:not(:disabled) {
+  opacity: 0.92;
+  box-shadow: var(--shadow-sm);
+}
+
+.secondary {
+  background-color: var(--surface-alt);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.secondary:hover:not(:disabled) {
+  background-color: var(--border);
+}
+
+.outline {
+  background-color: transparent;
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.outline:hover:not(:disabled) {
+  background-color: var(--surface-alt);
+  border-color: var(--muted);
+}
+
+.ghost {
+  background-color: transparent;
+  color: var(--text);
+  border-color: transparent;
+}
+
+.ghost:hover:not(:disabled) {
+  background-color: var(--surface-alt);
+}
+
+.danger {
+  background-color: transparent;
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.danger:hover:not(:disabled) {
+  background-color: var(--danger);
+  color: #ffffff;
+}
+
+/* Sizes */
+.sizeSm {
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  font-size: 0.8125rem;
+}
+
+.sizeMd {
+  min-height: var(--touch-target);
+  padding: 0 var(--space-4);
+  font-size: 0.9375rem;
+}
+
+.sizeLg {
+  min-height: 48px;
+  padding: 0 var(--space-6);
+  font-size: 1rem;
+}
+
+/* Icon button */
+.iconOnly {
+  padding: 0;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  min-width: var(--touch-target);
+  border-radius: var(--radius-full);
+}
+
+.iconOnly.sizeSm {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+}
+
+.iconOnly.sizeLg {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  min-height: 48px;
+}

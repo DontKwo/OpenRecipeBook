@@ -1,0 +1,67 @@
+.toastContainer {
+  position: fixed;
+  bottom: calc(var(--safe-bottom) + 76px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  pointer-events: none;
+  width: calc(100% - 32px);
+  max-width: 420px;
+}
+
+@media (min-width: 768px) {
+  .toastContainer {
+    bottom: var(--space-6);
+  }
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  background-color: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-3) var(--space-4);
+  font-size: 0.9375rem;
+  animation: popUp 180ms ease;
+}
+
+.message {
+  flex: 1;
+  word-break: break-word;
+}
+
+.undoButton {
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  font-weight: 700;
+  cursor: pointer;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.undoButton:hover {
+  background-color: var(--surface-alt);
+}
+
+@keyframes popUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
