@@ -8,14 +8,14 @@ Choose the version that fits your workflow:
 
 | Platform | Download / Link | Notes |
 |---|---|---|
-| **Web App (PWA)** | [Open Web App](https://josh.github.io/OpenRecipeBook/) | Instant access in any modern browser. Supports offline use and browser installation. |
-| **Windows PC** | [Download Windows Package](https://github.com/Josh/OpenRecipeBook/releases/latest) | Native desktop app with unconstrained HTTP for direct website recipe importing. |
-| **Android** | [Download Android Package](https://github.com/Josh/OpenRecipeBook/releases/latest) | Mobile package for Android devices. |
+| **Web App (PWA)** | [Open Web App](https://dontkwo.github.io/OpenRecipeBook/) | Instant access in any modern browser. Supports offline use and browser installation. |
+| **Windows PC** | [Download Windows Package](https://github.com/DontKwo/OpenRecipeBook/releases) | Native desktop app with unconstrained HTTP for direct website recipe importing. |
+| **Android** | [Install Web App](https://dontkwo.github.io/OpenRecipeBook/) or [Releases](https://github.com/DontKwo/OpenRecipeBook/releases) | In Chrome or mobile browsers, tap "Install" or "Add to Home screen" to install instantly with offline support. Release packages published under Releases. |
 
 ### Which Version Should You Use?
 
-- **Web App (PWA):** Best for quick access without downloading installers. Runs offline after initial visit. On Android or desktop Chromium, tap "Install" in your browser address bar.
-- **Windows Desktop:** Best for importing recipes directly from URLs without browser CORS restrictions. Unsigned releases may show a standard Windows SmartScreen prompt on first run; click "More info" then "Run anyway".
+- **Web App (PWA):** Best for quick access without downloading installers. Runs offline after initial visit. On Android or desktop Chromium, tap "Install" in your browser address bar or menu.
+- **Windows Desktop:** Best for importing recipes directly from URLs without browser CORS restrictions. Available as a portable zip from [GitHub Releases](https://github.com/DontKwo/OpenRecipeBook/releases). Unsigned releases may show a standard Windows SmartScreen prompt on first run; click "More info" then "Run anyway".
 - **Bridging Devices:** Each device maintains its own local IndexedDB storage. Use the built-in full backup export (`.openrecipebook.zip`) or single recipe export (`.recipe.json`) to transfer recipes between PC and Android.
 
 ## Key Features
@@ -35,7 +35,7 @@ To capture recipes while browsing on desktop browsers without installing extra s
 1. Create a new browser bookmark named `Save to OpenRecipeBook`.
 2. Paste this code into the URL field:
    ```javascript
-   javascript:(function(){var s=document.querySelectorAll('script[type="application/ld+json"]');var r=null;for(var i=0;i<s.length;i++){try{var p=JSON.parse(s[i].textContent||"");var c=function(n){if(!n||typeof n!=="object")return;var t=n["@type"];if(t==="Recipe"||(Array.isArray(t)&&t.includes("Recipe"))){r=n;}if(Array.isArray(n["@graph"])){n["@graph"].forEach(c);}};c(p);if(r)break;}catch(e){}}if(!r){alert("No recipe data found on this page.");return;}window.open("https://josh.github.io/OpenRecipeBook/#import="+encodeURIComponent(JSON.stringify(r)),"_blank");})();
+   javascript:(function(){var s=document.querySelectorAll('script[type="application/ld+json"]');var r=null;for(var i=0;i<s.length;i++){try{var p=JSON.parse(s[i].textContent||"");var c=function(n){if(!n||typeof n!=="object")return;var t=n["@type"];if(t==="Recipe"||(Array.isArray(t)&&t.includes("Recipe"))){r=n;}if(Array.isArray(n["@graph"])){n["@graph"].forEach(c);}};c(p);if(r)break;}catch(e){}}if(!r){alert("No recipe data found on this page.");return;}window.open("https://dontkwo.github.io/OpenRecipeBook/#import="+encodeURIComponent(JSON.stringify(r)),"_blank");})();
    ```
 3. Click the bookmark on any recipe page to send it straight to your OpenRecipeBook review screen.
 

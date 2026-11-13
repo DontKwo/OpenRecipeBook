@@ -30,6 +30,6 @@
   }
 
   const encoded = encodeURIComponent(JSON.stringify(recipeData));
-  const appUrl = "https://josh.github.io/OpenRecipeBook/#import=" + encoded;
+  const appUrl = "https://dontkwo.github.io/OpenRecipeBook/#import=" + encoded;
   window.open(appUrl, "_blank");
 })();

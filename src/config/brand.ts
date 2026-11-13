@@ -11,5 +11,5 @@ export const BRAND: BrandConfig = {
   shortName: "RecipeBook",
   packageId: "org.openrecipebook.app",
   tagline: "Free personal cookbook manager",
-  repositoryUrl: "https://github.com/Josh/OpenRecipeBook"
+  repositoryUrl: "https://github.com/DontKwo/OpenRecipeBook"
 };
