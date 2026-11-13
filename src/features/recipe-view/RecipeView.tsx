@@ -33,6 +33,13 @@ import {
 } from "../../domain/recipe/recipeModifier";
 import { saveRecipeVersion } from "../../domain/recipe/versionHistory";
 import { RecipeHistoryModal } from "./RecipeHistoryModal";
+import {
+  convertIngredientUnit,
+  VOLUME_UNITS,
+  WEIGHT_UNITS,
+  type SupportedUnit
+} from "../../domain/scaling/universalConverter";
+import { QuickUnitConverterModal } from "./QuickUnitConverterModal";
 import { BUILT_IN_INGREDIENTS } from "../../data/defaultIngredients";
 import { db } from "../../data/db";
 import {
@@ -47,7 +54,8 @@ import {
   XIcon,
   PlusIcon,
   CheckIcon,
-  HistoryIcon
+  HistoryIcon,
+  ConvertIcon
 } from "../../ui/icons";
 
 export interface RecipeViewProps {
@@ -127,6 +135,16 @@ export const RecipeView: FC<RecipeViewProps> = ({
   // Inline step note editor
   const [editingStepNoteId, setEditingStepNoteId] = useState<string | null>(null);
   const [stepNoteText, setStepNoteText] = useState<string>("");
+
+  // Unit conversion state per ingredient
+  const [ingredientUnitOverrides, setIngredientUnitOverrides] = useState<Record<string, string>>({});
+  const [activeUnitMenuId, setActiveUnitMenuId] = useState<string | null>(null);
+  const [quickConverterState, setQuickConverterState] = useState<{
+    isOpen: boolean;
+    initialValue?: number;
+    initialUnit?: string;
+    initialIngredient?: string;
+  } | null>(null);
 
   // Saved pulse and undo snackbar
   const [showSavedIndicator, setShowSavedIndicator] = useState<boolean>(false);
@@ -704,6 +722,31 @@ export const RecipeView: FC<RecipeViewProps> = ({
             title="View saved version history and undo changes"
           >
             <HistoryIcon width={15} height={15} /> History
+          </button>
+
+          <button
+            type="button"
+            onClick={(): void => setQuickConverterState({
+              isOpen: true,
+              initialValue: 100,
+              initialUnit: "g",
+              initialIngredient: "All-Purpose Flour"
+            })}
+            style={{
+              background: "var(--surface)",
+              color: "var(--text)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-full)",
+              padding: "8px 12px",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "4px",
+              cursor: "pointer",
+              fontSize: "0.85rem"
+            }}
+            title="Convert any unit, volume, weight, and ingredient density"
+          >
+            <ConvertIcon width={15} height={15} /> Unit Converter
           </button>
 
           <button
@@ -1570,81 +1613,266 @@ export const RecipeView: FC<RecipeViewProps> = ({
                       );
                     }
 
+                    const baseNumericValue = item.quantity
+                      ? (item.quantity.kind === "single" ? item.quantity.value : item.quantity.max)
+                      : undefined;
+                    const scaledNumericValue = baseNumericValue !== undefined ? baseNumericValue * multiplier : undefined;
+                    const customTargetUnit = ingredientUnitOverrides[item.id];
+                    const activeConversion = (scaledNumericValue !== undefined && item.unit && customTargetUnit)
+                      ? convertIngredientUnit(scaledNumericValue, item.unit, customTargetUnit, item.name, undefined, combinedDictionary)
+                      : null;
+
                     return (
                       <li
                         key={item.id}
                         style={{
                           display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
+                          flexDirection: "column",
                           padding: "6px 0",
                           borderBottom: "1px solid var(--border)"
                         }}
                       >
-                        <div
-                          onClick={(): void => toggleIngredientChecked(item.id)}
-                          style={{
-                            display: "flex",
-                            alignItems: "flex-start",
-                            gap: "var(--space-3)",
-                            cursor: "pointer",
-                            textDecoration: isChecked ? "line-through" : "none",
-                            color: isChecked ? "var(--muted)" : "var(--text)",
-                            flex: 1
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={(): void => {}}
-                            style={{ marginTop: "4px", cursor: "pointer" }}
-                          />
-                          <span style={{ fontVariantNumeric: "tabular-nums", lineHeight: 1.4 }}>
-                            {displayItem.formattedText}
-                            {scaled.hint && (
-                              <span style={{ display: "block", fontSize: "0.78rem", color: "var(--muted)", fontStyle: "italic" }}>
-                                ({scaled.hint})
-                              </span>
-                            )}
-                          </span>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+                          <div
+                            onClick={(): void => toggleIngredientChecked(item.id)}
+                            style={{
+                              display: "flex",
+                              alignItems: "flex-start",
+                              gap: "var(--space-3)",
+                              cursor: "pointer",
+                              textDecoration: isChecked ? "line-through" : "none",
+                              color: isChecked ? "var(--muted)" : "var(--text)",
+                              flex: 1
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(): void => {}}
+                              style={{ marginTop: "4px", cursor: "pointer" }}
+                            />
+                            <span style={{ fontVariantNumeric: "tabular-nums", lineHeight: 1.4 }}>
+                              {activeConversion?.success ? (
+                                <span>
+                                  <strong>{activeConversion.formattedAmount} {activeConversion.targetUnit}</strong> {item.name || ""}
+                                  <span style={{ fontSize: "0.75rem", color: "var(--accent)", fontStyle: "italic", marginLeft: "6px" }}>
+                                    (from {displayItem.formattedText})
+                                  </span>
+                                </span>
+                              ) : (
+                                displayItem.formattedText
+                              )}
+                              {scaled.hint && (
+                                <span style={{ display: "block", fontSize: "0.78rem", color: "var(--muted)", fontStyle: "italic" }}>
+                                  ({scaled.hint})
+                                </span>
+                              )}
+                            </span>
+                          </div>
+
+                          {/* Unit conversion selector pill */}
+                          {scaledNumericValue !== undefined && item.unit && (
+                            <button
+                              type="button"
+                              onClick={(e): void => {
+                                e.stopPropagation();
+                                setActiveUnitMenuId(activeUnitMenuId === item.id ? null : item.id);
+                              }}
+                              style={{
+                                background: customTargetUnit ? "var(--accent)" : "var(--surface-alt)",
+                                color: customTargetUnit ? "var(--accent-contrast)" : "var(--text)",
+                                border: "1px solid var(--border)",
+                                borderRadius: "var(--radius-full)",
+                                padding: "2px 8px",
+                                fontSize: "0.72rem",
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "3px",
+                                marginLeft: "6px"
+                              }}
+                              title="Click to convert unit (e.g. cup to tbsp, grams, oz...)"
+                            >
+                              <ConvertIcon width={11} height={11} /> {customTargetUnit || item.unit}
+                            </button>
+                          )}
+
+                          {/* Inline Actions on Hover */}
+                          <div style={{ display: "flex", gap: "2px", alignItems: "center", marginLeft: "6px" }}>
+                            <button
+                              type="button"
+                              onClick={(): void => {
+                                setEditingIngredientId(item.id);
+                                setEditingIngredientRaw(item.raw);
+                              }}
+                              title="Edit ingredient line"
+                              style={{
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                color: "var(--muted)",
+                                padding: "4px",
+                                borderRadius: "4px"
+                              }}
+                            >
+                              <EditIcon width={14} height={14} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(): void => handleDeleteIngredient(groupIndex, itemIndex)}
+                              title="Delete ingredient line"
+                              style={{
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                color: "var(--danger)",
+                                padding: "4px",
+                                borderRadius: "4px"
+                              }}
+                            >
+                              <TrashIcon width={14} height={14} />
+                            </button>
+                          </div>
                         </div>
 
-                        {/* Inline Actions on Hover */}
-                        <div style={{ display: "flex", gap: "2px", alignItems: "center", marginLeft: "6px" }}>
-                          <button
-                            type="button"
-                            onClick={(): void => {
-                              setEditingIngredientId(item.id);
-                              setEditingIngredientRaw(item.raw);
-                            }}
-                            title="Edit ingredient line"
+                        {/* Dropdown Menu for Unit Conversion on this ingredient */}
+                        {activeUnitMenuId === item.id && scaledNumericValue !== undefined && item.unit && (
+                          <div
+                            onClick={(e): void => e.stopPropagation()}
                             style={{
-                              background: "none",
-                              border: "none",
-                              cursor: "pointer",
-                              color: "var(--muted)",
-                              padding: "4px",
-                              borderRadius: "4px"
+                              marginTop: "8px",
+                              padding: "10px 12px",
+                              background: "var(--surface)",
+                              border: "1px solid var(--border)",
+                              borderRadius: "var(--radius-md)",
+                              boxShadow: "var(--shadow-md)",
+                              zIndex: 10
                             }}
                           >
-                            <EditIcon width={14} height={14} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(): void => handleDeleteIngredient(groupIndex, itemIndex)}
-                            title="Delete ingredient line"
-                            style={{
-                              background: "none",
-                              border: "none",
-                              cursor: "pointer",
-                              color: "var(--danger)",
-                              padding: "4px",
-                              borderRadius: "4px"
-                            }}
-                          >
-                            <TrashIcon width={14} height={14} />
-                          </button>
-                        </div>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                              <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase" }}>
+                                Convert Unit for {item.name || "ingredient"}
+                              </span>
+                              {customTargetUnit && (
+                                <button
+                                  type="button"
+                                  onClick={(): void => {
+                                    setIngredientUnitOverrides((prev) => {
+                                      const copy = { ...prev };
+                                      delete copy[item.id];
+                                      return copy;
+                                    });
+                                    setActiveUnitMenuId(null);
+                                  }}
+                                  style={{
+                                    background: "none",
+                                    border: "none",
+                                    color: "var(--accent)",
+                                    fontSize: "0.75rem",
+                                    cursor: "pointer",
+                                    fontWeight: 600
+                                  }}
+                                >
+                                  Reset to {item.unit}
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Volume units list */}
+                            <div style={{ marginBottom: "6px" }}>
+                              <div style={{ fontSize: "0.7rem", color: "var(--muted)", fontWeight: 700, marginBottom: "3px" }}>
+                                VOLUME UNITS
+                              </div>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                                {VOLUME_UNITS.map((u: SupportedUnit) => {
+                                  const preview = convertIngredientUnit(scaledNumericValue, item.unit || "cup", u, item.name, undefined, combinedDictionary);
+                                  const isCurrent = (customTargetUnit || item.unit) === u;
+                                  return (
+                                    <button
+                                      key={u}
+                                      type="button"
+                                      onClick={(): void => {
+                                        setIngredientUnitOverrides((prev) => ({ ...prev, [item.id]: u }));
+                                        setActiveUnitMenuId(null);
+                                      }}
+                                      style={{
+                                        background: isCurrent ? "var(--accent)" : "var(--surface-alt)",
+                                        color: isCurrent ? "var(--accent-contrast)" : "var(--text)",
+                                        border: "1px solid " + (isCurrent ? "var(--accent)" : "var(--border)"),
+                                        borderRadius: "var(--radius-sm)",
+                                        padding: "2px 6px",
+                                        fontSize: "0.75rem",
+                                        cursor: "pointer"
+                                      }}
+                                    >
+                                      {u} ({preview.formattedAmount})
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            {/* Weight units list with density */}
+                            <div style={{ marginBottom: "6px" }}>
+                              <div style={{ fontSize: "0.7rem", color: "var(--muted)", fontWeight: 700, marginBottom: "3px" }}>
+                                WEIGHT UNITS (DENSITY CONVERTED)
+                              </div>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                                {WEIGHT_UNITS.map((u: SupportedUnit) => {
+                                  const preview = convertIngredientUnit(scaledNumericValue, item.unit || "cup", u, item.name, undefined, combinedDictionary);
+                                  const isCurrent = (customTargetUnit || item.unit) === u;
+                                  return (
+                                    <button
+                                      key={u}
+                                      type="button"
+                                      onClick={(): void => {
+                                        setIngredientUnitOverrides((prev) => ({ ...prev, [item.id]: u }));
+                                        setActiveUnitMenuId(null);
+                                      }}
+                                      style={{
+                                        background: isCurrent ? "var(--accent)" : "var(--surface-alt)",
+                                        color: isCurrent ? "var(--accent-contrast)" : "var(--text)",
+                                        border: "1px solid " + (isCurrent ? "var(--accent)" : "var(--border)"),
+                                        borderRadius: "var(--radius-sm)",
+                                        padding: "2px 6px",
+                                        fontSize: "0.75rem",
+                                        cursor: "pointer"
+                                      }}
+                                    >
+                                      {u} ({preview.formattedAmount})
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            {/* Launch Full Converter Link */}
+                            <div style={{ textAlign: "right", marginTop: "4px" }}>
+                              <button
+                                type="button"
+                                onClick={(): void => {
+                                  setQuickConverterState({
+                                    isOpen: true,
+                                    initialValue: scaledNumericValue,
+                                    initialUnit: item.unit || "cup",
+                                    initialIngredient: item.name || "All-Purpose Flour"
+                                  });
+                                  setActiveUnitMenuId(null);
+                                }}
+                                style={{
+                                  background: "none",
+                                  border: "none",
+                                  color: "var(--accent)",
+                                  fontSize: "0.75rem",
+                                  cursor: "pointer",
+                                  textDecoration: "underline"
+                                }}
+                              >
+                                Open Full All-Units Table &rarr;
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </li>
                     );
                   })}
@@ -2241,6 +2469,17 @@ export const RecipeView: FC<RecipeViewProps> = ({
           onClose={(): void => setLightboxIndex(null)}
           onSetHero={handleSetHero}
           onDeletePhoto={handleDeletePhoto}
+        />
+      )}
+
+      {/* Universal Unit & Density Converter Modal */}
+      {quickConverterState?.isOpen && (
+        <QuickUnitConverterModal
+          initialValue={quickConverterState.initialValue}
+          initialUnit={quickConverterState.initialUnit}
+          initialIngredient={quickConverterState.initialIngredient}
+          userIngredients={userIngredients}
+          onClose={(): void => setQuickConverterState(null)}
         />
       )}
     </div>

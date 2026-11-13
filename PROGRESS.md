@@ -13,7 +13,7 @@ This document tracks development progress, technical learnings, and next steps a
   - **Phase 3 (Extras):** Complete.
   - **Phase 4 (Distribution):** Complete.
 - Stack: Vite 5 + React 18 + TypeScript (strict mode), Dexie 4 (IndexedDB), CSS variables for design system tokens, MiniSearch for full-text search, fflate for zip/gzip compression, Vitest for unit testing.
-- Test Status: 129 unit tests passing across 25 test suites (`tests/*.test.ts`).
+- Test Status: 138 unit tests passing across 26 test suites (`tests/*.test.ts`).
 - Production Build: Passing (`npm run build`), generating service worker precache and PWA manifests.
 - Lint Status: Clean (`claudemd_linter.py . --level strict`).
 
@@ -131,6 +131,12 @@ This document tracks development progress, technical learnings, and next steps a
   - Floating batch action bar: Select All, Deselect All, Send to Totals, Add Tag, Assign Collection, Export ZIP, Trash.
   - Dedicated batch export engine (`exportRecipesBatchZip`) producing valid OpenRecipeBook archive zips.
 - [x] Backup folder service via File System Access API (`src/domain/backup/backupFolder.ts`).
+- [x] Universal Unit & Density Conversion Engine (`src/domain/scaling/universalConverter.ts`, `src/domain/scaling/density.ts`, `src/features/recipe-view/QuickUnitConverterModal.tsx`, `RecipeView.tsx`):
+  - 13 supported units: 9 volume (`tsp`, `tbsp`, `fl oz`, `cup`, `pint`, `quart`, `gallon`, `ml`, `l`) and 4 weight (`g`, `kg`, `oz`, `lb`).
+  - Cross-family conversions (volume <-> weight) powered by expanded USDA density database for 30+ staples (flours, sugars, butter, oils, dairy, syrups, grains, salts, leaveners).
+  - Inline unit converter pill `[⇌ unit]` on every ingredient row in `RecipeView` allowing one-tap switching to any target unit with auto-detected ingredient density.
+  - Quick Unit Converter modal in top navigation bar displaying 13-unit simultaneous conversion matrix and interactive ingredient density chips.
+  - Fractions formatted cleanly for kitchen use (e.g. `1/4 cup` -> `4 tbsp`, `100g flour` -> `12 ¾ tbsp`).
 - [x] Density lookup table (`src/domain/scaling/density.ts`) for volume and weight conversions.
 - [x] "My ingredients" user dictionary manager in Settings (`src/features/settings/UserIngredientsModal.tsx`):
   - Add custom ingredients with aliases, aisles, and densities.
