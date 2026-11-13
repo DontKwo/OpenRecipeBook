@@ -1445,15 +1445,8 @@ export const RecipeView: FC<RecipeViewProps> = ({
         )}
       </div>
 
-      {/* Two-Column Layout on Desktop: Sticky Ingredients on Left, Directions on Right */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(280px, 380px) 1fr",
-          gap: "var(--space-8)",
-          margin: "0 var(--space-6)"
-        }}
-      >
+      {/* Two-Column Layout on Desktop, Single Column on Mobile */}
+      <div className="recipe-view-grid">
         {/* Ingredients Column */}
         <div>
           <div style={{ position: "sticky", top: "var(--space-4)", background: "var(--surface)", padding: "var(--space-6)", borderRadius: "var(--radius-md)", border: "1px solid var(--border)" }}>

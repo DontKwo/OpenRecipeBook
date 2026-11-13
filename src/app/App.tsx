@@ -38,13 +38,14 @@ import {
   SettingsIcon,
   CalendarIcon,
   ShoppingCartIcon,
+  PlusIcon,
   XIcon
 } from "../ui/icons";
 
 type ActiveTab = "library" | "recipe-view" | "editor" | "totals" | "planner" | "shopping" | "settings" | "gallery";
 
 export const App: FC = (): ReactElement => {
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [recipes, setRecipes] = useState<Recipe[]>(SAMPLE_RECIPES);
   const [trashedRecipes, setTrashedRecipes] = useState<Recipe[]>([]);
   const [shoppingLists, setShoppingLists] = useState<ShoppingList[]>([]);
   const [mealPlanEntries, setMealPlanEntries] = useState<MealPlanEntry[]>([]);
@@ -66,7 +67,13 @@ export const App: FC = (): ReactElement => {
   // Load all data from Dexie
   const refreshAllData = async () => {
     try {
-      const allStored = await db.recipes.toArray();
+      let allStored = await db.recipes.toArray();
+      if (allStored.length === 0) {
+        for (const sample of SAMPLE_RECIPES) {
+          await db.recipes.put(sample);
+        }
+        allStored = await db.recipes.toArray();
+      }
       const active: Recipe[] = [];
       const trashed: Recipe[] = [];
       const now = Date.now();
@@ -727,35 +734,38 @@ export const App: FC = (): ReactElement => {
   const activeRecipe = recipes.find((r) => r.id === selectedRecipeId);
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+    <div style={{ height: "100vh", width: "100%", maxWidth: "100vw", minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       {/* Top Header */}
       <header
         style={{
           background: "var(--surface)",
           borderBottom: "1px solid var(--border)",
-          padding: "var(--space-3) var(--space-6)",
+          padding: "var(--space-2) var(--space-4)",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          position: "sticky",
-          top: 0,
-          zIndex: 10
+          flexShrink: 0,
+          zIndex: 10,
+          width: "100%",
+          maxWidth: "100%",
+          minWidth: 0,
+          boxSizing: "border-box"
         }}
       >
         <div
           onClick={() => setActiveTab("library")}
-          style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}
+          style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", flexShrink: 0 }}
         >
           <div style={{ width: "28px", height: "28px", borderRadius: "6px", background: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", color: "white" }}>
             <BookOpenIcon width={16} height={16} />
           </div>
-          <span style={{ fontFamily: "var(--font-serif)", fontSize: "1.35rem", fontWeight: 700 }}>
+          <span style={{ fontFamily: "var(--font-serif)", fontSize: "1.25rem", fontWeight: 700 }}>
             {BRAND.appName}
           </span>
         </div>
 
         {/* Desktop Nav Items */}
-        <nav style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
+        <nav className="desktop-only-nav" style={{ display: "flex", gap: "var(--space-1)", alignItems: "center", flexWrap: "nowrap" }}>
           <button
             type="button"
             onClick={() => setActiveTab("library")}
@@ -763,16 +773,17 @@ export const App: FC = (): ReactElement => {
               background: activeTab === "library" ? "var(--surface-alt)" : "none",
               color: activeTab === "library" ? "var(--accent)" : "var(--text)",
               border: "none",
-              padding: "8px 14px",
+              padding: "6px 12px",
               borderRadius: "var(--radius-full)",
               fontWeight: 600,
+              fontSize: "0.9rem",
               cursor: "pointer",
               display: "inline-flex",
               alignItems: "center",
               gap: "6px"
             }}
           >
-            <BookOpenIcon width={16} height={16} /> Recipes
+            <BookOpenIcon width={15} height={15} /> Recipes
           </button>
 
           <button
@@ -782,16 +793,17 @@ export const App: FC = (): ReactElement => {
               background: activeTab === "planner" ? "var(--surface-alt)" : "none",
               color: activeTab === "planner" ? "var(--accent)" : "var(--text)",
               border: "none",
-              padding: "8px 14px",
+              padding: "6px 12px",
               borderRadius: "var(--radius-full)",
               fontWeight: 600,
+              fontSize: "0.9rem",
               cursor: "pointer",
               display: "inline-flex",
               alignItems: "center",
               gap: "6px"
             }}
           >
-            <CalendarIcon width={16} height={16} /> Meal Plan
+            <CalendarIcon width={15} height={15} /> Meal Plan
           </button>
 
           <button
@@ -801,16 +813,17 @@ export const App: FC = (): ReactElement => {
               background: activeTab === "totals" ? "var(--surface-alt)" : "none",
               color: activeTab === "totals" ? "var(--accent)" : "var(--text)",
               border: "none",
-              padding: "8px 14px",
+              padding: "6px 12px",
               borderRadius: "var(--radius-full)",
               fontWeight: 600,
+              fontSize: "0.9rem",
               cursor: "pointer",
               display: "inline-flex",
               alignItems: "center",
               gap: "6px"
             }}
           >
-            <CalculatorIcon width={16} height={16} /> Ingredient Totals
+            <CalculatorIcon width={15} height={15} /> Ingredient Totals
           </button>
 
           <button
@@ -820,16 +833,17 @@ export const App: FC = (): ReactElement => {
               background: activeTab === "shopping" ? "var(--surface-alt)" : "none",
               color: activeTab === "shopping" ? "var(--accent)" : "var(--text)",
               border: "none",
-              padding: "8px 14px",
+              padding: "6px 12px",
               borderRadius: "var(--radius-full)",
               fontWeight: 600,
+              fontSize: "0.9rem",
               cursor: "pointer",
               display: "inline-flex",
               alignItems: "center",
               gap: "6px"
             }}
           >
-            <ShoppingCartIcon width={16} height={16} /> Shopping
+            <ShoppingCartIcon width={15} height={15} /> Shopping
           </button>
 
           <button
@@ -839,16 +853,17 @@ export const App: FC = (): ReactElement => {
               background: activeTab === "settings" ? "var(--surface-alt)" : "none",
               color: activeTab === "settings" ? "var(--accent)" : "var(--text)",
               border: "none",
-              padding: "8px 14px",
+              padding: "6px 12px",
               borderRadius: "var(--radius-full)",
               fontWeight: 600,
+              fontSize: "0.9rem",
               cursor: "pointer",
               display: "inline-flex",
               alignItems: "center",
               gap: "6px"
             }}
           >
-            <SettingsIcon width={16} height={16} /> Settings
+            <SettingsIcon width={15} height={15} /> Settings
           </button>
 
           <button
@@ -858,19 +873,53 @@ export const App: FC = (): ReactElement => {
               background: activeTab === "gallery" ? "var(--surface-alt)" : "none",
               color: "var(--muted)",
               border: "none",
-              padding: "6px 10px",
+              padding: "4px 8px",
               borderRadius: "var(--radius-full)",
-              fontSize: "0.8rem",
+              fontSize: "0.78rem",
               cursor: "pointer"
             }}
           >
             Gallery
           </button>
         </nav>
+
+        {/* Mobile Quick Header Actions */}
+        <div className="mobile-only-nav" style={{ display: "none", gap: "8px", alignItems: "center" }}>
+          <button
+            type="button"
+            onClick={handleNewRecipe}
+            style={{
+              background: "var(--accent)",
+              color: "var(--accent-contrast)",
+              border: "none",
+              borderRadius: "var(--radius-full)",
+              padding: "6px 12px",
+              fontSize: "0.82rem",
+              fontWeight: 600,
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "4px"
+            }}
+          >
+            <PlusIcon width={14} height={14} /> New
+          </button>
+        </div>
       </header>
 
       {/* Main Content Area */}
-      <main style={{ flex: 1 }}>
+      <main
+        style={{
+          flex: 1,
+          width: "100%",
+          maxWidth: "100%",
+          minWidth: 0,
+          minHeight: 0,
+          overflowY: "auto",
+          overflowX: "hidden",
+          position: "relative"
+        }}
+      >
         {activeTab === "library" && (
           <RecipeLibrary
             recipes={recipes}
@@ -1112,6 +1161,151 @@ export const App: FC = (): ReactElement => {
           </div>
         </div>
       )}
+
+      {/* Mobile Bottom Navigation Bar */}
+      <nav
+        className="mobile-only-nav"
+        style={{
+          display: "none",
+          width: "100%",
+          maxWidth: "100%",
+          minWidth: 0,
+          height: "56px",
+          background: "var(--surface)",
+          borderTop: "1px solid var(--border)",
+          alignItems: "center",
+          justifyContent: "space-around",
+          flexShrink: 0,
+          zIndex: 100,
+          padding: "0 4px",
+          boxSizing: "border-box"
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setActiveTab("library")}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            background: "none",
+            border: "none",
+            color: activeTab === "library" ? "var(--accent)" : "var(--muted)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "2px",
+            fontSize: "0.7rem",
+            fontWeight: activeTab === "library" ? 700 : 500,
+            cursor: "pointer",
+            padding: "4px 2px",
+            minHeight: "44px"
+          }}
+        >
+          <BookOpenIcon width={18} height={18} />
+          <span>Recipes</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("planner")}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            background: "none",
+            border: "none",
+            color: activeTab === "planner" ? "var(--accent)" : "var(--muted)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "2px",
+            fontSize: "0.7rem",
+            fontWeight: activeTab === "planner" ? 700 : 500,
+            cursor: "pointer",
+            padding: "4px 2px",
+            minHeight: "44px"
+          }}
+        >
+          <CalendarIcon width={18} height={18} />
+          <span>Planner</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("totals")}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            background: "none",
+            border: "none",
+            color: activeTab === "totals" ? "var(--accent)" : "var(--muted)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "2px",
+            fontSize: "0.7rem",
+            fontWeight: activeTab === "totals" ? 700 : 500,
+            cursor: "pointer",
+            padding: "4px 2px",
+            minHeight: "44px"
+          }}
+        >
+          <CalculatorIcon width={18} height={18} />
+          <span>Totals</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("shopping")}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            background: "none",
+            border: "none",
+            color: activeTab === "shopping" ? "var(--accent)" : "var(--muted)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "2px",
+            fontSize: "0.7rem",
+            fontWeight: activeTab === "shopping" ? 700 : 500,
+            cursor: "pointer",
+            padding: "4px 2px",
+            minHeight: "44px"
+          }}
+        >
+          <ShoppingCartIcon width={18} height={18} />
+          <span>Shopping</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("settings")}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            background: "none",
+            border: "none",
+            color: activeTab === "settings" ? "var(--accent)" : "var(--muted)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "2px",
+            fontSize: "0.7rem",
+            fontWeight: activeTab === "settings" ? 700 : 500,
+            cursor: "pointer",
+            padding: "4px 2px",
+            minHeight: "44px"
+          }}
+        >
+          <SettingsIcon width={18} height={18} />
+          <span>Settings</span>
+        </button>
+      </nav>
     </div>
   );
 };

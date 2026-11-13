@@ -216,8 +216,8 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
 
   if (recipes.length === 0) {
     return (
-      <div style={{ textAlign: "center", padding: "var(--space-12) var(--space-4)", maxWidth: "500px", margin: "0 auto" }}>
-        <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "2rem", marginBottom: "var(--space-3)" }}>
+      <div style={{ textAlign: "center", padding: "var(--space-8) var(--space-4)", maxWidth: "480px", width: "100%", margin: "0 auto" }}>
+        <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "clamp(1.4rem, 5vw, 2rem)", marginBottom: "var(--space-3)", wordBreak: "break-word" }}>
           Your Recipe Book is Empty
         </h2>
         <p style={{ color: "var(--muted)", marginBottom: "var(--space-6)" }}>
@@ -281,7 +281,7 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
   }
 
   return (
-    <div style={{ display: "flex", width: "100%", minHeight: "calc(100vh - 64px)", position: "relative" }}>
+    <div style={{ display: "flex", width: "100%", maxWidth: "100%", height: "100%", minHeight: 0, minWidth: 0, position: "relative", overflowX: "hidden" }}>
       {showCollectionsSidebar && collections && (
         <CollectionsSidebar
           collections={collections}
@@ -304,10 +304,10 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
         />
       )}
 
-      <div style={{ flex: 1, minWidth: 0, maxWidth: "var(--content-max-width)", margin: "0 auto", padding: "var(--space-6)" }}>
+      <div style={{ flex: 1, minWidth: 0, width: "100%", maxWidth: "var(--content-max-width)", margin: "0 auto", padding: "var(--space-4)", boxSizing: "border-box" }}>
       {/* Search and Action Bar */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-4)", alignItems: "center", marginBottom: "var(--space-4)" }}>
-        <div style={{ flex: 1, minWidth: "240px", position: "relative" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-3)", alignItems: "center", marginBottom: "var(--space-4)", width: "100%", minWidth: 0 }}>
+        <div style={{ flex: "1 1 200px", minWidth: 0, maxWidth: "100%", position: "relative" }}>
           <input
             ref={searchInputRef}
             type="search"
@@ -316,18 +316,19 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
             placeholder="Search title, ingredients, notes... (Press '/' to focus)"
             style={{
               width: "100%",
-              padding: "10px 14px 10px 38px",
+              padding: "8px 14px 8px 36px",
               borderRadius: "var(--radius-full)",
               border: "1px solid var(--border)",
-              background: "var(--surface)"
+              background: "var(--surface)",
+              fontSize: "0.9rem"
             }}
           />
           <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "var(--muted)", pointerEvents: "none" }}>
-            <SearchIcon width={18} height={18} />
+            <SearchIcon width={16} height={16} />
           </span>
         </div>
 
-        <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", flexWrap: "wrap", width: "100%", maxWidth: "100%", minWidth: 0 }}>
           {collections && (
             <button
               type="button"
@@ -639,7 +640,7 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
 
       {/* Course filter chips */}
       {coursesList.length > 0 && (
-        <div style={{ display: "flex", gap: "var(--space-2)", overflowX: "auto", paddingBottom: "var(--space-4)", marginBottom: "var(--space-4)" }}>
+        <div style={{ display: "flex", gap: "var(--space-2)", overflowX: "auto", paddingBottom: "var(--space-4)", marginBottom: "var(--space-4)", width: "100%", maxWidth: "100%", minWidth: 0 }}>
           <button
             type="button"
             onClick={() => setSelectedCourse("")}
@@ -814,8 +815,8 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
           style={{
             display: "grid",
             gridTemplateColumns: viewMode === "compact"
-              ? "repeat(auto-fill, minmax(200px, 1fr))"
-              : "repeat(auto-fill, minmax(280px, 1fr))",
+              ? "repeat(auto-fill, minmax(min(180px, 100%), 1fr))"
+              : "repeat(auto-fill, minmax(min(260px, 100%), 1fr))",
             gap: viewMode === "compact" ? "var(--space-4)" : "var(--space-6)"
           }}
         >

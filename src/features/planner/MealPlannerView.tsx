@@ -680,7 +680,7 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
       </div>
 
       {/* Main Grid & Recipe Tray Container */}
-      <div style={{ display: "flex", gap: "var(--space-5)", alignItems: "flex-start" }}>
+      <div className="planner-main-container">
         <div style={{ flex: 1, minWidth: 0 }}>
           {/* Week Grid Mode */}
           {viewMode === "week" && (

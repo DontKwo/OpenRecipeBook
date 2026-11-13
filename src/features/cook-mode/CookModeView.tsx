@@ -200,7 +200,7 @@ export const CookModeView: FC<CookModeViewProps> = ({
       >
         <div>
           <span style={{ fontSize: "0.85rem", textTransform: "uppercase", color: "var(--accent)", fontWeight: 700, letterSpacing: "1px" }}>
-            Cook Mode · {multiplier}\u00D7 Scale
+            Cook Mode · {multiplier}× Scale
           </span>
           <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "1.25rem", margin: 0 }}>
             {recipe.title}
@@ -532,7 +532,7 @@ export const CookModeView: FC<CookModeViewProps> = ({
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-4)" }}>
               <h3 style={{ fontFamily: "var(--font-serif)", fontSize: "1.3rem", margin: 0 }}>
-                Ingredients ({multiplier}\u00D7)
+                Ingredients ({multiplier}×)
               </h3>
               <button
                 type="button"

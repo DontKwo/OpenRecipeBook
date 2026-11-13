@@ -912,7 +912,7 @@ export const RecipeEditor: FC<RecipeEditorProps> = ({
           </div>
 
           {/* Source and Credit */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-4)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "var(--space-4)" }}>
             <div>
               <label style={{ display: "block", fontWeight: 600, marginBottom: "var(--space-2)" }}>
                 Source URL (optional)
