@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef, type FC, type ReactElement } from "react";
+import { useState, useMemo, useEffect, useRef, type FC, type ReactElement, type FormEvent, type ChangeEvent } from "react";
 import type { Recipe, Collection } from "../../domain/recipe/types";
 import { RecipeSearchEngine, type SortField } from "../../domain/recipe/search";
 import { getCoursePlaceholder } from "../../domain/recipe/placeholders";
@@ -15,7 +15,9 @@ import {
   GridIcon,
   ListIcon,
   BookOpenIcon,
-  CloseIcon
+  CloseIcon,
+  XIcon,
+  FolderIcon
 } from "../../ui/icons";
 
 export interface RecipeLibraryProps {
@@ -26,6 +28,7 @@ export interface RecipeLibraryProps {
   onSaveCollection?: (collection: Collection) => void;
   onDeleteCollection?: (collectionId: string) => void;
   onBatchAssignCollection?: (recipeIds: string[], collectionId: string) => void;
+  onUpdateRecipe?: (recipe: Recipe) => void;
   onSelectRecipe: (recipeId: string) => void;
   onNewRecipe: () => void;
   onImportFile: () => void;
@@ -46,6 +49,7 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
   onSaveCollection,
   onDeleteCollection,
   onBatchAssignCollection,
+  onUpdateRecipe,
   onSelectRecipe,
   onNewRecipe,
   onImportFile,
@@ -67,6 +71,60 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
   const [viewMode, setViewMode] = useState<"grid" | "compact" | "list">("grid");
   const [sortBy, setSortBy] = useState<SortField>("recentAdded");
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // More menu and quick card folder picker state
+  const [showLibraryMoreMenu, setShowLibraryMoreMenu] = useState<boolean>(false);
+  const [folderPickerRecipe, setFolderPickerRecipe] = useState<Recipe | null>(null);
+  const [newFolderName, setNewFolderName] = useState<string>("");
+  const libraryMoreMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showLibraryMoreMenu) return;
+    const handleClickOutside = (e: MouseEvent): void => {
+      if (libraryMoreMenuRef.current && !libraryMoreMenuRef.current.contains(e.target as Node)) {
+        setShowLibraryMoreMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showLibraryMoreMenu]);
+
+  const handleToggleCardFolder = (targetRecipe: Recipe, colId: string): void => {
+    const existing = targetRecipe.collectionIds || [];
+    const updatedIds = existing.includes(colId)
+      ? existing.filter((id: string): boolean => id !== colId)
+      : [...existing, colId];
+    const updatedRecipe: Recipe = {
+      ...targetRecipe,
+      collectionIds: updatedIds,
+      updatedAt: new Date().toISOString()
+    };
+    onUpdateRecipe?.(updatedRecipe);
+    setFolderPickerRecipe(updatedRecipe);
+  };
+
+  const handleCreateCardFolder = (e: FormEvent): void => {
+    e.preventDefault();
+    if (!folderPickerRecipe) return;
+    const trimmed = newFolderName.trim();
+    if (!trimmed) return;
+    const newColId = `col-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    const newCol: Collection = {
+      id: newColId,
+      name: trimmed,
+      createdAt: new Date().toISOString()
+    };
+    onSaveCollection?.(newCol);
+    const existing = folderPickerRecipe.collectionIds || [];
+    const updatedRecipe: Recipe = {
+      ...folderPickerRecipe,
+      collectionIds: [...existing, newColId],
+      updatedAt: new Date().toISOString()
+    };
+    onUpdateRecipe?.(updatedRecipe);
+    setFolderPickerRecipe(updatedRecipe);
+    setNewFolderName("");
+  };
 
   // Multi-select batch mode state
   const [isMultiSelectMode, setIsMultiSelectMode] = useState<boolean>(false);
@@ -305,22 +363,23 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
       )}
 
       <div style={{ flex: 1, minWidth: 0, width: "100%", maxWidth: "var(--content-max-width)", margin: "0 auto", padding: "var(--space-4)", boxSizing: "border-box" }}>
-      {/* Search and Action Bar */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-3)", alignItems: "center", marginBottom: "var(--space-4)", width: "100%", minWidth: 0 }}>
-        <div style={{ flex: "1 1 200px", minWidth: 0, maxWidth: "100%", position: "relative" }}>
+      {/* Primary Action Row: Search + New Recipe + Folders + Favorites + More */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-3)", alignItems: "center", marginBottom: "var(--space-3)", width: "100%", minWidth: 0 }}>
+        <div style={{ flex: "1 1 240px", minWidth: 0, position: "relative" }}>
           <input
             ref={searchInputRef}
             type="search"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search title, ingredients, notes... (Press '/' to focus)"
+            onChange={(e): void => setSearchQuery(e.target.value)}
+            placeholder="Search recipes, ingredients..."
             style={{
               width: "100%",
-              padding: "8px 14px 8px 36px",
+              padding: "9px 14px 9px 36px",
               borderRadius: "var(--radius-full)",
               border: "1px solid var(--border)",
               background: "var(--surface)",
-              fontSize: "0.9rem"
+              fontSize: "0.92rem",
+              color: "var(--text)"
             }}
           />
           <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "var(--muted)", pointerEvents: "none" }}>
@@ -328,14 +387,37 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
           </span>
         </div>
 
-        <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", flexWrap: "wrap", width: "100%", maxWidth: "100%", minWidth: 0 }}>
+        <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", flexWrap: "wrap" }}>
+          {/* Primary Action: New Recipe */}
+          <button
+            type="button"
+            onClick={onNewRecipe}
+            style={{
+              background: "var(--accent)",
+              color: "var(--accent-contrast)",
+              border: "none",
+              padding: "9px 18px",
+              borderRadius: "var(--radius-full)",
+              fontWeight: 600,
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "0.9rem",
+              boxShadow: "var(--shadow-sm)"
+            }}
+          >
+            <PlusIcon width={16} height={16} /> New Recipe
+          </button>
+
+          {/* Folders Toggle */}
           {collections && (
             <button
               type="button"
               onClick={(): void => setShowCollectionsSidebar(!showCollectionsSidebar)}
               style={{
                 background: showCollectionsSidebar || activeCollectionId ? "var(--surface-alt)" : "var(--surface)",
-                color: showCollectionsSidebar || activeCollectionId ? "var(--accent)" : "var(--muted)",
+                color: showCollectionsSidebar || activeCollectionId ? "var(--accent)" : "var(--text)",
                 border: "1px solid var(--border)",
                 padding: "8px 14px",
                 borderRadius: "var(--radius-full)",
@@ -343,43 +425,153 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
                 alignItems: "center",
                 gap: "6px",
                 cursor: "pointer",
-                fontWeight: 500
+                fontWeight: 600,
+                fontSize: "0.88rem"
               }}
-              title="Toggle Collections Sidebar"
+              title="Toggle Folders Sidebar"
             >
-              <BookOpenIcon width={16} height={16} /> Collections
+              <BookOpenIcon width={16} height={16} /> Folders
             </button>
           )}
 
+          {/* Favorites Filter */}
           <button
             type="button"
-            onClick={() => setOnlyFavorites(!onlyFavorites)}
+            onClick={(): void => setOnlyFavorites(!onlyFavorites)}
             style={{
               background: onlyFavorites ? "var(--surface-alt)" : "var(--surface)",
-              color: onlyFavorites ? "var(--danger)" : "var(--muted)",
+              color: onlyFavorites ? "var(--danger)" : "var(--text)",
               border: "1px solid var(--border)",
-              padding: "8px 16px",
+              padding: "8px 14px",
               borderRadius: "var(--radius-full)",
               display: "inline-flex",
               alignItems: "center",
               gap: "6px",
               cursor: "pointer",
-              fontWeight: 500
+              fontWeight: 600,
+              fontSize: "0.88rem"
             }}
+            title={onlyFavorites ? "Showing favorites only" : "Filter by favorites"}
           >
             <HeartIcon fill={onlyFavorites ? "currentColor" : "none"} width={16} height={16} /> Favorites
           </button>
 
+          {/* More Actions Dropdown */}
+          <div ref={libraryMoreMenuRef} style={{ position: "relative" }}>
+            <button
+              type="button"
+              onClick={(): void => setShowLibraryMoreMenu(!showLibraryMoreMenu)}
+              style={{
+                background: showLibraryMoreMenu ? "var(--surface-alt)" : "var(--surface)",
+                color: "var(--text)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-full)",
+                padding: "8px 12px",
+                cursor: "pointer",
+                fontWeight: 700,
+                fontSize: "0.95rem"
+              }}
+              title="More actions"
+              aria-label="More actions"
+            >
+              &bull;&bull;&bull;
+            </button>
+
+            {showLibraryMoreMenu && (
+              <div
+                style={{
+                  position: "absolute",
+                  right: 0,
+                  top: "calc(100% + 6px)",
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--radius-md)",
+                  boxShadow: "var(--shadow-lg)",
+                  minWidth: "200px",
+                  zIndex: 100,
+                  overflow: "hidden",
+                  display: "flex",
+                  flexDirection: "column",
+                  padding: "4px 0"
+                }}
+              >
+                {onOpenCookbookBuilder && (
+                  <button
+                    type="button"
+                    onClick={(): void => {
+                      setShowLibraryMoreMenu(false);
+                      onOpenCookbookBuilder();
+                    }}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      padding: "10px 16px",
+                      textAlign: "left",
+                      color: "var(--text)",
+                      cursor: "pointer",
+                      fontSize: "0.88rem",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px"
+                    }}
+                  >
+                    <PrinterIcon width={16} height={16} /> Print / Export Cookbook
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={(): void => {
+                    setShowLibraryMoreMenu(false);
+                    toggleMultiSelectMode();
+                  }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    padding: "10px 16px",
+                    textAlign: "left",
+                    color: "var(--text)",
+                    cursor: "pointer",
+                    fontSize: "0.88rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px"
+                  }}
+                >
+                  <ListIcon width={16} height={16} /> {isMultiSelectMode ? "Cancel Select Mode" : "Select Multiple Recipes"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Secondary Toolbar: Sort, Filters Drawer Toggle, and View Mode */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "var(--space-2)",
+          marginBottom: "var(--space-4)",
+          paddingBottom: "var(--space-2)",
+          borderBottom: "1px solid var(--border)"
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", flexWrap: "wrap" }}>
           <select
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as SortField)}
+            onChange={(e): void => setSortBy(e.target.value as SortField)}
             style={{
-              padding: "8px 12px",
+              padding: "6px 12px",
               borderRadius: "var(--radius-full)",
               border: "1px solid var(--border)",
               background: "var(--surface)",
               color: "var(--text)",
-              cursor: "pointer"
+              cursor: "pointer",
+              fontSize: "0.85rem",
+              fontWeight: 500
             }}
           >
             <option value="recentAdded">Recently Added</option>
@@ -389,107 +581,17 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
             <option value="totalTime">Shortest Time</option>
           </select>
 
-          {onOpenCookbookBuilder && (
-            <button
-              type="button"
-              onClick={onOpenCookbookBuilder}
-              style={{
-                background: "var(--surface)",
-                color: "var(--text)",
-                border: "1px solid var(--border)",
-                padding: "8px 14px",
-                borderRadius: "var(--radius-full)",
-                fontWeight: 500,
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px"
-              }}
-              title="Build and print a custom cookbook or PDF"
-            >
-              <PrinterIcon width={16} height={16} /> Cookbook
-            </button>
-          )}
-
-          {/* View mode toggle */}
-          <div style={{ display: "inline-flex", borderRadius: "var(--radius-full)", border: "1px solid var(--border)", overflow: "hidden", background: "var(--surface)" }}>
-            <button
-              type="button"
-              onClick={() => setViewMode("grid")}
-              style={{
-                background: viewMode === "grid" ? "var(--surface-alt)" : "none",
-                color: viewMode === "grid" ? "var(--accent)" : "var(--muted)",
-                border: "none",
-                padding: "8px 10px",
-                cursor: "pointer"
-              }}
-              title="Grid view"
-              aria-label="Grid view"
-            >
-              <GridIcon width={16} height={16} />
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("compact")}
-              style={{
-                background: viewMode === "compact" ? "var(--surface-alt)" : "none",
-                color: viewMode === "compact" ? "var(--accent)" : "var(--muted)",
-                border: "none",
-                padding: "8px 10px",
-                cursor: "pointer",
-                fontSize: "0.8rem",
-                fontWeight: 600
-              }}
-              title="Compact grid"
-              aria-label="Compact grid"
-            >
-              Dense
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("list")}
-              style={{
-                background: viewMode === "list" ? "var(--surface-alt)" : "none",
-                color: viewMode === "list" ? "var(--accent)" : "var(--muted)",
-                border: "none",
-                padding: "8px 10px",
-                cursor: "pointer"
-              }}
-              title="List view"
-              aria-label="List view"
-            >
-              <ListIcon width={16} height={16} />
-            </button>
-          </div>
-
           <button
             type="button"
-            onClick={toggleMultiSelectMode}
-            style={{
-              background: isMultiSelectMode ? "var(--accent)" : "var(--surface)",
-              color: isMultiSelectMode ? "var(--accent-contrast)" : "var(--text)",
-              border: "1px solid " + (isMultiSelectMode ? "var(--accent)" : "var(--border)"),
-              padding: "8px 14px",
-              borderRadius: "var(--radius-full)",
-              cursor: "pointer",
-              fontSize: "0.88rem",
-              fontWeight: 500
-            }}
-          >
-            {isMultiSelectMode ? "Cancel Select" : "Select"}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setShowFilters(!showFilters)}
+            onClick={(): void => setShowFilters(!showFilters)}
             style={{
               background: showFilters || activeFilterCount > 0 ? "var(--surface-alt)" : "var(--surface)",
               color: showFilters || activeFilterCount > 0 ? "var(--accent)" : "var(--text)",
               border: "1px solid var(--border)",
-              padding: "8px 14px",
+              padding: "6px 14px",
               borderRadius: "var(--radius-full)",
               cursor: "pointer",
-              fontSize: "0.88rem",
+              fontSize: "0.85rem",
               fontWeight: 500,
               display: "inline-flex",
               alignItems: "center",
@@ -498,24 +600,66 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
           >
             Filters {activeFilterCount > 0 && `(${activeFilterCount})`}
           </button>
+        </div>
 
+        {/* View mode toggle */}
+        <div style={{ display: "inline-flex", borderRadius: "var(--radius-full)", border: "1px solid var(--border)", overflow: "hidden", background: "var(--surface)" }}>
           <button
             type="button"
-            onClick={onNewRecipe}
+            onClick={(): void => setViewMode("grid")}
             style={{
-              background: "var(--accent)",
-              color: "var(--accent-contrast)",
+              background: viewMode === "grid" ? "var(--surface-alt)" : "none",
+              color: viewMode === "grid" ? "var(--accent)" : "var(--muted)",
               border: "none",
-              padding: "8px 18px",
-              borderRadius: "var(--radius-full)",
-              fontWeight: 600,
+              padding: "6px 12px",
               cursor: "pointer",
               display: "inline-flex",
               alignItems: "center",
-              gap: "6px"
+              gap: "4px",
+              fontSize: "0.82rem",
+              fontWeight: 500
             }}
+            title="Grid view"
+            aria-label="Grid view"
           >
-            <PlusIcon width={16} height={16} /> New Recipe
+            <GridIcon width={14} height={14} /> Grid
+          </button>
+          <button
+            type="button"
+            onClick={(): void => setViewMode("compact")}
+            style={{
+              background: viewMode === "compact" ? "var(--surface-alt)" : "none",
+              color: viewMode === "compact" ? "var(--accent)" : "var(--muted)",
+              border: "none",
+              padding: "6px 12px",
+              cursor: "pointer",
+              fontSize: "0.82rem",
+              fontWeight: 500
+            }}
+            title="Compact grid"
+            aria-label="Compact grid"
+          >
+            Dense
+          </button>
+          <button
+            type="button"
+            onClick={(): void => setViewMode("list")}
+            style={{
+              background: viewMode === "list" ? "var(--surface-alt)" : "none",
+              color: viewMode === "list" ? "var(--accent)" : "var(--muted)",
+              border: "none",
+              padding: "6px 12px",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "4px",
+              fontSize: "0.82rem",
+              fontWeight: 500
+            }}
+            title="List view"
+            aria-label="List view"
+          >
+            <ListIcon width={14} height={14} /> List
           </button>
         </div>
       </div>
@@ -786,23 +930,46 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={(e): void => {
-                    e.stopPropagation();
-                    onToggleFavorite(recipe.id);
-                  }}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    color: recipe.favorite ? "var(--danger)" : "var(--muted)",
-                    padding: "6px"
-                  }}
-                  aria-label="Favorite"
-                >
-                  <HeartIcon fill={recipe.favorite ? "currentColor" : "none"} width={18} height={18} />
-                </button>
+                <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                  {collections && (
+                    <button
+                      type="button"
+                      onClick={(e): void => {
+                        e.stopPropagation();
+                        setFolderPickerRecipe(recipe);
+                      }}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        color: recipe.collectionIds && recipe.collectionIds.length > 0 ? "var(--accent)" : "var(--muted)",
+                        padding: "6px"
+                      }}
+                      title={recipe.collectionIds && recipe.collectionIds.length > 0 ? "In folders" : "Add to folder"}
+                      aria-label="Manage folders"
+                    >
+                      <BookOpenIcon width={16} height={16} />
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={(e): void => {
+                      e.stopPropagation();
+                      onToggleFavorite(recipe.id);
+                    }}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      color: recipe.favorite ? "var(--danger)" : "var(--muted)",
+                      padding: "6px"
+                    }}
+                    aria-label="Favorite"
+                  >
+                    <HeartIcon fill={recipe.favorite ? "currentColor" : "none"} width={18} height={18} />
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -899,6 +1066,36 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
                     dangerouslySetInnerHTML={{ __html: placeholder.svgContent }}
                   />
 
+                  {collections && (
+                    <button
+                      type="button"
+                      onClick={(e): void => {
+                        e.stopPropagation();
+                        setFolderPickerRecipe(recipe);
+                      }}
+                      style={{
+                        position: "absolute",
+                        top: "8px",
+                        right: "46px",
+                        background: "var(--surface)",
+                        border: "none",
+                        borderRadius: "var(--radius-full)",
+                        width: "32px",
+                        height: "32px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "pointer",
+                        color: recipe.collectionIds && recipe.collectionIds.length > 0 ? "var(--accent)" : "var(--muted)",
+                        boxShadow: "var(--shadow-sm)"
+                      }}
+                      title={recipe.collectionIds && recipe.collectionIds.length > 0 ? "In folders" : "Add to folder"}
+                      aria-label="Manage folders"
+                    >
+                      <BookOpenIcon width={14} height={14} />
+                    </button>
+                  )}
+
                   <button
                     type="button"
                     onClick={(e): void => {
@@ -929,6 +1126,33 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
 
                 {/* Details */}
                 <div style={{ padding: viewMode === "compact" ? "var(--space-3)" : "var(--space-4)", display: "flex", flexDirection: "column", flex: 1 }}>
+                  {recipe.collectionIds && recipe.collectionIds.length > 0 && collections && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginBottom: "6px" }}>
+                      {recipe.collectionIds.slice(0, 2).map((colId: string) => {
+                        const col = collections.find((c: Collection): boolean => c.id === colId);
+                        if (!col) return null;
+                        return (
+                          <span
+                            key={col.id}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              fontSize: "0.72rem",
+                              background: "var(--surface-alt)",
+                              color: "var(--accent)",
+                              padding: "2px 6px",
+                              borderRadius: "var(--radius-sm)",
+                              fontWeight: 600
+                            }}
+                          >
+                            <FolderIcon width={12} height={12} style={{ marginRight: "4px" }} />
+                            <span>{col.name}</span>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+
                   <h3
                     style={{
                       fontFamily: "var(--font-serif)",
@@ -1270,6 +1494,143 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 1-Click Card Folder Assignment Modal */}
+      {folderPickerRecipe && collections && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "var(--space-4)"
+          }}
+          onClick={(): void => setFolderPickerRecipe(null)}
+        >
+          <div
+            style={{
+              background: "var(--surface)",
+              borderRadius: "var(--radius-lg)",
+              padding: "var(--space-6)",
+              maxWidth: "420px",
+              width: "100%",
+              boxShadow: "var(--shadow-lg)",
+              border: "1px solid var(--border)"
+            }}
+            onClick={(e): void => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-3)" }}>
+              <h3 style={{ margin: 0, fontSize: "1.15rem", fontFamily: "var(--font-serif)" }}>
+                Organize in Folders
+              </h3>
+              <button
+                type="button"
+                onClick={(): void => setFolderPickerRecipe(null)}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", padding: 0 }}
+                aria-label="Close"
+              >
+                <XIcon width={16} height={16} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: "0.88rem", color: "var(--muted)", marginTop: 0, marginBottom: "var(--space-4)" }}>
+              Folders for <strong>{folderPickerRecipe.title}</strong>:
+            </p>
+
+            <div style={{ maxHeight: "200px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "6px", marginBottom: "var(--space-4)" }}>
+              {collections.map((col: Collection) => {
+                const isAssigned = folderPickerRecipe.collectionIds?.includes(col.id) ?? false;
+                return (
+                  <label
+                    key={col.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "var(--space-3)",
+                      padding: "8px 12px",
+                      borderRadius: "var(--radius-sm)",
+                      background: isAssigned ? "var(--surface-alt)" : "transparent",
+                      border: "1px solid " + (isAssigned ? "var(--accent)" : "var(--border)"),
+                      cursor: "pointer"
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isAssigned}
+                      onChange={(): void => handleToggleCardFolder(folderPickerRecipe, col.id)}
+                      style={{ cursor: "pointer", width: "16px", height: "16px" }}
+                    />
+                    <span style={{ display: "inline-flex", alignItems: "center", fontWeight: 600, fontSize: "0.92rem", flex: 1 }}>
+                      <FolderIcon width={14} height={14} style={{ marginRight: "6px" }} />
+                      <span>{col.name}</span>
+                    </span>
+                  </label>
+                );
+              })}
+              {collections.length === 0 && (
+                <p style={{ color: "var(--muted)", fontSize: "0.85rem", fontStyle: "italic", margin: 0 }}>
+                  No folders created yet. Create one below!
+                </p>
+              )}
+            </div>
+
+            {/* Create New Folder Inline */}
+            <form onSubmit={handleCreateCardFolder} style={{ display: "flex", gap: "var(--space-2)", marginBottom: "var(--space-4)" }}>
+              <input
+                type="text"
+                value={newFolderName}
+                onChange={(e: ChangeEvent<HTMLInputElement>): void => setNewFolderName(e.target.value)}
+                placeholder="New folder name..."
+                style={{
+                  flex: 1,
+                  padding: "8px 12px",
+                  borderRadius: "var(--radius-sm)",
+                  border: "1px solid var(--border)",
+                  background: "var(--surface-alt)",
+                  color: "var(--text)",
+                  fontSize: "0.88rem"
+                }}
+              />
+              <button
+                type="submit"
+                disabled={!newFolderName.trim()}
+                style={{
+                  background: newFolderName.trim() ? "var(--accent)" : "var(--surface-alt)",
+                  color: newFolderName.trim() ? "var(--accent-contrast)" : "var(--muted)",
+                  border: "none",
+                  padding: "8px 14px",
+                  borderRadius: "var(--radius-sm)",
+                  fontWeight: 600,
+                  fontSize: "0.85rem",
+                  cursor: newFolderName.trim() ? "pointer" : "not-allowed"
+                }}
+              >
+                + Add
+              </button>
+            </form>
+
+            <button
+              type="button"
+              onClick={(): void => setFolderPickerRecipe(null)}
+              style={{
+                width: "100%",
+                background: "var(--accent)",
+                color: "var(--accent-contrast)",
+                border: "none",
+                padding: "10px",
+                borderRadius: "var(--radius-full)",
+                fontWeight: 600,
+                cursor: "pointer"
+              }}
+            >
+              Done
+            </button>
           </div>
         </div>
       )}

@@ -65,8 +65,25 @@ export const App: FC = (): ReactElement => {
   const [importCandidates, setImportCandidates] = useState<Recipe[] | null>(null);
 
   // Load all data from Dexie
-  const refreshAllData = async () => {
+  const refreshAllData = async (): Promise<void> => {
     try {
+      const sampleVersionSetting = await db.settings.get("sampleRecipesVersion");
+      const currentSampleVersion = 2;
+      const oldSampleIds = ["sample-pancakes", "sample-chili", "sample-pasta", "sample-cookies"];
+
+      if (!sampleVersionSetting || (sampleVersionSetting.value as number) < currentSampleVersion) {
+        for (const oldId of oldSampleIds) {
+          await db.recipes.delete(oldId);
+        }
+        for (const sample of SAMPLE_RECIPES) {
+          const existing = await db.recipes.get(sample.id);
+          if (!existing) {
+            await db.recipes.put(sample);
+          }
+        }
+        await db.settings.put({ key: "sampleRecipesVersion", value: currentSampleVersion });
+      }
+
       let allStored = await db.recipes.toArray();
       if (allStored.length === 0) {
         for (const sample of SAMPLE_RECIPES) {
@@ -176,10 +193,8 @@ export const App: FC = (): ReactElement => {
   useEffect(() => {
     refreshAllData();
 
-    const storedAccent = localStorage.getItem("accentTheme");
-    if (storedAccent) {
-      document.documentElement.setAttribute("data-accent", storedAccent);
-    }
+    const storedAccent = localStorage.getItem("accentTheme") || "terracotta";
+    document.documentElement.setAttribute("data-accent", storedAccent);
 
     // Trigger scheduled backup to synced folder if due
     const destination = new FileSystemFolderBackupDestination();
@@ -929,6 +944,7 @@ export const App: FC = (): ReactElement => {
             onSaveCollection={handleSaveCollection}
             onDeleteCollection={handleDeleteCollection}
             onBatchAssignCollection={handleBatchAssignCollection}
+            onUpdateRecipe={handleSaveRecipe}
             onSelectRecipe={handleSelectRecipe}
             onNewRecipe={handleNewRecipe}
             onImportFile={() => setActiveTab("settings")}
@@ -945,16 +961,18 @@ export const App: FC = (): ReactElement => {
         {activeTab === "recipe-view" && activeRecipe && (
           <RecipeView
             recipe={activeRecipe}
+            collections={collections}
             userIngredients={userIngredients}
-            onBack={() => setActiveTab("library")}
-            onEdit={() => handleEditRecipe(activeRecipe)}
-            onDelete={() => handleDeleteRecipe(activeRecipe.id)}
-            onExport={() => handleExportSingleRecipe(activeRecipe)}
-            onToggleFavorite={() => handleToggleFavorite(activeRecipe.id)}
-            onOpenCookMode={() => setCookModeRecipe(activeRecipe)}
-            onAddToShoppingList={() => handleAddRecipeToShoppingList(activeRecipe)}
+            onBack={(): void => setActiveTab("library")}
+            onEdit={(): void => handleEditRecipe(activeRecipe)}
+            onDelete={(): void => { void handleDeleteRecipe(activeRecipe.id); }}
+            onExport={(): void => handleExportSingleRecipe(activeRecipe)}
+            onToggleFavorite={(): void => { void handleToggleFavorite(activeRecipe.id); }}
+            onOpenCookMode={(): void => setCookModeRecipe(activeRecipe)}
+            onAddToShoppingList={(): void => { void handleAddRecipeToShoppingList(activeRecipe); }}
             onUpdateRecipe={handleSaveRecipe}
             onDuplicateRecipe={handleDuplicateRecipe}
+            onSaveCollection={handleSaveCollection}
           />
         )}
 

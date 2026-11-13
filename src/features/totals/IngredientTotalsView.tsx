@@ -4,7 +4,7 @@ import { computeIngredientTotals, type TotalsSelectionItem } from "../../domain/
 import { parseIngredient } from "../../domain/scaling/parseIngredient";
 import { BUILT_IN_INGREDIENTS } from "../../data/defaultIngredients";
 import { QuickUnitConverterModal } from "../recipe-view/QuickUnitConverterModal";
-import { ConvertIcon } from "../../ui/icons";
+import { ConvertIcon, SearchIcon, XIcon } from "../../ui/icons";
 
 interface ActiveConversionTarget {
   value: number;
@@ -31,9 +31,10 @@ export const IngredientTotalsView: FC<IngredientTotalsViewProps> = ({
   const [showSaveComboModal, setShowSaveComboModal] = useState<boolean>(false);
   const [activeConverter, setActiveConverter] = useState<ActiveConversionTarget | null>(null);
   const [showGlobalConverter, setShowGlobalConverter] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
-  const toggleSelectRecipe = (id: string) => {
-    setSelectedMultipliers((prev) => {
+  const toggleSelectRecipe = (id: string): void => {
+    setSelectedMultipliers((prev: Record<string, number>): Record<string, number> => {
       const next = { ...prev };
       if (next[id]) {
         delete next[id];
@@ -44,12 +45,20 @@ export const IngredientTotalsView: FC<IngredientTotalsViewProps> = ({
     });
   };
 
-  const updateMultiplier = (id: string, multiplier: number) => {
-    setSelectedMultipliers((prev) => ({
+  const updateMultiplier = (id: string, multiplier: number): void => {
+    setSelectedMultipliers((prev: Record<string, number>): Record<string, number> => ({
       ...prev,
       [id]: Math.max(0.25, multiplier)
     }));
   };
+
+  const filteredRecipes = useMemo((): Recipe[] => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return recipes;
+    return recipes.filter((r: Recipe): boolean => {
+      return r.title.toLowerCase().includes(q) || r.courses.some((c: string): boolean => c.toLowerCase().includes(q));
+    });
+  }, [recipes, searchQuery]);
 
   const selectionItems: TotalsSelectionItem[] = useMemo(() => {
     const list: TotalsSelectionItem[] = [];
@@ -189,16 +198,33 @@ export const IngredientTotalsView: FC<IngredientTotalsViewProps> = ({
 
       {/* Recipe Picker Section */}
       <section style={{ marginBottom: "var(--space-8)", background: "var(--surface)", padding: "var(--space-6)", borderRadius: "var(--radius-md)", border: "1px solid var(--border)" }}>
-        <h2 style={{ fontSize: "1.2rem", marginBottom: "var(--space-4)" }}>
-          1. Choose Recipes to Combine ({selectionItems.length} selected)
-        </h2>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-4)", flexWrap: "wrap", gap: "var(--space-2)" }}>
+          <h2 style={{ fontSize: "1.2rem", margin: 0 }}>
+            1. Active Recipes ({selectionItems.length} selected)
+          </h2>
+          {selectionItems.length > 0 && (
+            <button
+              type="button"
+              onClick={(): void => setSelectedMultipliers({})}
+              style={{
+                background: "none",
+                border: "none",
+                color: "var(--muted)",
+                fontSize: "0.85rem",
+                cursor: "pointer",
+                padding: "4px 8px",
+                textDecoration: "underline"
+              }}
+            >
+              Clear All Selections
+            </button>
+          )}
+        </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "var(--space-3)" }}>
-          {recipes.map((recipe) => {
-            const isSelected = !!selectedMultipliers[recipe.id];
-            const multiplier = selectedMultipliers[recipe.id] || 1;
-
-            return (
+        {/* Selected Recipes Active Tray */}
+        {selectionItems.length > 0 ? (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "var(--space-3)", marginBottom: "var(--space-5)" }}>
+            {selectionItems.map(({ recipe, multiplier }) => (
               <div
                 key={recipe.id}
                 style={{
@@ -206,44 +232,181 @@ export const IngredientTotalsView: FC<IngredientTotalsViewProps> = ({
                   alignItems: "center",
                   justifyContent: "space-between",
                   padding: "var(--space-3) var(--space-4)",
-                  background: isSelected ? "var(--surface-alt)" : "transparent",
-                  border: "1px solid " + (isSelected ? "var(--accent)" : "var(--border)"),
-                  borderRadius: "var(--radius-sm)"
+                  background: "var(--surface-alt)",
+                  border: "1px solid var(--accent)",
+                  borderRadius: "var(--radius-md)",
+                  gap: "var(--space-2)"
                 }}
               >
-                <label style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", cursor: "pointer", flex: 1 }}>
+                <span
+                  style={{ fontWeight: 600, fontSize: "0.92rem", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                  title={recipe.title}
+                >
+                  {recipe.title}
+                </span>
+
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <button
+                    type="button"
+                    onClick={(): void => updateMultiplier(recipe.id, multiplier - 0.5)}
+                    style={{
+                      width: "28px",
+                      height: "28px",
+                      borderRadius: "50%",
+                      border: "1px solid var(--border)",
+                      background: "var(--surface)",
+                      color: "var(--text)",
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "1rem",
+                      fontWeight: 700,
+                      lineHeight: 1
+                    }}
+                    title="Decrease multiplier"
+                    aria-label={`Decrease multiplier for ${recipe.title}`}
+                  >
+                    &minus;
+                  </button>
+                  <span style={{ fontSize: "0.88rem", fontWeight: 700, minWidth: "32px", textAlign: "center", color: "var(--accent)" }}>
+                    {multiplier}&times;
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(): void => updateMultiplier(recipe.id, multiplier + 0.5)}
+                    style={{
+                      width: "28px",
+                      height: "28px",
+                      borderRadius: "50%",
+                      border: "1px solid var(--border)",
+                      background: "var(--surface)",
+                      color: "var(--text)",
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "1rem",
+                      fontWeight: 700,
+                      lineHeight: 1
+                    }}
+                    title="Increase multiplier"
+                    aria-label={`Increase multiplier for ${recipe.title}`}
+                  >
+                    +
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(): void => toggleSelectRecipe(recipe.id)}
+                    style={{
+                      width: "24px",
+                      height: "24px",
+                      borderRadius: "50%",
+                      border: "none",
+                      background: "none",
+                      color: "var(--muted)",
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: 0,
+                      marginLeft: "2px"
+                    }}
+                    title="Remove from totals"
+                    aria-label={`Remove ${recipe.title}`}
+                  >
+                    <XIcon width={14} height={14} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p style={{ color: "var(--muted)", fontSize: "0.9rem", margin: "0 0 var(--space-4) 0", fontStyle: "italic" }}>
+            No recipes selected yet. Use the searchable picker below to choose recipes to combine.
+          </p>
+        )}
+
+        {/* Searchable Compact Recipe Picker */}
+        <div style={{ background: "var(--surface-alt)", borderRadius: "var(--radius-md)", padding: "var(--space-4)", border: "1px solid var(--border)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "var(--space-3)" }}>
+            <div style={{ position: "relative", flex: 1 }}>
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(e): void => setSearchQuery(e.target.value)}
+                placeholder={`Search ${recipes.length} recipes to add...`}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px 8px 34px",
+                  borderRadius: "var(--radius-full)",
+                  border: "1px solid var(--border)",
+                  background: "var(--surface)",
+                  color: "var(--text)",
+                  fontSize: "0.88rem"
+                }}
+              />
+              <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "var(--muted)", pointerEvents: "none" }}>
+                <SearchIcon width={14} height={14} />
+              </span>
+            </div>
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={(): void => setSearchQuery("")}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--muted)",
+                  cursor: "pointer",
+                  fontSize: "0.82rem"
+                }}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
+          <div style={{ maxHeight: "240px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "2px" }}>
+            {filteredRecipes.map((recipe: Recipe) => {
+              const isSelected = !!selectedMultipliers[recipe.id];
+              return (
+                <label
+                  key={recipe.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "var(--space-3)",
+                    padding: "8px 12px",
+                    cursor: "pointer",
+                    borderRadius: "var(--radius-sm)",
+                    background: isSelected ? "var(--surface)" : "transparent",
+                    transition: "background 0.1s ease"
+                  }}
+                >
                   <input
                     type="checkbox"
                     checked={isSelected}
-                    onChange={() => toggleSelectRecipe(recipe.id)}
+                    onChange={(): void => toggleSelectRecipe(recipe.id)}
+                    style={{ cursor: "pointer", width: "16px", height: "16px" }}
                   />
-                  <span style={{ fontWeight: 600, fontSize: "0.95rem" }}>{recipe.title}</span>
-                </label>
-
-                {isSelected && (
-                  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                    <button
-                      type="button"
-                      onClick={() => updateMultiplier(recipe.id, multiplier - 0.5)}
-                      style={{ padding: "2px 8px", cursor: "pointer" }}
-                    >
-                      -
-                    </button>
-                    <span style={{ fontSize: "0.85rem", fontWeight: 600, minWidth: "32px", textAlign: "center" }}>
-                      {multiplier}×
+                  <span style={{ flex: 1, fontWeight: isSelected ? 600 : 400, fontSize: "0.92rem", color: isSelected ? "var(--accent)" : "var(--text)" }}>
+                    {recipe.title}
+                  </span>
+                  {recipe.servings && (
+                    <span style={{ fontSize: "0.78rem", color: "var(--muted)" }}>
+                      {recipe.servings} servings
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => updateMultiplier(recipe.id, multiplier + 0.5)}
-                      style={{ padding: "2px 8px", cursor: "pointer" }}
-                    >
-                      +
-                    </button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                  )}
+                </label>
+              );
+            })}
+            {filteredRecipes.length === 0 && (
+              <p style={{ color: "var(--muted)", textAlign: "center", padding: "var(--space-3)", fontSize: "0.85rem", margin: 0 }}>
+                No recipes matching &ldquo;{searchQuery}&rdquo;
+              </p>
+            )}
+          </div>
         </div>
       </section>
 

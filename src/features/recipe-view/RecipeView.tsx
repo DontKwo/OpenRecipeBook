@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, type FC, type ReactElement, type ChangeEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import type { Recipe, CookLogEntry, DictionaryIngredient, Step } from "../../domain/recipe/types";
+import type { Recipe, CookLogEntry, DictionaryIngredient, Step, Collection } from "../../domain/recipe/types";
 import { scaleIngredient } from "../../domain/scaling/scaleIngredient";
 import { convertIngredientUnitSystem, convertStepTemperatures, type UnitSystem } from "../../domain/scaling/unitConverter";
 import { formatTimeMinutes, normalizeRecipe } from "../../domain/recipe/normalize";
@@ -55,25 +55,30 @@ import {
   PlusIcon,
   CheckIcon,
   HistoryIcon,
-  ConvertIcon
+  ConvertIcon,
+  BookOpenIcon,
+  FolderIcon
 } from "../../ui/icons";
 
 export interface RecipeViewProps {
   recipe: Recipe;
+  collections?: Collection[];
   userIngredients?: DictionaryIngredient[];
   onBack: () => void;
   onEdit: () => void;
-  onDelete: () => void;
-  onExport: () => void;
-  onToggleFavorite: () => void;
+  onDelete: () => void | Promise<void>;
+  onExport: () => void | Promise<void>;
+  onToggleFavorite: () => void | Promise<void>;
   onOpenCookMode: () => void;
-  onAddToShoppingList: () => void;
-  onUpdateRecipe?: (updated: Recipe) => void;
-  onDuplicateRecipe?: (duplicated: Recipe) => void;
+  onAddToShoppingList: () => void | Promise<void>;
+  onUpdateRecipe?: (updated: Recipe) => void | Promise<void>;
+  onDuplicateRecipe?: (duplicated: Recipe) => void | Promise<void>;
+  onSaveCollection?: (collection: Collection) => void | Promise<void>;
 }
 
 export const RecipeView: FC<RecipeViewProps> = ({
   recipe,
+  collections = [],
   userIngredients = [],
   onBack,
   onEdit,
@@ -83,7 +88,8 @@ export const RecipeView: FC<RecipeViewProps> = ({
   onOpenCookMode,
   onAddToShoppingList,
   onUpdateRecipe,
-  onDuplicateRecipe
+  onDuplicateRecipe,
+  onSaveCollection
 }): ReactElement => {
   const [multiplier, setMultiplier] = useState<number>(1);
   const [unitSystem, setUnitSystem] = useState<UnitSystem>("us");
@@ -152,6 +158,23 @@ export const RecipeView: FC<RecipeViewProps> = ({
   const [showSavedIndicator, setShowSavedIndicator] = useState<boolean>(false);
   const [undoAction, setUndoAction] = useState<{ message: string; action: () => void } | null>(null);
 
+  // More actions menu and folder organization state
+  const [showMoreMenu, setShowMoreMenu] = useState<boolean>(false);
+  const [showFolderModal, setShowFolderModal] = useState<boolean>(false);
+  const [newFolderName, setNewFolderName] = useState<string>("");
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showMoreMenu) return;
+    const handleClickOutside = (e: MouseEvent): void => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setShowMoreMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showMoreMenu]);
+
   // Synchronize state when recipe prop updates
   useEffect(() => {
     setInlineTitle(recipe.title);
@@ -192,6 +215,45 @@ export const RecipeView: FC<RecipeViewProps> = ({
     }
     setShowSavedIndicator(true);
     window.setTimeout(() => setShowSavedIndicator(false), 1600);
+  };
+
+  const assignedCollections = useMemo((): Collection[] => {
+    if (!collections || !recipe.collectionIds) return [];
+    return collections.filter((c: Collection): boolean => recipe.collectionIds.includes(c.id));
+  }, [collections, recipe.collectionIds]);
+
+  const handleToggleCollection = (colId: string): void => {
+    const existing = recipe.collectionIds || [];
+    const updatedIds = existing.includes(colId)
+      ? existing.filter((id: string): boolean => id !== colId)
+      : [...existing, colId];
+    const updatedRecipe: Recipe = {
+      ...recipe,
+      collectionIds: updatedIds,
+      updatedAt: new Date().toISOString()
+    };
+    commitRecipeUpdate(updatedRecipe, existing.includes(colId) ? "Removed from folder" : "Added to folder");
+  };
+
+  const handleCreateAndAssignFolder = (e: FormEvent): void => {
+    e.preventDefault();
+    const trimmed = newFolderName.trim();
+    if (!trimmed) return;
+    const newColId = `col-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    const newCol: Collection = {
+      id: newColId,
+      name: trimmed,
+      createdAt: new Date().toISOString()
+    };
+    onSaveCollection?.(newCol);
+    const existing = recipe.collectionIds || [];
+    const updatedRecipe: Recipe = {
+      ...recipe,
+      collectionIds: [...existing, newColId],
+      updatedAt: new Date().toISOString()
+    };
+    commitRecipeUpdate(updatedRecipe, `Added to new folder "${trimmed}"`);
+    setNewFolderName("");
   };
 
   // Load photos from Dexie database
@@ -630,7 +692,7 @@ export const RecipeView: FC<RecipeViewProps> = ({
       )}
 
       {/* Top navigation row */}
-      <div style={{ padding: "var(--space-4) var(--space-6)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "var(--space-2)" }}>
+      <div style={{ padding: "var(--space-4) var(--space-6)", display: "flex", justifyContent: "space-between", alignItems: "center", position: "relative", borderBottom: "1px solid var(--border)" }}>
         <button
           type="button"
           onClick={onBack}
@@ -639,15 +701,19 @@ export const RecipeView: FC<RecipeViewProps> = ({
             border: "none",
             color: "var(--accent)",
             fontWeight: 600,
-            fontSize: "1rem",
+            fontSize: "0.95rem",
             cursor: "pointer",
-            padding: "8px 0"
+            padding: "8px 0",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px"
           }}
         >
           &larr; Back to Recipes
         </button>
 
-        <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
+          {/* Primary Action: Cook Mode */}
           <button
             type="button"
             onClick={onOpenCookMode}
@@ -655,119 +721,21 @@ export const RecipeView: FC<RecipeViewProps> = ({
               background: "var(--accent)",
               color: "var(--accent-contrast)",
               border: "none",
-              padding: "8px 16px",
+              padding: "8px 18px",
               borderRadius: "var(--radius-full)",
               fontWeight: 600,
               cursor: "pointer",
               display: "inline-flex",
               alignItems: "center",
               gap: "6px",
-              fontSize: "0.9rem"
+              fontSize: "0.92rem",
+              boxShadow: "var(--shadow-sm)"
             }}
           >
             <ChefHatIcon width={16} height={16} /> Cook Mode
           </button>
 
-          <button
-            type="button"
-            onClick={onAddToShoppingList}
-            style={{
-              background: "var(--surface)",
-              color: "var(--text)",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius-full)",
-              padding: "8px 14px",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              cursor: "pointer",
-              fontSize: "0.9rem"
-            }}
-          >
-            <ShoppingCartIcon width={16} height={16} /> Add to List
-          </button>
-
-          <button
-            type="button"
-            onClick={handleShareLink}
-            style={{
-              background: "var(--surface)",
-              color: "var(--text)",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius-full)",
-              padding: "8px 14px",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              cursor: "pointer",
-              fontSize: "0.9rem"
-            }}
-          >
-            <CopyIcon width={16} height={16} /> Share Link
-          </button>
-
-          <button
-            type="button"
-            onClick={(): void => setShowHistoryModal(true)}
-            style={{
-              background: "var(--surface)",
-              color: "var(--text)",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius-full)",
-              padding: "8px 12px",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "4px",
-              cursor: "pointer",
-              fontSize: "0.85rem"
-            }}
-            title="View saved version history and undo changes"
-          >
-            <HistoryIcon width={15} height={15} /> History
-          </button>
-
-          <button
-            type="button"
-            onClick={(): void => setQuickConverterState({
-              isOpen: true,
-              initialValue: 100,
-              initialUnit: "g",
-              initialIngredient: "All-Purpose Flour"
-            })}
-            style={{
-              background: "var(--surface)",
-              color: "var(--text)",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius-full)",
-              padding: "8px 12px",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "4px",
-              cursor: "pointer",
-              fontSize: "0.85rem"
-            }}
-            title="Convert any unit, volume, weight, and ingredient density"
-          >
-            <ConvertIcon width={15} height={15} /> Unit Converter
-          </button>
-
-          <button
-            type="button"
-            onClick={(): void => setShowTidyModal(true)}
-            style={{
-              background: "var(--surface)",
-              color: "var(--text)",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius-full)",
-              padding: "8px 12px",
-              cursor: "pointer",
-              fontSize: "0.85rem"
-            }}
-            title="Clean formatting and normalize times"
-          >
-            Tidy Up
-          </button>
-
+          {/* Quick Edit Toggle Pill */}
           <button
             type="button"
             onClick={(): void => setIsQuickEditMode(!isQuickEditMode)}
@@ -784,30 +752,12 @@ export const RecipeView: FC<RecipeViewProps> = ({
               alignItems: "center",
               gap: "6px"
             }}
-            title="Toggle inline editing mode (view mode is active by default to prevent accidental edits)"
+            title="Toggle inline editing mode"
           >
             <EditIcon width={14} height={14} /> Quick Edit: {isQuickEditMode ? "ON" : "OFF"}
           </button>
 
-          {onDuplicateRecipe && (
-            <button
-              type="button"
-              onClick={handleDuplicate}
-              style={{
-                background: "var(--surface)",
-                color: "var(--text)",
-                border: "1px solid var(--border)",
-                borderRadius: "var(--radius-full)",
-                padding: "8px 12px",
-                cursor: "pointer",
-                fontSize: "0.85rem"
-              }}
-              title="Duplicate recipe"
-            >
-              Duplicate
-            </button>
-          )}
-
+          {/* Favorite Toggle */}
           <button
             type="button"
             onClick={onToggleFavorite}
@@ -816,78 +766,294 @@ export const RecipeView: FC<RecipeViewProps> = ({
               color: recipe.favorite ? "var(--danger)" : "var(--muted)",
               border: "1px solid var(--border)",
               borderRadius: "var(--radius-full)",
-              width: "40px",
-              height: "40px",
+              width: "38px",
+              height: "38px",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               cursor: "pointer"
             }}
             aria-label="Toggle favorite"
+            title={recipe.favorite ? "Favorited" : "Add to favorites"}
           >
             <HeartIcon fill={recipe.favorite ? "currentColor" : "none"} width={18} height={18} />
           </button>
 
-          <button
-            type="button"
-            onClick={(): void => setShowExportModal(true)}
-            style={{
-              background: "var(--surface)",
-              color: "var(--text)",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius-full)",
-              width: "40px",
-              height: "40px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer"
-            }}
-            aria-label="Export recipe"
-          >
-            <DownloadIcon width={18} height={18} />
-          </button>
+          {/* More Actions Menu */}
+          <div ref={moreMenuRef} style={{ position: "relative" }}>
+            <button
+              type="button"
+              onClick={(): void => setShowMoreMenu(!showMoreMenu)}
+              style={{
+                background: showMoreMenu ? "var(--surface-alt)" : "var(--surface)",
+                color: "var(--text)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-full)",
+                padding: "8px 14px",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "4px",
+                cursor: "pointer",
+                fontWeight: 700,
+                fontSize: "0.95rem"
+              }}
+              title="More recipe actions"
+              aria-label="More actions"
+            >
+              &bull;&bull;&bull;
+            </button>
 
-          <button
-            type="button"
-            onClick={onEdit}
-            style={{
-              background: "var(--surface)",
-              color: "var(--text)",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius-full)",
-              width: "40px",
-              height: "40px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer"
-            }}
-            aria-label="Full recipe editor"
-            title="Full recipe editor"
-          >
-            <EditIcon width={18} height={18} />
-          </button>
+            {showMoreMenu && (
+              <div
+                style={{
+                  position: "absolute",
+                  right: 0,
+                  top: "calc(100% + 6px)",
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--radius-md)",
+                  boxShadow: "var(--shadow-lg)",
+                  minWidth: "220px",
+                  zIndex: 100,
+                  overflow: "hidden",
+                  display: "flex",
+                  flexDirection: "column",
+                  padding: "4px 0"
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={(): void => {
+                    setShowMoreMenu(false);
+                    onAddToShoppingList();
+                  }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    padding: "10px 16px",
+                    textAlign: "left",
+                    color: "var(--text)",
+                    cursor: "pointer",
+                    fontSize: "0.88rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px"
+                  }}
+                >
+                  <ShoppingCartIcon width={16} height={16} /> Add to Shopping List
+                </button>
 
-          <button
-            type="button"
-            onClick={onDelete}
-            style={{
-              background: "var(--surface)",
-              color: "var(--danger)",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius-full)",
-              width: "40px",
-              height: "40px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer"
-            }}
-            aria-label="Delete recipe"
-          >
-            <TrashIcon width={18} height={18} />
-          </button>
+                <button
+                  type="button"
+                  onClick={(): void => {
+                    setShowMoreMenu(false);
+                    setShowFolderModal(true);
+                  }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    padding: "10px 16px",
+                    textAlign: "left",
+                    color: "var(--text)",
+                    cursor: "pointer",
+                    fontSize: "0.88rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px"
+                  }}
+                >
+                  <BookOpenIcon width={16} height={16} /> Manage Folders
+                </button>
+
+                <button
+                  type="button"
+                  onClick={(): void => {
+                    setShowMoreMenu(false);
+                    handleShareLink();
+                  }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    padding: "10px 16px",
+                    textAlign: "left",
+                    color: "var(--text)",
+                    cursor: "pointer",
+                    fontSize: "0.88rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px"
+                  }}
+                >
+                  <CopyIcon width={16} height={16} /> Share Recipe Link
+                </button>
+
+                <button
+                  type="button"
+                  onClick={(): void => {
+                    setShowMoreMenu(false);
+                    onEdit();
+                  }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    padding: "10px 16px",
+                    textAlign: "left",
+                    color: "var(--text)",
+                    cursor: "pointer",
+                    fontSize: "0.88rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px"
+                  }}
+                >
+                  <EditIcon width={16} height={16} /> Full Recipe Editor
+                </button>
+
+                {onDuplicateRecipe && (
+                  <button
+                    type="button"
+                    onClick={(): void => {
+                      setShowMoreMenu(false);
+                      handleDuplicate();
+                    }}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      padding: "10px 16px",
+                      textAlign: "left",
+                      color: "var(--text)",
+                      cursor: "pointer",
+                      fontSize: "0.88rem",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px"
+                    }}
+                  >
+                    <CopyIcon width={16} height={16} /> Duplicate Recipe
+                  </button>
+                )}
+
+                <div style={{ height: "1px", background: "var(--border)", margin: "4px 0" }} />
+
+                <button
+                  type="button"
+                  onClick={(): void => {
+                    setShowMoreMenu(false);
+                    setQuickConverterState({
+                      isOpen: true,
+                      initialValue: 100,
+                      initialUnit: "g",
+                      initialIngredient: "All-Purpose Flour"
+                    });
+                  }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    padding: "10px 16px",
+                    textAlign: "left",
+                    color: "var(--text)",
+                    cursor: "pointer",
+                    fontSize: "0.88rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px"
+                  }}
+                >
+                  <ConvertIcon width={16} height={16} /> Quick Unit Converter
+                </button>
+
+                <button
+                  type="button"
+                  onClick={(): void => {
+                    setShowMoreMenu(false);
+                    setShowTidyModal(true);
+                  }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    padding: "10px 16px",
+                    textAlign: "left",
+                    color: "var(--text)",
+                    cursor: "pointer",
+                    fontSize: "0.88rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px"
+                  }}
+                >
+                  <CheckIcon width={16} height={16} /> Tidy Up Formatting
+                </button>
+
+                <button
+                  type="button"
+                  onClick={(): void => {
+                    setShowMoreMenu(false);
+                    setShowHistoryModal(true);
+                  }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    padding: "10px 16px",
+                    textAlign: "left",
+                    color: "var(--text)",
+                    cursor: "pointer",
+                    fontSize: "0.88rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px"
+                  }}
+                >
+                  <HistoryIcon width={16} height={16} /> Version History
+                </button>
+
+                <button
+                  type="button"
+                  onClick={(): void => {
+                    setShowMoreMenu(false);
+                    setShowExportModal(true);
+                  }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    padding: "10px 16px",
+                    textAlign: "left",
+                    color: "var(--text)",
+                    cursor: "pointer",
+                    fontSize: "0.88rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px"
+                  }}
+                >
+                  <DownloadIcon width={16} height={16} /> Export Recipe
+                </button>
+
+                <div style={{ height: "1px", background: "var(--border)", margin: "4px 0" }} />
+
+                <button
+                  type="button"
+                  onClick={(): void => {
+                    setShowMoreMenu(false);
+                    onDelete();
+                  }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    padding: "10px 16px",
+                    textAlign: "left",
+                    color: "var(--danger)",
+                    cursor: "pointer",
+                    fontSize: "0.88rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px"
+                  }}
+                >
+                  <TrashIcon width={16} height={16} /> Delete Recipe
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1329,6 +1495,84 @@ export const RecipeView: FC<RecipeViewProps> = ({
             I Made This ({recipe.cookLog.length})
           </button>
         </div>
+      </div>
+
+      {/* Recipe Folders Bar */}
+      <div
+        style={{
+          margin: "0 var(--space-6) var(--space-4)",
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          gap: "var(--space-2)"
+        }}
+      >
+        <span style={{ fontSize: "0.85rem", color: "var(--muted)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "4px" }}>
+          <BookOpenIcon width={14} height={14} /> Folders:
+        </span>
+
+        {assignedCollections.map((col: Collection) => (
+          <span
+            key={col.id}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "4px",
+              padding: "3px 10px",
+              borderRadius: "var(--radius-full)",
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              fontSize: "0.82rem",
+              fontWeight: 500,
+              boxShadow: "var(--shadow-sm)"
+            }}
+          >
+            <span style={{ display: "inline-flex", alignItems: "center" }}>
+              <FolderIcon width={14} height={14} style={{ marginRight: "5px" }} />
+              <span>{col.name}</span>
+            </span>
+            <button
+              type="button"
+              onClick={(): void => handleToggleCollection(col.id)}
+              style={{
+                background: "none",
+                border: "none",
+                color: "var(--muted)",
+                cursor: "pointer",
+                padding: "0 2px",
+                fontSize: "0.85rem",
+                lineHeight: 1,
+                display: "inline-flex",
+                alignItems: "center"
+              }}
+              title={`Remove from folder "${col.name}"`}
+              aria-label={`Remove from folder "${col.name}"`}
+            >
+              &times;
+            </button>
+          </span>
+        ))}
+
+        <button
+          type="button"
+          onClick={(): void => setShowFolderModal(true)}
+          style={{
+            background: "none",
+            color: "var(--accent)",
+            border: "1px dashed var(--accent)",
+            padding: "3px 10px",
+            borderRadius: "var(--radius-full)",
+            fontSize: "0.82rem",
+            fontWeight: 600,
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "4px"
+          }}
+          title="Add or remove from folders"
+        >
+          + Add to Folder
+        </button>
       </div>
 
       {/* Scaling & Units Controls Bar */}
@@ -2392,8 +2636,20 @@ export const RecipeView: FC<RecipeViewProps> = ({
               Re-runs normalization to standardize unit abbreviations, format fractions, clean step prefixes, and trim tracking parameters.
             </p>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-2)" }}>
-              <button type="button" onClick={(): void => setShowTidyModal(false)} style={{ background: "none", border: "1px solid var(--border)", padding: "8px 16px", borderRadius: "var(--radius-full)", cursor: "pointer" }}>Cancel</button>
-              <button type="button" onClick={handleApplyTidyUp} style={{ background: "var(--accent)", color: "var(--accent-contrast)", border: "none", padding: "8px 18px", borderRadius: "var(--radius-full)", fontWeight: 600, cursor: "pointer" }}>Apply Changes</button>
+              <button
+                type="button"
+                onClick={(): void => setShowTidyModal(false)}
+                style={{ background: "none", border: "1px solid var(--border)", padding: "8px 16px", borderRadius: "var(--radius-full)", cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleApplyTidyUp}
+                style={{ background: "var(--accent)", color: "var(--accent-contrast)", border: "none", padding: "8px 18px", borderRadius: "var(--radius-full)", fontWeight: 600, cursor: "pointer" }}
+              >
+                Apply Changes
+              </button>
             </div>
           </div>
         </div>
@@ -2405,14 +2661,22 @@ export const RecipeView: FC<RecipeViewProps> = ({
           <div style={{ background: "var(--surface)", padding: "var(--space-6)", borderRadius: "var(--radius-md)", width: "90%", maxWidth: "450px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-3)" }}>
               <h3 style={{ margin: 0 }}>Log Cooking Session</h3>
-              <button type="button" onClick={(): void => setShowCookLogModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)" }}>
+              <button
+                type="button"
+                onClick={(): void => setShowCookLogModal(false)}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)" }}
+              >
                 <XIcon width={20} height={20} />
               </button>
             </div>
             <form onSubmit={handleAddCookLog}>
               <div style={{ marginBottom: "var(--space-3)" }}>
                 <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "4px" }}>Rating</label>
-                <select value={cookLogRating} onChange={(e: ChangeEvent<HTMLSelectElement>): void => setCookLogRating(parseInt(e.target.value, 10))} style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid var(--border)", background: "var(--surface)" }}>
+                <select
+                  value={cookLogRating}
+                  onChange={(e: ChangeEvent<HTMLSelectElement>): void => setCookLogRating(parseInt(e.target.value, 10))}
+                  style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid var(--border)", background: "var(--surface)" }}
+                >
                   <option value={5}>5 Stars - Excellent</option>
                   <option value={4}>4 Stars - Great</option>
                   <option value={3}>3 Stars - Good</option>
@@ -2422,11 +2686,28 @@ export const RecipeView: FC<RecipeViewProps> = ({
               </div>
               <div style={{ marginBottom: "var(--space-4)" }}>
                 <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "4px" }}>Cook's Log Note (optional)</label>
-                <textarea rows={3} value={cookLogNote} onChange={(e: ChangeEvent<HTMLTextAreaElement>): void => setCookLogNote(e.target.value)} placeholder="e.g. Added extra garlic, baked 5 minutes less, huge hit!" style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text)" }} />
+                <textarea
+                  rows={3}
+                  value={cookLogNote}
+                  onChange={(e: ChangeEvent<HTMLTextAreaElement>): void => setCookLogNote(e.target.value)}
+                  placeholder="e.g. Added extra garlic, baked 5 minutes less, huge hit!"
+                  style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text)" }}
+                />
               </div>
               <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-2)" }}>
-                <button type="button" onClick={(): void => setShowCookLogModal(false)} style={{ background: "none", border: "1px solid var(--border)", padding: "8px 16px", borderRadius: "var(--radius-full)", cursor: "pointer" }}>Cancel</button>
-                <button type="submit" style={{ background: "var(--accent)", color: "var(--accent-contrast)", border: "none", padding: "8px 18px", borderRadius: "var(--radius-full)", fontWeight: 600, cursor: "pointer" }}>Save Log Entry</button>
+                <button
+                  type="button"
+                  onClick={(): void => setShowCookLogModal(false)}
+                  style={{ background: "none", border: "1px solid var(--border)", padding: "8px 16px", borderRadius: "var(--radius-full)", cursor: "pointer" }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={{ background: "var(--accent)", color: "var(--accent-contrast)", border: "none", padding: "8px 18px", borderRadius: "var(--radius-full)", fontWeight: 600, cursor: "pointer" }}
+                >
+                  Save Log Entry
+                </button>
               </div>
             </form>
           </div>
@@ -2439,7 +2720,11 @@ export const RecipeView: FC<RecipeViewProps> = ({
           <div style={{ background: "var(--surface)", padding: "var(--space-6)", borderRadius: "var(--radius-md)", width: "90%", maxWidth: "460px", boxShadow: "var(--shadow-lg)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-3)" }}>
               <h3 style={{ margin: 0, fontFamily: "var(--font-serif)", fontSize: "1.3rem" }}>Export Recipe</h3>
-              <button type="button" onClick={(): void => setShowExportModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)" }}>
+              <button
+                type="button"
+                onClick={(): void => setShowExportModal(false)}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)" }}
+              >
                 <XIcon width={20} height={20} />
               </button>
             </div>
@@ -2517,8 +2802,20 @@ export const RecipeView: FC<RecipeViewProps> = ({
             )}
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-2)" }}>
-              <button type="button" onClick={(): void => setShowExportModal(false)} style={{ background: "none", border: "1px solid var(--border)", padding: "8px 16px", borderRadius: "var(--radius-full)", cursor: "pointer" }}>Cancel</button>
-              <button type="button" onClick={handlePerformExport} style={{ background: "var(--accent)", color: "var(--accent-contrast)", border: "none", padding: "8px 18px", borderRadius: "var(--radius-full)", fontWeight: 600, cursor: "pointer" }}>Download File</button>
+              <button
+                type="button"
+                onClick={(): void => setShowExportModal(false)}
+                style={{ background: "none", border: "1px solid var(--border)", padding: "8px 16px", borderRadius: "var(--radius-full)", cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handlePerformExport}
+                style={{ background: "var(--accent)", color: "var(--accent-contrast)", border: "none", padding: "8px 18px", borderRadius: "var(--radius-full)", fontWeight: 600, cursor: "pointer" }}
+              >
+                Download File
+              </button>
             </div>
           </div>
         </div>
@@ -2561,6 +2858,143 @@ export const RecipeView: FC<RecipeViewProps> = ({
             setInlineConverterTarget(null);
           }}
         />
+      )}
+
+      {/* Folder Assignment Modal */}
+      {showFolderModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "var(--space-4)"
+          }}
+          onClick={(): void => setShowFolderModal(false)}
+        >
+          <div
+            style={{
+              background: "var(--surface)",
+              borderRadius: "var(--radius-lg)",
+              padding: "var(--space-6)",
+              maxWidth: "420px",
+              width: "100%",
+              boxShadow: "var(--shadow-lg)",
+              border: "1px solid var(--border)"
+            }}
+            onClick={(e): void => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-4)" }}>
+              <h3 style={{ margin: 0, fontSize: "1.15rem", fontFamily: "var(--font-serif)" }}>
+                Organize in Folders
+              </h3>
+              <button
+                type="button"
+                onClick={(): void => setShowFolderModal(false)}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", padding: 0 }}
+                aria-label="Close"
+              >
+                <XIcon width={16} height={16} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: "0.88rem", color: "var(--muted)", marginTop: 0, marginBottom: "var(--space-4)" }}>
+              Select the folders this recipe belongs to:
+            </p>
+
+            <div style={{ maxHeight: "200px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "6px", marginBottom: "var(--space-5)" }}>
+              {collections.map((col: Collection) => {
+                const isAssigned = recipe.collectionIds?.includes(col.id) ?? false;
+                return (
+                  <label
+                    key={col.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "var(--space-3)",
+                      padding: "8px 12px",
+                      borderRadius: "var(--radius-sm)",
+                      background: isAssigned ? "var(--surface-alt)" : "transparent",
+                      border: "1px solid " + (isAssigned ? "var(--accent)" : "var(--border)"),
+                      cursor: "pointer"
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isAssigned}
+                      onChange={(): void => handleToggleCollection(col.id)}
+                      style={{ cursor: "pointer", width: "16px", height: "16px" }}
+                    />
+                    <span style={{ display: "inline-flex", alignItems: "center", fontWeight: 600, fontSize: "0.92rem", flex: 1 }}>
+                      <FolderIcon width={14} height={14} style={{ marginRight: "6px" }} />
+                      <span>{col.name}</span>
+                    </span>
+                  </label>
+                );
+              })}
+              {collections.length === 0 && (
+                <p style={{ color: "var(--muted)", fontSize: "0.85rem", fontStyle: "italic", margin: 0 }}>
+                  No folders created yet. Create one below!
+                </p>
+              )}
+            </div>
+
+            {/* Create New Folder Inline */}
+            <form onSubmit={handleCreateAndAssignFolder} style={{ display: "flex", gap: "var(--space-2)", marginBottom: "var(--space-4)" }}>
+              <input
+                type="text"
+                value={newFolderName}
+                onChange={(e: ChangeEvent<HTMLInputElement>): void => setNewFolderName(e.target.value)}
+                placeholder="New folder name..."
+                style={{
+                  flex: 1,
+                  padding: "8px 12px",
+                  borderRadius: "var(--radius-sm)",
+                  border: "1px solid var(--border)",
+                  background: "var(--surface-alt)",
+                  color: "var(--text)",
+                  fontSize: "0.88rem"
+                }}
+              />
+              <button
+                type="submit"
+                disabled={!newFolderName.trim()}
+                style={{
+                  background: newFolderName.trim() ? "var(--accent)" : "var(--surface-alt)",
+                  color: newFolderName.trim() ? "var(--accent-contrast)" : "var(--muted)",
+                  border: "none",
+                  padding: "8px 14px",
+                  borderRadius: "var(--radius-sm)",
+                  fontWeight: 600,
+                  fontSize: "0.85rem",
+                  cursor: newFolderName.trim() ? "pointer" : "not-allowed"
+                }}
+              >
+                + Add
+              </button>
+            </form>
+
+            <button
+              type="button"
+              onClick={(): void => setShowFolderModal(false)}
+              style={{
+                width: "100%",
+                background: "var(--accent)",
+                color: "var(--accent-contrast)",
+                border: "none",
+                padding: "10px",
+                borderRadius: "var(--radius-full)",
+                fontWeight: 600,
+                cursor: "pointer"
+              }}
+            >
+              Done
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

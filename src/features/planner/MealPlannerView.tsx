@@ -686,11 +686,11 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
           {/* Week Grid Mode */}
           {viewMode === "week" && (
             <div
+              className="planner-week-grid"
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(7, minmax(130px, 1fr))",
-                gap: "var(--space-3)",
-                overflowX: "auto",
+                gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
+                gap: "var(--space-2)",
                 paddingBottom: "var(--space-4)"
               }}
             >

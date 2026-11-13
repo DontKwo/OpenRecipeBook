@@ -7,15 +7,15 @@ describe("Recipe Full-Text Search Engine", (): void => {
   engine.indexRecipes(SAMPLE_RECIPES);
 
   it("finds recipe by title keyword instantly", (): void => {
-    const results = engine.queryRecipes(SAMPLE_RECIPES, "pancakes");
+    const results = engine.queryRecipes(SAMPLE_RECIPES, "Starbucks");
     expect(results).toHaveLength(1);
-    expect(results[0].title).toBe("Classic Buttermilk Pancakes");
+    expect(results[0].title).toBe("Starbucks Lemon Loaf");
   });
 
   it("finds recipe by ingredient keyword", (): void => {
-    const results = engine.queryRecipes(SAMPLE_RECIPES, "chocolate chips");
+    const results = engine.queryRecipes(SAMPLE_RECIPES, "marshmallows");
     expect(results).toHaveLength(1);
-    expect(results[0].title).toBe("Chewy Chocolate Chip Cookies");
+    expect(results[0].title).toBe("Avalanche Bars");
   });
 
   it("filters by favorites and courses correctly", (): void => {

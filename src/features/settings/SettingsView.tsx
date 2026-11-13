@@ -54,12 +54,12 @@ export const SettingsView: FC<SettingsViewProps> = ({
       navigator.storage.estimate().then((estimate) => {
         const usedMb = ((estimate.usage || 0) / (1024 * 1024)).toFixed(2);
         const quotaMb = ((estimate.quota || 0) / (1024 * 1024)).toFixed(0);
-        setStorageUsage(`${usedMb} MB used of ${quotaMb} MB available`);
-      }).catch(() => {
-        setStorageUsage("Storage estimate unavailable");
+        setStorageUsage(`${usedMb} MB (Browser sandbox limit: ${quotaMb} MB)`);
+      }).catch((): void => {
+        setStorageUsage("Local sandbox storage active");
       });
     } else {
-      setStorageUsage("Local IndexedDB storage active");
+      setStorageUsage("Local sandbox storage active");
     }
   }, []);
 
@@ -435,8 +435,11 @@ export const SettingsView: FC<SettingsViewProps> = ({
             <strong>Stored Recipes:</strong> {recipeCount}
           </div>
           <div>
-            <strong>Storage Quota:</strong> {storageUsage}
+            <strong>Local Storage Used:</strong> {storageUsage}
           </div>
+          <p style={{ fontSize: "0.82rem", color: "var(--muted)", margin: "4px 0 0 0", lineHeight: 1.5 }}>
+            OpenRecipeBook is 100% private and offline-first. All data and photos reside solely within your device&rsquo;s sandboxed local storage (IndexedDB). No servers, tracking, or background tasks use your device hardware or storage.
+          </p>
         </div>
       </section>
 

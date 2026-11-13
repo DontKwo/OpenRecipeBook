@@ -42,15 +42,19 @@ const NON_SCALABLE_PATTERNS: RegExp[] = [
 ];
 
 export const UNIT_CANONICAL_MAP: Record<string, string> = {
-  tsp: "tsp",
-  tsps: "tsp",
-  teaspoon: "tsp",
-  teaspoons: "tsp",
   tbsp: "tbsp",
+  "tbsp.": "tbsp",
   tbsps: "tbsp",
   tbs: "tbsp",
   tablespoon: "tbsp",
   tablespoons: "tbsp",
+  tsp: "tsp",
+  "tsp.": "tsp",
+  tsps: "tsp",
+  teaspoon: "tsp",
+  teaspoons: "tsp",
+  c: "cup",
+  "c.": "cup",
   cup: "cup",
   cups: "cup",
   "fl oz": "fl oz",
@@ -217,15 +221,43 @@ export function parseIngredient(rawText: string, ingredientIdentifier: string = 
     };
   }
 
-  // Check non-scalable indicators
-  const isNonScalable = NON_SCALABLE_PATTERNS.some((pattern: RegExp): boolean => pattern.test(trimmedRaw));
-  if (isNonScalable) {
+  // Dual unit pattern: e.g. "2 kg / 4 lb turkey breast"
+  const dualUnitPattern = /^(\d+(?:\.\d+)?|\d+\/\d+)\s*(kg|lb|lbs|g|oz|ml|l)\s*\/\s*(\d+(?:\.\d+)?|\d+\/\d+)\s*(kg|lb|lbs|g|oz|ml|l)\s+(.*)$/i;
+  const dualMatch = dualUnitPattern.exec(trimmedRaw);
+  if (dualMatch) {
+    const primaryQty = parseSingleQuantityString(dualMatch[1]) || 1;
+    const primaryUnit = UNIT_CANONICAL_MAP[dualMatch[2].toLowerCase()] || dualMatch[2].toLowerCase();
+    const parsedRemainder = parseUnitAndName(dualMatch[5]);
     return {
       ingredient: {
         id: ingredientIdentifier,
         raw: rawText,
-        scalable: false,
-        name: trimmedRaw
+        quantity: { kind: "single", value: primaryQty },
+        unit: primaryUnit,
+        name: parsedRemainder.name,
+        note: `or ${dualMatch[3]} ${dualMatch[4]}` + (parsedRemainder.note ? `, ${parsedRemainder.note}` : ""),
+        scalable: true
+      },
+      confidence: "high"
+    };
+  }
+
+  // Combined measure pattern: e.g. "1/4 cup + 1 tbsp Thai tea mix"
+  const combinedMeasurePattern = /^(\d+(?:\.\d+)?|\d+\/\d+)\s*(cup|cups|tbsp|tsp)\s*\+\s*(\d+(?:\.\d+)?|\d+\/\d+)\s*(tbsp|tsp|cup|cups)\s+(.*)$/i;
+  const combinedMatch = combinedMeasurePattern.exec(trimmedRaw);
+  if (combinedMatch) {
+    const mainQty = parseSingleQuantityString(combinedMatch[1]) || 1;
+    const mainUnit = UNIT_CANONICAL_MAP[combinedMatch[2].toLowerCase()] || combinedMatch[2].toLowerCase();
+    const parsedRemainder = parseUnitAndName(combinedMatch[5]);
+    return {
+      ingredient: {
+        id: ingredientIdentifier,
+        raw: rawText,
+        quantity: { kind: "single", value: mainQty },
+        unit: mainUnit,
+        name: parsedRemainder.name,
+        note: `+ ${combinedMatch[3]} ${combinedMatch[4]}` + (parsedRemainder.note ? `, ${parsedRemainder.note}` : ""),
+        scalable: true
       },
       confidence: "high"
     };
@@ -296,6 +328,26 @@ export function parseIngredient(rawText: string, ingredientIdentifier: string = 
     }
   }
 
+  // Check non-scalable indicators when no numeric quantity was parsed
+  const isNonScalable = NON_SCALABLE_PATTERNS.some((pattern: RegExp): boolean => pattern.test(trimmedRaw));
+  if (isNonScalable) {
+    const cleanedName = trimmedRaw
+      .replace(/\s*\([^)]*to taste[^)]*\)/i, "")
+      .replace(/,\s*(?:or\s+)?to taste\b/i, "")
+      .replace(/\s+to taste\b/i, "")
+      .trim();
+    return {
+      ingredient: {
+        id: ingredientIdentifier,
+        raw: rawText,
+        scalable: false,
+        name: cleanedName || trimmedRaw,
+        note: "to taste"
+      },
+      confidence: "high"
+    };
+  }
+
   // Fallback: unscaled raw text
   return {
     ingredient: {
@@ -312,12 +364,27 @@ function parseUnitAndName(inputString: string): { unit?: string; name: string; n
   let workingString = inputString.trim();
   let foundNote: string | undefined;
 
+  // Strip catalog prefixes before comma parsing
+  workingString = workingString.replace(/^fruit,\s*without\s*seeds\s*/i, "").trim();
+  workingString = workingString.replace(/^plenty\s+of\s+/i, "").trim();
+
+  // Extract parenthetical note
+  const parenMatch = /\(([^)]+)\)/.exec(workingString);
+  if (parenMatch) {
+    foundNote = parenMatch[1].trim();
+    workingString = workingString.replace(/\s*\([^)]+\)/, "").trim();
+  }
+
   // Extract preparation note in parentheses or following comma
   const commaIndex = workingString.indexOf(",");
   if (commaIndex > -1) {
-    foundNote = workingString.substring(commaIndex + 1).trim();
+    const commaNote = workingString.substring(commaIndex + 1).trim();
+    foundNote = foundNote ? `${commaNote} (${foundNote})` : commaNote;
     workingString = workingString.substring(0, commaIndex).trim();
   }
+
+  // Strip trailing "to taste" from ingredient name
+  workingString = workingString.replace(/,\s*(?:or\s+)?to taste\b/i, "").replace(/\s+to taste\b/i, "").trim();
 
   // Check multi-word unit: "fl oz" or "fluid ounce"
   const multiWordUnitPattern = /^(fl(?:uid)?\.?\s+oz\.?)\b\s*(.*)$/i;
@@ -333,7 +400,7 @@ function parseUnitAndName(inputString: string): { unit?: string; name: string; n
   // Check first token for single-word unit
   const words = workingString.split(/\s+/);
   if (words.length > 0) {
-    const candidateUnit = words[0].toLowerCase().replace(/\.$/, "");
+    const candidateUnit = words[0].toLowerCase().replace(/\.$/, "").replace(/\+$/, "");
     if (candidateUnit in UNIT_CANONICAL_MAP) {
       const resolvedUnit = UNIT_CANONICAL_MAP[candidateUnit];
       const remainderWords = words.slice(1).join(" ");

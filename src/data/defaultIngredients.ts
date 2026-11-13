@@ -83,7 +83,7 @@ export const BUILT_IN_INGREDIENTS: DictionaryIngredient[] = [
   {
     id: "active-dry-yeast",
     name: "active dry yeast",
-    aliases: ["dry yeast", "instant yeast"],
+    aliases: ["dry yeast", "instant yeast", "rapid rise", "rapid-rise yeast"],
     aisle: "Baking",
     unitFamily: "volume"
   },
@@ -1485,5 +1485,152 @@ export const BUILT_IN_INGREDIENTS: DictionaryIngredient[] = [
     unitFamily: "volume",
     gramsPerMl: 0.61,
     densitySource: "USDA FoodData Central"
+  },
+  {
+    id: "white-chocolate",
+    name: "white chocolate",
+    aliases: ["melted white chocolate", "white chocolate chips"],
+    aisle: "Baking",
+    unitFamily: "volume"
+  },
+  {
+    id: "marshmallows",
+    name: "marshmallows",
+    aliases: ["mini marshmallows", "miniature marshmallows"],
+    aisle: "Baking",
+    unitFamily: "volume"
+  },
+  {
+    id: "corn-kernels",
+    name: "corn kernels",
+    aliases: ["whole corn kernels", "corn", "sweet corn"],
+    aisle: "Produce",
+    unitFamily: "volume"
+  },
+  {
+    id: "hominy",
+    name: "hominy",
+    aliases: ["white hominy", "yellow hominy"],
+    aisle: "Canned Goods",
+    unitFamily: "volume"
+  },
+  {
+    id: "tortilla-chips",
+    name: "tortilla chips",
+    aliases: ["crushed tortilla chips", "corn chips"],
+    aisle: "Snacks",
+    unitFamily: "weight"
+  },
+  {
+    id: "monterey-jack-cheese",
+    name: "monterey jack cheese",
+    aliases: ["shredded monterey jack cheese", "monterey jack"],
+    aisle: "Dairy",
+    unitFamily: "weight"
+  },
+  {
+    id: "fajita-seasoning",
+    name: "fajita seasoning",
+    aliases: ["taco seasoning"],
+    aisle: "Spices & Seasonings",
+    unitFamily: "volume"
+  },
+  {
+    id: "italian-seasoning",
+    name: "italian seasoning",
+    aliases: ["italian herb seasoning"],
+    aisle: "Spices & Seasonings",
+    unitFamily: "volume"
+  },
+  {
+    id: "cheese",
+    name: "cheese",
+    aliases: ["white american cheese", "american cheese", "shredded cheese"],
+    aisle: "Dairy",
+    unitFamily: "weight"
+  },
+  {
+    id: "cornbread",
+    name: "cornbread",
+    aliases: ["cornbread mix"],
+    aisle: "Bakery",
+    unitFamily: "volume"
+  },
+  {
+    id: "hot-sauce",
+    name: "hot sauce",
+    aliases: ["tabasco", "sriracha", "red hot"],
+    aisle: "Condiments",
+    unitFamily: "volume"
+  },
+  {
+    id: "barbecue-sauce",
+    name: "barbecue sauce",
+    aliases: ["bbq sauce"],
+    aisle: "Condiments",
+    unitFamily: "volume"
+  },
+  {
+    id: "green-chilies",
+    name: "green chilies",
+    aliases: ["green chiles", "canned green chilies", "canned green chiles"],
+    aisle: "Canned Goods",
+    unitFamily: "volume"
+  },
+  {
+    id: "cooking-oil",
+    name: "cooking oil",
+    aliases: ["oil"],
+    aisle: "Pantry",
+    unitFamily: "volume"
+  },
+  {
+    id: "turkey-breast",
+    name: "turkey breast",
+    aliases: ["turkey", "boneless turkey breast"],
+    aisle: "Meat",
+    unitFamily: "weight"
+  },
+  {
+    id: "pan-drippings",
+    name: "pan drippings",
+    aliases: ["drippings", "turkey drippings"],
+    aisle: "Meat",
+    unitFamily: "volume"
+  },
+  {
+    id: "sausage",
+    name: "sausage",
+    aliases: ["hot sausage", "sage sausage", "pork sausage", "bulk sausage"],
+    aisle: "Meat",
+    unitFamily: "weight"
+  },
+  {
+    id: "bisquick",
+    name: "bisquick",
+    aliases: ["baking mix", "pancake mix"],
+    aisle: "Baking",
+    unitFamily: "volume"
+  },
+  {
+    id: "worcestershire-sauce",
+    name: "worcestershire sauce",
+    aliases: ["worcestershire"],
+    aisle: "Condiments",
+    unitFamily: "volume"
+  },
+  {
+    id: "instant-coffee-powder",
+    name: "instant coffee powder",
+    aliases: ["instant coffee", "espresso powder"],
+    aisle: "Coffee & Tea",
+    unitFamily: "volume"
+  },
+  {
+    id: "thai-tea-mix",
+    name: "thai tea mix",
+    aliases: ["thai tea"],
+    aisle: "Coffee & Tea",
+    unitFamily: "volume"
   }
 ];

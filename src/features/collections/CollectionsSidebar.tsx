@@ -1,6 +1,6 @@
 import { useState, type FC, type ReactElement, type FormEvent } from "react";
 import type { Collection, Recipe } from "../../domain/recipe/types";
-import { PlusIcon, TrashIcon, EditIcon, HeartIcon, BookOpenIcon, CloseIcon } from "../../ui/icons";
+import { PlusIcon, TrashIcon, EditIcon, HeartIcon, BookOpenIcon, CloseIcon, FolderIcon } from "../../ui/icons";
 
 export interface CollectionsSidebarProps {
   collections: Collection[];
@@ -108,28 +108,29 @@ export const CollectionsSidebar: FC<CollectionsSidebarProps> = ({
       {/* Sidebar Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-2)" }}>
         <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "1.2rem", margin: 0 }}>
-          Collections
+          Folders
         </h2>
         <div style={{ display: "flex", gap: "var(--space-1)", alignItems: "center" }}>
           <button
             type="button"
             onClick={handleOpenCreate}
             style={{
-              background: "var(--surface-alt)",
-              border: "1px solid var(--border)",
+              background: "var(--accent)",
+              color: "var(--accent-contrast)",
+              border: "none",
               borderRadius: "var(--radius-full)",
-              width: "28px",
-              height: "28px",
+              padding: "4px 10px",
               display: "flex",
               alignItems: "center",
-              justifyContent: "center",
+              gap: "4px",
               cursor: "pointer",
-              padding: 0
+              fontSize: "0.82rem",
+              fontWeight: 600
             }}
-            title="Create new collection"
-            aria-label="Create collection"
+            title="Create new folder"
+            aria-label="Create folder"
           >
-            <PlusIcon width={14} height={14} />
+            <PlusIcon width={12} height={12} /> New Folder
           </button>
           {onClose && (
             <button
@@ -240,8 +241,9 @@ export const CollectionsSidebar: FC<CollectionsSidebarProps> = ({
                 fontSize: "0.9rem"
               }}
             >
-              <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, marginRight: "8px" }}>
-                {col.name}
+              <div style={{ display: "flex", alignItems: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, marginRight: "8px" }}>
+                <FolderIcon width={14} height={14} style={{ marginRight: "6px", flexShrink: 0 }} />
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{col.name}</span>
               </div>
 
               <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
@@ -260,7 +262,7 @@ export const CollectionsSidebar: FC<CollectionsSidebarProps> = ({
                     padding: "2px",
                     display: "flex"
                   }}
-                  title="Edit collection"
+                  title="Edit folder"
                   aria-label="Edit"
                 >
                   <EditIcon width={12} height={12} />
@@ -277,7 +279,7 @@ export const CollectionsSidebar: FC<CollectionsSidebarProps> = ({
                     padding: "2px",
                     display: "flex"
                   }}
-                  title="Delete collection"
+                  title="Delete folder"
                   aria-label="Delete"
                 >
                   <TrashIcon width={12} height={12} />
@@ -289,12 +291,12 @@ export const CollectionsSidebar: FC<CollectionsSidebarProps> = ({
 
         {collections.length === 0 && (
           <div style={{ padding: "var(--space-4) var(--space-2)", fontSize: "0.85rem", color: "var(--muted)", textAlign: "center" }}>
-            No custom collections yet. Click + to create one.
+            No custom folders yet. Click New Folder to create one.
           </div>
         )}
       </div>
 
-      {/* Create Collection Modal */}
+      {/* Create Folder Modal */}
       {showCreateModal && (
         <div
           style={{
@@ -319,12 +321,12 @@ export const CollectionsSidebar: FC<CollectionsSidebarProps> = ({
             }}
           >
             <h3 style={{ fontFamily: "var(--font-serif)", fontSize: "1.25rem", marginBottom: "var(--space-3)", margin: 0 }}>
-              New Collection
+              New Folder
             </h3>
             <form onSubmit={handleSaveNew} style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)", marginTop: "var(--space-3)" }}>
               <div>
                 <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "4px" }}>
-                  Collection Name
+                  Folder Name
                 </label>
                 <input
                   type="text"
@@ -403,12 +405,12 @@ export const CollectionsSidebar: FC<CollectionsSidebarProps> = ({
             }}
           >
             <h3 style={{ fontFamily: "var(--font-serif)", fontSize: "1.25rem", margin: 0 }}>
-              Edit Collection
+              Edit Folder
             </h3>
             <form onSubmit={handleSaveEdit} style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)", marginTop: "var(--space-3)" }}>
               <div>
                 <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "4px" }}>
-                  Collection Name
+                  Folder Name
                 </label>
                 <input
                   type="text"
