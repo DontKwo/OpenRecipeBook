@@ -1,0 +1,53 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Test Suite
+        run: npm test
+
+      - name: Build Web Application
+        run: npm run build
+
+      - name: Package Portable Windows Desktop Application
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path build/windows
+          Copy-Item -Recurse -Force dist build/windows/dist
+          Copy-Item -Recurse -Force electron build/windows/electron
+          Copy-Item package.json build/windows/package.json
+          Compress-Archive -Path build/windows/* -DestinationPath build/OpenRecipeBook-Windows-Portable.zip -Force
+
+      - name: Generate Checksums
+        shell: pwsh
+        run: |
+          Get-FileHash -Algorithm SHA256 build/OpenRecipeBook-Windows-Portable.zip | ForEach-Object { "$($_.Hash)  $($_.Path | Split-Path -Leaf)" } | Out-File -Encoding ASCII build/SHA256SUMS.txt
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/OpenRecipeBook-Windows-Portable.zip
+            build/SHA256SUMS.txt
+          generate_release_notes: true

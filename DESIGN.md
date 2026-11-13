@@ -13,6 +13,7 @@ Rules of engagement:
 3. Verify current library versions and browser API support (MDN, caniuse) before depending on them. Feature-detect every non-universal browser API and degrade gracefully.
 4. Write tests alongside code, especially for the ingredient parser and scaling engine (Section 6.3), which are the heart of the app.
 5. Items marked **[ASSUMED]** were not confirmed by the owner. Implement them, but keep them easy to remove or change.
+6. Maintain `PROGRESS.md` continuously with implementation status, discoveries, architecture notes, and next steps so future sessions can resume work smoothly.
 
 ## 1. Product summary
 
@@ -93,6 +94,7 @@ Repository layout:
   README.md              install links, screenshots, backup guide
   DESIGN.md              this file
   DECISIONS.md           running log of choices you made
+  PROGRESS.md            live progress, learnings, and handoff state for future sessions
   LICENSE
   THIRD_PARTY_LICENSES.md
   src/
@@ -237,8 +239,8 @@ If a line cannot be parsed confidently, mark `quantity` undefined and show `raw`
 
 **Unit conversion**
 
-- US ↔ metric for volume↔volume and weight↔weight, plus °F↔°C for temperatures found in step text (tap-to-convert chips).
-- Volume↔weight (cups of flour to grams) only via an optional small, clearly-labeled density table; if the ingredient is not in the table, do not convert. Ship the table in Phase 3 or later.
+- US <-> metric for volume <-> volume and weight <-> weight, plus deg F <-> deg C for temperatures found in step text (tap-to-convert chips).
+- Volume <-> weight (cups of flour to grams) only via an optional small, clearly-labeled density table; if the ingredient is not in the table, do not convert. Ship the table in Phase 3 or later.
 
 **Test table (minimum; add many more)**
 
@@ -387,7 +389,7 @@ The owner's example: recipe 1 needs 1 cup of flour, recipe 2 needs ⅔ cup, reci
 **Engine** (`domain/ingredients/totals`, pure TypeScript with no DOM, heavily unit-tested)
 
 1. Collect every ingredient line from each selected recipe, scaled by that recipe's multiplier using the scaling engine (Section 6.3).
-2. Resolve each line to a dictionary ingredient (Section 6.15). Lines that cannot be matched are grouped by their normalized text and flagged "?" so the user can say "same as…" (this creates a user alias, remembered next time).
+2. Resolve each line to a dictionary ingredient (Section 6.15). Lines that cannot be matched are grouped by their normalized text and flagged "?" so the user can say "same as..." (this creates a user alias, remembered next time).
 3. Group by ingredient. Inside a group, split by **unit family**: volume, weight, and count/other (cloves, cans, pinches).
 4. Sum with **exact rational arithmetic** (store quantities as fractions, never floating point), so 1 + ⅔ + ⅓ is exactly 2.
 5. If every contribution uses the same unit, sum in that unit and do not convert (so cups stay cups). Otherwise convert to a base unit (ml for volume, g for weight), sum, and format back to the best display unit.
@@ -420,12 +422,12 @@ The totals tool, the shopping-list aisle grouping, and ingredient autocomplete a
 2. Singularize with rules plus an irregular list (tomatoes, potatoes, leaves, loaves).
 3. Apply the alias map, then take the longest exact match against dictionary names. Words in a different order can still match.
 4. **Fuzzy matches (small typos) are only suggestions** shown for the user to confirm; never merge on a fuzzy match silently.
-5. Unmatched lines still work everywhere, as plain text with a "?" marker in totals and a one-tap "same as…" choice that saves an alias.
+5. Unmatched lines still work everywhere, as plain text with a "?" marker in totals and a one-tap "same as..." choice that saves an alias.
 
 **My ingredients (user dictionary)**
 
 - Settings has a **My ingredients** screen to add an ingredient (name, aliases, aisle, unit family, optional density), edit or override built-in aisles and aliases, and delete the owner's own entries.
-- Aliases learned from "same as…" choices land here. The user dictionary is stored in IndexedDB (`userIngredients`), included in backups and in the full library zip, and can be exported and imported as JSON on its own.
+- Aliases learned from "same as..." choices land here. The user dictionary is stored in IndexedDB (`userIngredients`), included in backups and in the full library zip, and can be exported and imported as JSON on its own.
 - Editor autocomplete suggests built-in and user ingredients as the user types, which keeps names consistent across recipes.
 
 **Coverage test:** at least 95% of the ingredient lines in the bundled sample recipes (and in the synthetic Recipe Keeper fixture) must match a dictionary entry; list the misses in the test output.
@@ -492,7 +494,7 @@ End-to-end (Playwright): create a recipe with a photo; scale 2× and verify quan
 
 **Phase 2: Kitchen workflow.** **Ingredient Totals tool and saved Combos (Section 6.14), "My ingredients" screen**, shopping list (using the same totals engine), meal planner, cook mode with timers, print and PDF cookbook, share by link, Recipe Keeper + Paprika + JSON-LD importers with the review screen, paste-text import, website import for the browser build (paste-source and bookmarklet), Share Target.
 
-**Phase 3: Extras.** Backup folder (automatic backups into a Drive/Dropbox/OneDrive-synced folder), OCR scan import, menus and suggested plans, density table for volume↔weight, trash/restore, accessibility audit pass.
+**Phase 3: Extras.** Backup folder (automatic backups into a Drive/Dropbox/OneDrive-synced folder), OCR scan import, menus and suggested plans, density table for volume <-> weight, trash/restore, accessibility audit pass.
 
 **Phase 4: Distribution.** Android APK and Windows installer pipelines, **native website import in those apps (`fetchPage`)**, README download links, performance pass.
 
@@ -574,8 +576,8 @@ combos.json              saved Ingredient Totals selections (full backups)
 
 **Rules**
 
-- `version` is an integer. Readers accept the same major version, ignore unknown fields, and show a friendly message for a newer major version rather than failing silently.
-- Treat every imported file as untrusted: render all text as plain text (never as HTML), reject zip entries with `..` or absolute paths, cap the archive at about 200 MB and each photo at about 15 MB, and limit field lengths.
+- `version` is an integer. Readers accept the same major version, ignore unknown fields, and display an informative notice for a newer major version.
+- Treat every imported file as untrusted: render all text as plain text (raw HTML is forbidden), reject zip entries with `..` or absolute paths, cap the archive at about 200 MB and each photo at about 15 MB, and limit field lengths.
 - On export, sanitize file names (strip illegal characters, limit length, avoid collisions with a numeric suffix).
 - Interoperability: also offer schema.org JSON-LD, Markdown, plain text, and PDF exports (Section 6.7). Add a conversion test per format.
 
@@ -592,9 +594,9 @@ combos.json              saved Ingredient Totals selections (full backups)
 **Tolerant parsing approach**
 
 1. Read `recipes.html` with `DOMParser`. Treat each element whose `itemtype` contains `schema.org/Recipe` (either `http` or `https`, any case) as one recipe. If none are found, fall back to repeated sections that each have a heading plus ingredient and direction lists, and show a "low confidence" warning.
-2. Map standard `itemprop` values: `name`, `image`, `recipeIngredient` (or `ingredients`), `recipeInstructions`, `prepTime`, `cookTime`, `totalTime` (ISO 8601 or plain text like "30 mins"), `recipeYield`, `recipeCategory`, `recipeCuisine`, `description`, `author`, `aggregateRating` → `ratingValue`, and nested nutrition values.
+2. Map standard `itemprop` values: `name`, `image`, `recipeIngredient` (or `ingredients`), `recipeInstructions`, `prepTime`, `cookTime`, `totalTime` (ISO 8601 or plain text like "30 mins"), `recipeYield`, `recipeCategory`, `recipeCuisine`, `description`, `author`, `aggregateRating` -> `ratingValue`, and nested nutrition values.
 3. For fields that are not standard schema.org, look for labelled elements (case-insensitive labels or attribute names such as Course, Category, Collection, Favorite, Rating, Notes, Source). Map them to our fields. Rating: accept numbers (clamp to 0 to 5) and star glyph strings by counting filled stars. Favorite: accept yes/true/1/a star glyph.
-4. Anything not mapped is **kept, not dropped**: append it under an "Imported details" heading in the recipe notes and list it on the review screen as an "unmapped field" warning.
+4. Anything not mapped is kept instead of dropped: append it under an "Imported details" heading in the recipe notes and list it on the review screen as an "unmapped field" warning.
 5. Photos: resolve `image` values relative to the zip root (for example `images/foo.jpg`), URL-decode them, and look them up case-insensitively. Missing photos are a warning, not an error. Send each photo through the normal photo pipeline (Section 6.5).
 6. Process large archives in batches (for example 25 recipes at a time) with a progress bar and a cancel button, using streaming unzip so memory stays low.
 7. Detect duplicates on re-import with a hash of normalized title plus the first few ingredient lines (or `sourceUrl` when present), and let the user choose skip, replace, or keep both.
