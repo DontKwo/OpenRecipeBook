@@ -23,6 +23,7 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
+import java.net.InetAddress;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -68,11 +69,9 @@ public class MainActivity extends AppCompatActivity {
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
-        settings.setDatabaseEnabled(true);
-        settings.setAllowFileAccess(true);
-        settings.setAllowContentAccess(true);
-        settings.setMediaPlaybackRequiresUserGesture(false);
-        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        settings.setAllowFileAccess(false);
+        settings.setAllowContentAccess(false);
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
 
         final WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
@@ -89,19 +88,29 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                String url = request.getUrl().toString();
-                if (url.startsWith(APP_ORIGIN)) {
+                Uri uri = request.getUrl();
+                String url = uri.toString();
+                if (url.startsWith(APP_ORIGIN + "/")) {
                     return false;
                 }
-                Intent browserIntent = new Intent(Intent.ACTION_VIEW, request.getUrl());
-                startActivity(browserIntent);
+                String scheme = uri.getScheme();
+                if ("https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme)) {
+                    try {
+                        Intent browserIntent = new Intent(Intent.ACTION_VIEW, uri);
+                        startActivity(browserIntent);
+                    } catch (Exception ignored) {
+                        // Ignore when no browser handler is installed
+                    }
+                }
                 return true;
             }
 
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
-                injectNativeBridge(view);
+                if (url != null && url.startsWith(APP_ORIGIN)) {
+                    injectNativeBridge(view);
+                }
             }
         });
 
@@ -210,27 +219,58 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public static class NativeBridge {
+        private static String buildErrorResponse(String message) {
+            try {
+                JSONObject err = new JSONObject();
+                err.put("ok", false);
+                err.put("error", message);
+                return err.toString();
+            } catch (Exception ignored) {
+                return "{\"ok\":false,\"error\":\"Network error\"}";
+            }
+        }
+
         @JavascriptInterface
         public String fetchUrl(String targetUrl) {
             try {
                 URL url = new URL(targetUrl);
+                String protocol = url.getProtocol();
+                if (!"https".equalsIgnoreCase(protocol) && !"http".equalsIgnoreCase(protocol)) {
+                    return buildErrorResponse("Unsupported URL scheme");
+                }
+                String host = url.getHost();
+                if (host == null || host.isEmpty()) {
+                    return buildErrorResponse("Missing URL host");
+                }
+                InetAddress address = InetAddress.getByName(host);
+                if (
+                    address.isLoopbackAddress() ||
+                    address.isLinkLocalAddress() ||
+                    address.isSiteLocalAddress() ||
+                    address.isAnyLocalAddress()
+                ) {
+                    return buildErrorResponse("Blocked private or local address");
+                }
+
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
                 conn.setConnectTimeout(12000);
                 conn.setReadTimeout(12000);
                 conn.setRequestProperty(
                     "User-Agent",
-                    "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 OpenRecipeBook/0.1.1"
+                    "OpenRecipeBook-Android/0.1.4 (+https://github.com/DontKwo/OpenRecipeBook)"
                 );
                 int status = conn.getResponseCode();
                 InputStream in = (status >= 200 && status < 400) ? conn.getInputStream() : conn.getErrorStream();
-                BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
                 StringBuilder sb = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    sb.append(line).append('\n');
+                if (in != null) {
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        sb.append(line).append('\n');
+                    }
+                    reader.close();
                 }
-                reader.close();
 
                 JSONObject res = new JSONObject();
                 res.put("ok", status >= 200 && status < 300);
@@ -238,14 +278,8 @@ public class MainActivity extends AppCompatActivity {
                 res.put("html", sb.toString());
                 return res.toString();
             } catch (Exception e) {
-                try {
-                    JSONObject err = new JSONObject();
-                    err.put("ok", false);
-                    err.put("error", e.getMessage() != null ? e.getMessage() : "Network error");
-                    return err.toString();
-                } catch (Exception ignored) {
-                    return "{\"ok\":false,\"error\":\"Network error\"}";
-                }
+                String msg = e.getMessage() != null ? e.getMessage() : "Network error";
+                return buildErrorResponse(msg);
             }
         }
     }

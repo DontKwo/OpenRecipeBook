@@ -199,10 +199,39 @@ jobs:
           mkdir -p android/app/src/main/assets
           cp -r dist/* android/app/src/main/assets/
 
+      - name: Configure Android Release Keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "Missing ANDROID_KEYSTORE_BASE64 secret" >&2
+            exit 1
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/release-keystore.jks
+
       - name: Build Android APK
+        env:
+          ANDROID_KEYSTORE_PATH: release-keystore.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           cd android
           gradle assembleRelease
+
+      - name: Verify APK Release Signature
+        run: |
+          rm -f android/app/release-keystore.jks
+          CERT_INFO=$(keytool -printcert -jarfile android/app/build/outputs/apk/release/app-release.apk)
+          echo "$CERT_INFO"
+          if echo "$CERT_INFO" | grep -q "CN=Android Debug"; then
+            echo "ERROR: APK is signed with Android Debug certificate" >&2
+            exit 1
+          fi
+          if ! echo "$CERT_INFO" | grep -q "CN=OpenRecipeBook"; then
+            echo "ERROR: APK missing CN=OpenRecipeBook release signature" >&2
+            exit 1
+          fi
 
       - name: Prepare APK Package
         run: |
