@@ -122,7 +122,7 @@ export const ComponentGallery: FC = (): ReactElement => {
                 cursor: "pointer"
               }}
             >
-              {val === 0.5 ? "1/2\u00D7" : `${val}\u00D7`}
+              {val === 0.5 ? "1/2×" : `${val}×`}
             </button>
           ))}
         </div>

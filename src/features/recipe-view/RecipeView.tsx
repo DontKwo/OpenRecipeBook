@@ -89,6 +89,8 @@ export const RecipeView: FC<RecipeViewProps> = ({
   const [unitSystem, setUnitSystem] = useState<UnitSystem>("us");
   const [checkedIngredients, setCheckedIngredients] = useState<Record<string, boolean>>({});
   const [unitPromotion, setUnitPromotion] = useState<boolean>(true);
+  const [isQuickEditMode, setIsQuickEditMode] = useState<boolean>(false);
+  const [inlineConverterTarget, setInlineConverterTarget] = useState<{ id: string; value: number; unit: string; ingredient: string } | null>(null);
 
   // Photos state
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
@@ -764,6 +766,27 @@ export const RecipeView: FC<RecipeViewProps> = ({
             title="Clean formatting and normalize times"
           >
             Tidy Up
+          </button>
+
+          <button
+            type="button"
+            onClick={(): void => setIsQuickEditMode(!isQuickEditMode)}
+            style={{
+              background: isQuickEditMode ? "var(--warning)" : "var(--surface)",
+              color: isQuickEditMode ? "var(--accent-contrast)" : "var(--text)",
+              border: "1px solid " + (isQuickEditMode ? "var(--warning)" : "var(--border)"),
+              borderRadius: "var(--radius-full)",
+              padding: "8px 14px",
+              cursor: "pointer",
+              fontSize: "0.85rem",
+              fontWeight: isQuickEditMode ? 700 : 500,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px"
+            }}
+            title="Toggle inline editing mode (view mode is active by default to prevent accidental edits)"
+          >
+            <EditIcon width={14} height={14} /> Quick Edit: {isQuickEditMode ? "ON" : "OFF"}
           </button>
 
           {onDuplicateRecipe && (

@@ -2,6 +2,14 @@ import { useState, useMemo, type FC, type ReactElement } from "react";
 import type { Recipe, Combo } from "../../domain/recipe/types";
 import { computeIngredientTotals, type TotalsSelectionItem } from "../../domain/ingredients/totals";
 import { BUILT_IN_INGREDIENTS } from "../../data/defaultIngredients";
+import { QuickUnitConverterModal } from "../recipe-view/QuickUnitConverterModal";
+import { ConvertIcon } from "../../ui/icons";
+
+interface ActiveConversionTarget {
+  value: number;
+  unit: string;
+  ingredient: string;
+}
 
 export interface IngredientTotalsViewProps {
   recipes: Recipe[];
@@ -20,6 +28,8 @@ export const IngredientTotalsView: FC<IngredientTotalsViewProps> = ({
   const [expandedTraces, setExpandedTraces] = useState<Record<string, boolean>>({});
   const [newComboName, setNewComboName] = useState<string>("");
   const [showSaveComboModal, setShowSaveComboModal] = useState<boolean>(false);
+  const [activeConverter, setActiveConverter] = useState<ActiveConversionTarget | null>(null);
+  const [showGlobalConverter, setShowGlobalConverter] = useState<boolean>(false);
 
   const toggleSelectRecipe = (id: string) => {
     setSelectedMultipliers((prev) => {
@@ -215,7 +225,7 @@ export const IngredientTotalsView: FC<IngredientTotalsViewProps> = ({
                       -
                     </button>
                     <span style={{ fontSize: "0.85rem", fontWeight: 600, minWidth: "32px", textAlign: "center" }}>
-                      {multiplier}\u00D7
+                      {multiplier}×
                     </span>
                     <button
                       type="button"
@@ -235,9 +245,30 @@ export const IngredientTotalsView: FC<IngredientTotalsViewProps> = ({
       {/* Aggregated Totals Results */}
       {selectionItems.length > 0 ? (
         <section style={{ background: "var(--surface)", padding: "var(--space-6)", borderRadius: "var(--radius-md)", border: "1px solid var(--border)" }}>
-          <h2 style={{ fontSize: "1.3rem", marginBottom: "var(--space-4)", color: "var(--accent)" }}>
-            2. Combined Total Requirements
-          </h2>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-4)", flexWrap: "wrap", gap: "var(--space-2)" }}>
+            <h2 style={{ fontSize: "1.3rem", margin: 0, color: "var(--accent)" }}>
+              2. Combined Total Requirements
+            </h2>
+            <button
+              type="button"
+              onClick={(): void => setShowGlobalConverter(true)}
+              style={{
+                background: "var(--surface-alt)",
+                color: "var(--accent)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-full)",
+                padding: "6px 14px",
+                fontSize: "0.82rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px"
+              }}
+            >
+              <ConvertIcon width={14} height={14} /> Universal Unit Converter
+            </button>
+          </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
             {totalsResult.items.map((item, index) => {
@@ -259,9 +290,35 @@ export const IngredientTotalsView: FC<IngredientTotalsViewProps> = ({
                     <span style={{ fontWeight: 600, fontSize: "1.1rem" }}>
                       {item.totalDisplay}
                     </span>
-                    <span style={{ fontSize: "0.8rem", color: "var(--muted)", background: "var(--surface-alt)", padding: "2px 8px", borderRadius: "var(--radius-full)" }}>
-                      {item.aisle}
-                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <button
+                        type="button"
+                        onClick={(): void => setActiveConverter({
+                          value: item.totalNumeric,
+                          unit: item.canonicalUnit,
+                          ingredient: item.normalizedIngredientName
+                        })}
+                        style={{
+                          background: "var(--surface-alt)",
+                          color: "var(--text)",
+                          border: "1px solid var(--border)",
+                          borderRadius: "var(--radius-full)",
+                          padding: "3px 10px",
+                          fontSize: "0.75rem",
+                          fontWeight: 500,
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px"
+                        }}
+                        title={`Convert ${item.totalDisplay} to other units`}
+                      >
+                        <ConvertIcon width={12} height={12} /> Convert Unit
+                      </button>
+                      <span style={{ fontSize: "0.8rem", color: "var(--muted)", background: "var(--surface-alt)", padding: "2px 8px", borderRadius: "var(--radius-full)" }}>
+                        {item.aisle}
+                      </span>
+                    </div>
                   </div>
 
                   {/* Trace toggle */}
@@ -362,6 +419,26 @@ export const IngredientTotalsView: FC<IngredientTotalsViewProps> = ({
             </form>
           </div>
         </div>
+      )}
+
+      {/* Quick Unit Converter Modal for Individual Total Items */}
+      {activeConverter && (
+        <QuickUnitConverterModal
+          initialValue={activeConverter.value}
+          initialUnit={activeConverter.unit}
+          initialIngredient={activeConverter.ingredient}
+          onClose={(): void => setActiveConverter(null)}
+        />
+      )}
+
+      {/* Universal Unit Converter Modal */}
+      {showGlobalConverter && (
+        <QuickUnitConverterModal
+          initialValue={1}
+          initialUnit="cup"
+          initialIngredient="All-Purpose Flour"
+          onClose={(): void => setShowGlobalConverter(false)}
+        />
       )}
     </div>
   );

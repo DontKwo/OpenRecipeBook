@@ -33,13 +33,15 @@ export const QuickUnitConverterModal: FC<QuickUnitConverterModalProps> = ({
   const [toUnit, setToUnit] = useState<SupportedUnit>("tbsp");
   const [ingredientQuery, setIngredientQuery] = useState<string>(initialIngredient);
 
-  // Suggested density records
-  const densityOptions = useMemo((): { key: string; name: string; density: number }[] => {
-    return Object.entries(DENSITY_TABLE).map(([key, record]) => ({
-      key,
-      name: record.name,
-      density: record.gramsPerMl
-    }));
+  // Suggested density records grouped by category
+  const densityCategories = useMemo(() => {
+    const groups: Record<string, { key: string; name: string; density: number }[]> = {};
+    for (const [key, record] of Object.entries(DENSITY_TABLE)) {
+      const cat = record.category || "Other";
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push({ key, name: record.name, density: record.gramsPerMl });
+    }
+    return groups;
   }, []);
 
   // Live conversion result
@@ -205,52 +207,62 @@ export const QuickUnitConverterModal: FC<QuickUnitConverterModalProps> = ({
             </div>
           </div>
 
-          {/* Ingredient Selector with Preset Density Quick-Chips */}
+          {/* Ingredient Selector with Categorized Density Dropdown */}
           <div style={{ marginBottom: "var(--space-6)" }}>
             <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, color: "var(--muted)", marginBottom: "4px" }}>
               INGREDIENT DENSITY PROFILE
             </label>
-            <input
-              type="text"
-              value={ingredientQuery}
-              onChange={(e: ChangeEvent<HTMLInputElement>): void => setIngredientQuery(e.target.value)}
-              placeholder="e.g. All-Purpose Flour, Granulated Sugar, Butter..."
-              style={{
-                width: "100%",
-                padding: "8px 12px",
-                borderRadius: "var(--radius-sm)",
-                border: "1px solid var(--border)",
-                background: "var(--surface)",
-                color: "var(--text)",
-                marginBottom: "6px"
-              }}
-            />
+            <div style={{ display: "flex", gap: "8px", flexDirection: "column" }}>
+              <select
+                value={Object.values(DENSITY_TABLE).find((r) => r.name.toLowerCase() === ingredientQuery.toLowerCase())?.name || ""}
+                onChange={(e: ChangeEvent<HTMLSelectElement>): void => {
+                  if (e.target.value) {
+                    setIngredientQuery(e.target.value);
+                  }
+                }}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  borderRadius: "var(--radius-sm)",
+                  border: "1px solid var(--border)",
+                  background: "var(--surface)",
+                  color: "var(--text)",
+                  fontSize: "0.9rem",
+                  cursor: "pointer"
+                }}
+              >
+                <option value="">-- Choose from {Object.keys(DENSITY_TABLE).length}+ Ingredient Densities --</option>
+                {Object.entries(densityCategories).map(([category, items]) => (
+                  <optgroup key={category} label={category}>
+                    {items.map((item) => (
+                      <option key={item.key} value={item.name}>
+                        {item.name} ({item.density} g/ml)
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
 
-            {/* Quick Preset Buttons */}
-            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "6px" }}>
-              {densityOptions.slice(0, 6).map((item) => (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={(): void => setIngredientQuery(item.name)}
-                  style={{
-                    background: ingredientQuery === item.name ? "var(--accent)" : "var(--surface-alt)",
-                    color: ingredientQuery === item.name ? "var(--accent-contrast)" : "var(--text)",
-                    border: "1px solid var(--border)",
-                    borderRadius: "var(--radius-full)",
-                    padding: "3px 10px",
-                    fontSize: "0.75rem",
-                    cursor: "pointer"
-                  }}
-                >
-                  {item.name}
-                </button>
-              ))}
+              <input
+                type="text"
+                value={ingredientQuery}
+                onChange={(e: ChangeEvent<HTMLInputElement>): void => setIngredientQuery(e.target.value)}
+                placeholder="Or type custom ingredient name..."
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  borderRadius: "var(--radius-sm)",
+                  border: "1px solid var(--border)",
+                  background: "var(--surface)",
+                  color: "var(--text)",
+                  fontSize: "0.85rem"
+                }}
+              />
             </div>
 
             {detectedDensity && (
-              <div style={{ fontSize: "0.8rem", color: "var(--muted)", display: "flex", alignItems: "center", gap: "6px" }}>
-                <span>Density matched: <strong>{detectedDensity.gramsPerMl} g/ml</strong> ({detectedDensity.matchedName})</span>
+              <div style={{ marginTop: "6px", fontSize: "0.8rem", color: "var(--muted)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "4px" }}>
+                <span>Density matched: <strong style={{ color: "var(--text)" }}>{detectedDensity.gramsPerMl} g/ml</strong> ({detectedDensity.matchedName})</span>
                 <span style={{ fontSize: "0.72rem", color: "var(--muted)" }}>via {detectedDensity.source}</span>
               </div>
             )}

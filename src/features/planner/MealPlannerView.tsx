@@ -773,7 +773,7 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
                                   title="Drag to move meal"
                                 >
                                   <span style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                    {title} {entry.multiplier !== 1 && `(${entry.multiplier}\u00D7)`}
+                                    {title} {entry.multiplier !== 1 && `(${entry.multiplier}×)`}
                                   </span>
                                   <button
                                     type="button"

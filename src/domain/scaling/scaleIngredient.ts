@@ -1,5 +1,6 @@
 import type { Ingredient, Quantity } from "../recipe/types";
 import { formatQuantityValue, type FormatOptions } from "./formatQuantity";
+import { parseIngredient } from "./parseIngredient";
 
 export interface ScaledIngredientResult {
   formattedText: string;
@@ -30,41 +31,55 @@ export function scaleIngredient(
   multiplier: number,
   options: FormatOptions = {}
 ): ScaledIngredientResult {
-  if (!ingredient.scalable || !ingredient.quantity || multiplier === 1) {
-    if (!ingredient.scalable || !ingredient.quantity) {
-      return {
-        formattedText: ingredient.raw,
-        isScaled: false
-      };
+  let effective = ingredient;
+  if (!effective.quantity && effective.raw) {
+    const parsed = parseIngredient(effective.raw, effective.id);
+    if (parsed.confidence !== "none") {
+      effective = parsed.ingredient;
     }
   }
 
-  const scaledQuantity = scaleQuantity(ingredient.quantity, multiplier);
+  if (!effective.scalable || !effective.quantity) {
+    return {
+      formattedText: effective.raw,
+      isScaled: false
+    };
+  }
+
+  if (multiplier === 1 && !options.unitPromotion) {
+    return {
+      formattedText: effective.raw,
+      isScaled: false,
+      scaledQuantity: effective.quantity
+    };
+  }
+
+  const scaledQuantity = scaleQuantity(effective.quantity, multiplier);
   const { formattedQuantity, resolvedUnit } = formatQuantityValue(
     scaledQuantity,
-    ingredient.unit,
+    effective.unit,
     options
   );
 
   const parts: string[] = [formattedQuantity];
-  if (ingredient.note && ingredient.note.startsWith("(")) {
-    parts.push(ingredient.note);
+  if (effective.note && effective.note.startsWith("(")) {
+    parts.push(effective.note);
   }
   if (resolvedUnit) {
     parts.push(resolvedUnit);
   }
-  if (ingredient.name) {
-    parts.push(ingredient.name);
+  if (effective.name) {
+    parts.push(effective.name);
   }
-  if (ingredient.note && !ingredient.note.startsWith("(")) {
-    parts.push(`, ${ingredient.note}`);
+  if (effective.note && !effective.note.startsWith("(")) {
+    parts.push(`, ${effective.note}`);
   }
 
   const formattedText = parts.join(" ").replace(/\s+,/g, ",").trim();
 
   // Egg hint when fraction of egg results
   let hint: string | undefined;
-  const isEgg = ingredient.name ? /\beggs?\b/i.test(ingredient.name) : false;
+  const isEgg = effective.name ? /\beggs?\b/i.test(effective.name) : false;
   if (isEgg && scaledQuantity.kind === "single" && scaledQuantity.value % 1 !== 0) {
     hint = "use 1 small egg or beat and halve";
   }
