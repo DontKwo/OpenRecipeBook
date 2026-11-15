@@ -1,5 +1,5 @@
 import { useState, type FC, type ReactElement, type ChangeEvent } from "react";
-import type { Recipe, MealPlanEntry } from "../../domain/recipe/types";
+import type { Recipe, MealPlanEntry, MealSlot } from "../../domain/recipe/types";
 import { db } from "../../data/db";
 import { CalendarIcon, CheckIcon } from "../../ui/icons";
 import { Dialog } from "../../ui/Dialog";
@@ -18,8 +18,8 @@ export const AddToMealPlanModal: FC<AddToMealPlanModalProps> = ({
 }): ReactElement => {
   const todayIso = new Date().toISOString().split("T")[0];
   const [date, setDate] = useState<string>(todayIso);
-  const [slot, setSlot] = useState<string>("dinner");
-  const [multiplier, setMultiplier] = useState<number>(1);
+  const [slot, setSlot] = useState<MealSlot>("dinner");
+  const [servings, setServings] = useState<number>(recipe.servings || 4);
   const [saving, setSaving] = useState<boolean>(false);
 
   const handleSave = async (): Promise<void> => {
@@ -30,7 +30,7 @@ export const AddToMealPlanModal: FC<AddToMealPlanModalProps> = ({
         date,
         slot,
         recipeId: recipe.id,
-        multiplier: Number(multiplier) || 1
+        servings: Number(servings) || 4
       };
       await db.mealPlan.put(entry);
       onSuccess();
@@ -97,7 +97,7 @@ export const AddToMealPlanModal: FC<AddToMealPlanModalProps> = ({
           </label>
           <select
             value={slot}
-            onChange={(e: ChangeEvent<HTMLSelectElement>): void => setSlot(e.target.value)}
+            onChange={(e: ChangeEvent<HTMLSelectElement>): void => setSlot(e.target.value as MealSlot)}
             style={{
               width: "100%",
               padding: "8px 12px",
@@ -117,14 +117,13 @@ export const AddToMealPlanModal: FC<AddToMealPlanModalProps> = ({
 
         <div>
           <label style={{ display: "block", fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)", marginBottom: 4 }}>
-            SCALE MULTIPLIER
+            SERVINGS
           </label>
           <input
             type="number"
-            min="0.25"
-            step="0.25"
-            value={multiplier}
-            onChange={(e: ChangeEvent<HTMLInputElement>): void => setMultiplier(parseFloat(e.target.value) || 1)}
+            min="1"
+            value={servings}
+            onChange={(e: ChangeEvent<HTMLInputElement>): void => setServings(parseInt(e.target.value, 10) || 1)}
             style={{
               width: "100%",
               padding: "8px 12px",
@@ -140,3 +139,4 @@ export const AddToMealPlanModal: FC<AddToMealPlanModalProps> = ({
     </Dialog>
   );
 };
+

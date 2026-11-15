@@ -25,6 +25,7 @@ import {
   HeartIcon,
   MoreIcon,
   ChefHatIcon,
+  PlusIcon,
   ClockIcon,
   StarIcon,
   FolderIcon,
@@ -43,7 +44,6 @@ import {
 import { Button, IconButton } from "../../ui/Button";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { Menu, type MenuItem } from "../../ui/Menu";
-import { Dialog } from "../../ui/Dialog";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { useToast } from "../../ui/Toast";
 import { RichText } from "../../ui/RichText";
@@ -318,9 +318,9 @@ export const RecipeView: FC<RecipeViewProps> = ({
 
       {/* Hero Section */}
       <section className={styles.hero}>
-        {recipe.photoIds?.[0] ? (
+        {recipe.heroPhotoId ? (
           <img
-            src={`/api/photos/${recipe.photoIds[0]}`}
+            src={`/api/photos/${recipe.heroPhotoId}`}
             alt={recipe.title}
             className={styles.heroImage}
             onError={(e): void => {
@@ -829,29 +829,15 @@ export const RecipeView: FC<RecipeViewProps> = ({
 
       {/* I Made This Log Modal */}
       {showLogModal && (
-        <Dialog
+        <ConfirmDialog
           isOpen
           title="Log Cooking Session"
-          onClose={(): void => setShowLogModal(false)}
-          maxWidth={420}
-          footer={
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, width: "100%" }}>
-              <Button
-                variant="secondary"
-                onClick={(): void => setShowLogModal(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                onClick={(): void => {
-                  void handleAddCookLog();
-                }}
-              >
-                Save Log
-              </Button>
-            </div>
-          }
+          message=""
+          confirmLabel="Save Log"
+          onConfirm={(): void => {
+            void handleAddCookLog();
+          }}
+          onCancel={(): void => setShowLogModal(false)}
         >
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
             <div>
@@ -899,7 +885,7 @@ export const RecipeView: FC<RecipeViewProps> = ({
               />
             </div>
           </div>
-        </Dialog>
+        </ConfirmDialog>
       )}
     </div>
   );

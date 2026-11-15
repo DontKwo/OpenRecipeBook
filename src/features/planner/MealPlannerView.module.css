@@ -18,7 +18,7 @@
 
 .headerRowDesktop {
   display: flex;
-  justifyContent: space-between;
+  justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
   gap: var(--space-3);

@@ -21,6 +21,7 @@ import {
 import { parseRecipeKeeperZip } from "../domain/import/recipeKeeper";
 import { parsePaprikaRecipesZip } from "../domain/import/paprika";
 import { parseSchemaRecipeJsonLd } from "../domain/import/jsonld";
+import { importRecipesFromUrl } from "../domain/import/nativeFetch";
 import {
   createDefaultShoppingList,
   buildShoppingItemFromIngredient,
@@ -42,6 +43,7 @@ import { ImportReviewModal } from "../features/import/ImportReviewModal";
 import { CookbookBuilderModal } from "../features/cookbook/CookbookBuilderModal";
 import {
   FileSystemFolderBackupDestination,
+  shouldAutoBackup,
   type AutoBackupResult
 } from "../domain/backup/backupFolder";
 import {
@@ -56,7 +58,6 @@ import { Button } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { ToastProvider, useToast } from "../ui/Toast";
-import { applyThemeAndAccent } from "../styles/themeManager";
 import styles from "./AppShell.module.css";
 
 type ActiveTab =
@@ -155,7 +156,6 @@ function AppContent(): ReactElement {
   };
 
   useEffect(() => {
-    applyThemeAndAccent();
     refreshAllData();
 
     const handleProcessImportFile = async (file: File): Promise<void> => {
@@ -183,7 +183,7 @@ function AppContent(): ReactElement {
           } else {
             try {
               const rkRecipes = parseRecipeKeeperZip(new Uint8Array(buffer));
-              setImportCandidates(rkRecipes.recipes);
+              setImportCandidates(rkRecipes);
             } catch {
               const backupData = importBackupZip(new Uint8Array(buffer));
               setImportCandidates(backupData.recipes);
@@ -557,7 +557,7 @@ function AppContent(): ReactElement {
       <aside className={styles.sidebar}>
         <div className={styles.brand}>
           <BookOpenIcon className={styles.brandIcon} width={24} height={24} />
-          <span>{BRAND.appName}</span>
+          <span>{BRAND.name}</span>
         </div>
 
         <Button
@@ -850,22 +850,7 @@ function AppContent(): ReactElement {
         {activeTab === "settings" && (
           <SettingsView
             onExportFullBackup={(): void => {
-              const data = exportBackupZip({
-                manifest: {
-                  format: "openrecipebook-library",
-                  version: 1,
-                  exportedAt: new Date().toISOString(),
-                  appVersion: "0.1.3",
-                  counts: { recipes: recipes.length, photos: 0 }
-                },
-                recipes,
-                photos: [],
-                collections,
-                mealPlan: mealPlanEntries,
-                shoppingLists,
-                combos: [],
-                userIngredients: []
-              });
+              const data = exportBackupZip(recipes, collections, mealPlanEntries, shoppingLists);
               const blob = new Blob([new Uint8Array(data)], { type: "application/zip" });
               const url = URL.createObjectURL(blob);
               const link = document.createElement("a");
@@ -890,23 +875,7 @@ function AppContent(): ReactElement {
             onEmptyTrash={handleEmptyTrash}
             onRunAutoFolderBackup={async (): Promise<AutoBackupResult> => {
               const destination = new FileSystemFolderBackupDestination();
-              const zipBytes = exportBackupZip({
-                manifest: {
-                  format: "openrecipebook-library",
-                  version: 1,
-                  exportedAt: new Date().toISOString(),
-                  appVersion: "0.1.3",
-                  counts: { recipes: recipes.length, photos: 0 }
-                },
-                recipes,
-                photos: [],
-                collections,
-                mealPlan: mealPlanEntries,
-                shoppingLists,
-                combos: [],
-                userIngredients: []
-              });
-              return destination.saveBackupWithRotation(zipBytes);
+              return destination.writeBackupZip(recipes, collections, mealPlanEntries, shoppingLists);
             }}
           />
         )}

@@ -1,4 +1,4 @@
-import { useState, type FC, type ReactElement, type ChangeEvent, type KeyboardEvent } from "react";
+import { useState, type FC, type ReactElement, type ChangeEvent } from "react";
 import type { Collection, Recipe } from "../../domain/recipe/types";
 import { FolderIcon, PlusIcon, EditIcon, TrashIcon, CheckIcon } from "../../ui/icons";
 import { Dialog } from "../../ui/Dialog";
@@ -84,7 +84,7 @@ export const FolderManagerModal: FC<FolderManagerModalProps> = ({
               placeholder="New folder name..."
               value={newFolderName}
               onChange={(e: ChangeEvent<HTMLInputElement>): void => setNewFolderName(e.target.value)}
-              onKeyDown={(e: KeyboardEvent<HTMLInputElement>): void => {
+              onKeyDown={(e): void => {
                 if (e.key === "Enter") {
                   e.preventDefault();
                   void handleCreate();
@@ -142,7 +142,7 @@ export const FolderManagerModal: FC<FolderManagerModalProps> = ({
                           type="text"
                           value={editName}
                           onChange={(e: ChangeEvent<HTMLInputElement>): void => setEditName(e.target.value)}
-                          onKeyDown={(e: KeyboardEvent<HTMLInputElement>): void => {
+                          onKeyDown={(e): void => {
                             if (e.key === "Enter") {
                               e.preventDefault();
                               void handleSaveEdit(col);
@@ -215,3 +215,4 @@ export const FolderManagerModal: FC<FolderManagerModalProps> = ({
     </>
   );
 };
+
