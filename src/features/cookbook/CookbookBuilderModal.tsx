@@ -235,12 +235,13 @@ export const CookbookBuilderModal: FC<CookbookBuilderModalProps> = ({
         </div>
 
         {/* Modal Body: Split between controls & book preview */}
-        <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+        <div style={{ display: "flex", flex: 1, overflow: "auto", flexWrap: "wrap" }}>
           {/* Controls Sidebar */}
           <div
             className="no-print"
             style={{
-              width: "340px",
+              width: "min(100%, 340px)",
+              flex: "1 1 min(100%, 320px)",
               borderRight: "1px solid var(--border)",
               padding: "var(--space-4)",
               overflowY: "auto",

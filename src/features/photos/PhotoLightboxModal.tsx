@@ -56,11 +56,14 @@ export const PhotoLightboxModal: FC<PhotoLightboxModalProps> = ({
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Photo lightbox"
       style={{
         position: "fixed",
         inset: 0,
         backgroundColor: "rgba(0, 0, 0, 0.92)",
-        zIndex: 1000,
+        zIndex: "var(--z-modal)",
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",

@@ -1,0 +1,138 @@
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-4) 80px var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  box-sizing: border-box;
+}
+
+.headerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.title {
+  font-family: var(--font-serif);
+  font-size: clamp(1.4rem, 4vw, 2rem);
+  font-weight: 700;
+  margin: 0;
+}
+
+.section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  box-shadow: var(--shadow-sm);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--space-2);
+}
+
+.sectionTitle {
+  font-family: var(--font-serif);
+  font-size: 1.125rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.activeTray {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-3);
+}
+
+.recipeCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-alt);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  gap: var(--space-2);
+  min-height: 48px;
+}
+
+.recipeTitle {
+  font-weight: 600;
+  font-size: 0.9375rem;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.stepperValue {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--accent);
+  min-width: 32px;
+  text-align: center;
+}
+
+.pickerBox {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+
+.totalsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-3);
+}
+
+.ingredientCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+
+.ingredientName {
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+
+.ingredientAmount {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.ingredientSources {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.emptyState {
+  color: var(--muted);
+  font-style: italic;
+  font-size: 0.9375rem;
+  padding: var(--space-3) 0;
+}

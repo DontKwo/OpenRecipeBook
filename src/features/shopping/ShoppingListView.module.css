@@ -1,0 +1,172 @@
+.container {
+  max-width: 840px;
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-4) 80px var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  box-sizing: border-box;
+}
+
+.headerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: nowrap;
+}
+
+.titleArea {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  flex: 1;
+}
+
+.titleSelect {
+  font-family: var(--font-serif);
+  font-size: clamp(1.25rem, 3.5vw, 1.75rem);
+  font-weight: 700;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  outline: none;
+  max-width: 100%;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.addForm {
+  display: flex;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.addInput {
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: 10px 16px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.9375rem;
+  outline: none;
+}
+
+.addInput:focus {
+  border-color: var(--accent);
+}
+
+.searchBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: 6px 14px;
+  background: var(--surface-alt);
+}
+
+.searchInput {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.875rem;
+  outline: none;
+}
+
+.statusStrip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.8125rem;
+  color: var(--muted);
+  padding: 0 var(--space-1);
+}
+
+.aisleSection {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  box-shadow: var(--shadow-sm);
+}
+
+.aisleHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid var(--border);
+}
+
+.aisleTitle {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+  margin: 0;
+}
+
+.itemRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  min-height: 44px;
+}
+
+.itemRow:last-child {
+  border-bottom: none;
+}
+
+.itemCheckbox {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+
+.itemText {
+  flex: 1;
+  font-size: 0.9375rem;
+  color: var(--text);
+  cursor: pointer;
+  word-break: break-word;
+}
+
+.itemTextChecked {
+  flex: 1;
+  font-size: 0.9375rem;
+  color: var(--muted);
+  text-decoration: line-through;
+  cursor: pointer;
+  word-break: break-word;
+}
+
+.itemActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.emptyState {
+  text-align: center;
+  padding: var(--space-12) var(--space-4);
+  color: var(--muted);
+}

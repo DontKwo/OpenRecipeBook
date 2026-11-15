@@ -1,10 +1,16 @@
-import { useState, useMemo, type FC, type ReactElement } from "react";
+import { useState, useMemo, type FC, type ReactElement, type FormEvent } from "react";
 import type { Recipe, Combo } from "../../domain/recipe/types";
 import { computeIngredientTotals, type TotalsSelectionItem } from "../../domain/ingredients/totals";
 import { parseIngredient } from "../../domain/scaling/parseIngredient";
 import { BUILT_IN_INGREDIENTS } from "../../data/defaultIngredients";
 import { QuickUnitConverterModal } from "../recipe-view/QuickUnitConverterModal";
-import { ConvertIcon, SearchIcon, XIcon } from "../../ui/icons";
+import { ConvertIcon, XIcon, PlusIcon, MinusIcon } from "../../ui/icons";
+import { Button, IconButton } from "../../ui/Button";
+import { RecipePicker } from "../../ui/RecipePicker";
+import { Dialog } from "../../ui/Dialog";
+import { ConfirmDialog } from "../../ui/ConfirmDialog";
+import { useToast } from "../../ui/Toast";
+import styles from "./IngredientTotalsView.module.css";
 
 interface ActiveConversionTarget {
   value: number;
@@ -25,13 +31,15 @@ export const IngredientTotalsView: FC<IngredientTotalsViewProps> = ({
   onSaveCombo,
   onDeleteCombo
 }): ReactElement => {
+  const { showToast } = useToast();
+
   const [selectedMultipliers, setSelectedMultipliers] = useState<Record<string, number>>({});
   const [expandedTraces, setExpandedTraces] = useState<Record<string, boolean>>({});
   const [newComboName, setNewComboName] = useState<string>("");
   const [showSaveComboModal, setShowSaveComboModal] = useState<boolean>(false);
+  const [comboToDelete, setComboToDelete] = useState<Combo | null>(null);
   const [activeConverter, setActiveConverter] = useState<ActiveConversionTarget | null>(null);
-  const [showGlobalConverter, setShowGlobalConverter] = useState<boolean>(false);
-  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [showPicker, setShowPicker] = useState<boolean>(false);
 
   const toggleSelectRecipe = (id: string): void => {
     setSelectedMultipliers((prev: Record<string, number>): Record<string, number> => {
@@ -48,17 +56,17 @@ export const IngredientTotalsView: FC<IngredientTotalsViewProps> = ({
   const updateMultiplier = (id: string, multiplier: number): void => {
     setSelectedMultipliers((prev: Record<string, number>): Record<string, number> => ({
       ...prev,
-      [id]: Math.max(0.25, multiplier)
+      [id]: Math.max(0.25, Math.round(multiplier * 100) / 100)
     }));
   };
 
-  const filteredRecipes = useMemo((): Recipe[] => {
-    const q = searchQuery.toLowerCase().trim();
-    if (!q) return recipes;
-    return recipes.filter((r: Recipe): boolean => {
-      return r.title.toLowerCase().includes(q) || r.courses.some((c: string): boolean => c.toLowerCase().includes(q));
-    });
-  }, [recipes, searchQuery]);
+  const handleSelectRecipeFromPicker = (recipe: Recipe): void => {
+    setSelectedMultipliers((prev: Record<string, number>): Record<string, number> => ({
+      ...prev,
+      [recipe.id]: (prev[recipe.id] || 0) + 1
+    }));
+    setShowPicker(false);
+  };
 
   const selectionItems: TotalsSelectionItem[] = useMemo(() => {
     const list: TotalsSelectionItem[] = [];
@@ -75,19 +83,23 @@ export const IngredientTotalsView: FC<IngredientTotalsViewProps> = ({
     return computeIngredientTotals(selectionItems, BUILT_IN_INGREDIENTS);
   }, [selectionItems]);
 
-  const toggleTrace = (key: string) => {
-    setExpandedTraces((prev) => ({ ...prev, [key]: !prev[key] }));
+  const toggleTrace = (key: string): void => {
+    setExpandedTraces((prev: Record<string, boolean>): Record<string, boolean> => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
   };
 
-  const handleApplyCombo = (combo: Combo) => {
+  const handleApplyCombo = (combo: Combo): void => {
     const nextMap: Record<string, number> = {};
     for (const entry of combo.entries) {
       nextMap[entry.recipeId] = entry.multiplier;
     }
     setSelectedMultipliers(nextMap);
+    showToast(`Loaded combo "${combo.name}"`);
   };
 
-  const handleSaveCombo = (e: React.FormEvent) => {
+  const handleSaveCombo = (e: FormEvent): void => {
     e.preventDefault();
     if (!newComboName.trim() || !onSaveCombo) return;
 
@@ -97,7 +109,7 @@ export const IngredientTotalsView: FC<IngredientTotalsViewProps> = ({
     }));
 
     const combo: Combo = {
-      id: `combo-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      id: `combo-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       name: newComboName.trim(),
       entries,
       createdAt: new Date().toISOString()
@@ -106,417 +118,219 @@ export const IngredientTotalsView: FC<IngredientTotalsViewProps> = ({
     onSaveCombo(combo);
     setNewComboName("");
     setShowSaveComboModal(false);
+    showToast(`Saved combo "${combo.name}"`);
   };
 
   return (
-    <div style={{ maxWidth: "1000px", margin: "0 auto", padding: "var(--space-6)" }}>
-      <header style={{ marginBottom: "var(--space-6)", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "var(--space-3)" }}>
+    <div className={styles.container}>
+      {/* Header */}
+      <div className={styles.headerRow}>
         <div>
-          <h1 style={{ fontFamily: "var(--font-serif)", fontSize: "2.25rem", marginBottom: "var(--space-2)" }}>
-            Ingredient Totals
-          </h1>
-          <p style={{ color: "var(--muted)" }}>
-            Select any number of recipes to combine and aggregate total ingredient quantities across your cooking plan.
+          <h1 className={styles.title}>Ingredient Totals</h1>
+          <p style={{ margin: "4px 0 0 0", color: "var(--muted)", fontSize: "0.9375rem" }}>
+            Aggregate ingredient quantities across multiple recipes for bulk prep or shopping.
           </p>
         </div>
 
         {selectionItems.length > 0 && onSaveCombo && (
-          <button
+          <Button
             type="button"
-            onClick={() => setShowSaveComboModal(true)}
-            style={{
-              background: "var(--surface)",
-              color: "var(--accent)",
-              border: "1px solid var(--border)",
-              padding: "8px 16px",
-              borderRadius: "var(--radius-full)",
-              fontWeight: 600,
-              cursor: "pointer"
-            }}
+            variant="secondary"
+            onClick={(): void => setShowSaveComboModal(true)}
           >
             Save as Combo
-          </button>
+          </Button>
         )}
-      </header>
+      </div>
 
       {/* Saved Combos Tray */}
       {combos.length > 0 && (
-        <section style={{ marginBottom: "var(--space-6)", background: "var(--surface)", padding: "var(--space-4) var(--space-6)", borderRadius: "var(--radius-md)", border: "1px solid var(--border)" }}>
-          <h3 style={{ fontSize: "0.95rem", textTransform: "uppercase", color: "var(--muted)", letterSpacing: "0.5px", marginBottom: "var(--space-3)" }}>
-            Saved Combos
-          </h3>
-          <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
+        <div className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h2 className={styles.sectionTitle}>Saved Combinations</h2>
+          </div>
+          <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
             {combos.map((combo) => (
               <div
                 key={combo.id}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: "var(--space-2)",
+                  gap: "6px",
                   background: "var(--surface-alt)",
-                  padding: "4px 12px",
-                  borderRadius: "var(--radius-full)"
+                  padding: "4px 10px",
+                  borderRadius: "var(--radius-full)",
+                  border: "1px solid var(--border)"
                 }}
               >
-                <button
+                <Button
                   type="button"
-                  onClick={() => handleApplyCombo(combo)}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    fontSize: "0.9rem"
-                  }}
+                  variant="ghost"
+                  size="sm"
+                  onClick={(): void => handleApplyCombo(combo)}
                 >
-                  {combo.name} ({combo.entries.length} recipes)
-                </button>
+                  {combo.name} ({combo.entries.length})
+                </Button>
                 {onDeleteCombo && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (window.confirm(`Delete saved combination "${combo.name}"?`)) {
-                        onDeleteCombo(combo.id);
-                      }
-                    }}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "var(--danger)",
-                      cursor: "pointer",
-                      padding: "2px 4px"
-                    }}
-                  >
-                    &times;
-                  </button>
+                  <IconButton
+                    icon={<XIcon width={14} height={14} />}
+                    aria-label={`Delete combination ${combo.name}`}
+                    size="sm"
+                    onClick={(): void => setComboToDelete(combo)}
+                  />
                 )}
               </div>
             ))}
           </div>
-        </section>
+        </div>
       )}
 
-      {/* Recipe Picker Section */}
-      <section style={{ marginBottom: "var(--space-8)", background: "var(--surface)", padding: "var(--space-6)", borderRadius: "var(--radius-md)", border: "1px solid var(--border)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-4)", flexWrap: "wrap", gap: "var(--space-2)" }}>
-          <h2 style={{ fontSize: "1.2rem", margin: 0 }}>
-            1. Active Recipes ({selectionItems.length} selected)
+      {/* Active Selection Section */}
+      <div className={styles.section}>
+        <div className={styles.sectionHeader}>
+          <h2 className={styles.sectionTitle}>
+            Selected Recipes ({selectionItems.length})
           </h2>
-          {selectionItems.length > 0 && (
-            <button
+          <div style={{ display: "flex", gap: "var(--space-2)" }}>
+            {selectionItems.length > 0 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={(): void => setSelectedMultipliers({})}
+              >
+                Clear All
+              </Button>
+            )}
+            <Button
               type="button"
-              onClick={(): void => setSelectedMultipliers({})}
-              style={{
-                background: "none",
-                border: "none",
-                color: "var(--muted)",
-                fontSize: "0.85rem",
-                cursor: "pointer",
-                padding: "4px 8px",
-                textDecoration: "underline"
-              }}
+              variant="secondary"
+              size="sm"
+              onClick={(): void => setShowPicker(!showPicker)}
             >
-              Clear All Selections
-            </button>
-          )}
+              <PlusIcon width={14} height={14} /> Add Recipe
+            </Button>
+          </div>
         </div>
+
+        {/* Recipe Picker Combobox */}
+        {showPicker && (
+          <div className={styles.pickerBox}>
+            <RecipePicker
+              recipes={recipes}
+              onSelectRecipe={handleSelectRecipeFromPicker}
+              placeholder="Search recipe by name or course to add..."
+              onCancel={(): void => setShowPicker(false)}
+            />
+          </div>
+        )}
 
         {/* Selected Recipes Active Tray */}
         {selectionItems.length > 0 ? (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "var(--space-3)", marginBottom: "var(--space-5)" }}>
+          <div className={styles.activeTray}>
             {selectionItems.map(({ recipe, multiplier }) => (
-              <div
-                key={recipe.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "var(--space-3) var(--space-4)",
-                  background: "var(--surface-alt)",
-                  border: "1px solid var(--accent)",
-                  borderRadius: "var(--radius-md)",
-                  gap: "var(--space-2)"
-                }}
-              >
-                <span
-                  style={{ fontWeight: 600, fontSize: "0.92rem", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                  title={recipe.title}
-                >
+              <div key={recipe.id} className={styles.recipeCard}>
+                <span className={styles.recipeTitle} title={recipe.title}>
                   {recipe.title}
                 </span>
 
-                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <button
-                    type="button"
-                    onClick={(): void => updateMultiplier(recipe.id, multiplier - 0.5)}
-                    style={{
-                      width: "28px",
-                      height: "28px",
-                      borderRadius: "50%",
-                      border: "1px solid var(--border)",
-                      background: "var(--surface)",
-                      color: "var(--text)",
-                      cursor: "pointer",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "1rem",
-                      fontWeight: 700,
-                      lineHeight: 1
-                    }}
-                    title="Decrease multiplier"
+                <div className={styles.stepper}>
+                  <IconButton
+                    icon={<MinusIcon width={14} height={14} />}
                     aria-label={`Decrease multiplier for ${recipe.title}`}
-                  >
-                    &minus;
-                  </button>
-                  <span style={{ fontSize: "0.88rem", fontWeight: 700, minWidth: "32px", textAlign: "center", color: "var(--accent)" }}>
+                    size="sm"
+                    variant="secondary"
+                    onClick={(): void => updateMultiplier(recipe.id, multiplier - 0.5)}
+                  />
+                  <span className={styles.stepperValue}>
                     {multiplier}&times;
                   </span>
-                  <button
-                    type="button"
-                    onClick={(): void => updateMultiplier(recipe.id, multiplier + 0.5)}
-                    style={{
-                      width: "28px",
-                      height: "28px",
-                      borderRadius: "50%",
-                      border: "1px solid var(--border)",
-                      background: "var(--surface)",
-                      color: "var(--text)",
-                      cursor: "pointer",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "1rem",
-                      fontWeight: 700,
-                      lineHeight: 1
-                    }}
-                    title="Increase multiplier"
+                  <IconButton
+                    icon={<PlusIcon width={14} height={14} />}
                     aria-label={`Increase multiplier for ${recipe.title}`}
-                  >
-                    +
-                  </button>
-                  <button
-                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={(): void => updateMultiplier(recipe.id, multiplier + 0.5)}
+                  />
+                  <IconButton
+                    icon={<XIcon width={14} height={14} />}
+                    aria-label={`Remove ${recipe.title} from totals`}
+                    size="sm"
+                    variant="ghost"
                     onClick={(): void => toggleSelectRecipe(recipe.id)}
-                    style={{
-                      width: "24px",
-                      height: "24px",
-                      borderRadius: "50%",
-                      border: "none",
-                      background: "none",
-                      color: "var(--muted)",
-                      cursor: "pointer",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      padding: 0,
-                      marginLeft: "2px"
-                    }}
-                    title="Remove from totals"
-                    aria-label={`Remove ${recipe.title}`}
-                  >
-                    <XIcon width={14} height={14} />
-                  </button>
+                  />
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <p style={{ color: "var(--muted)", fontSize: "0.9rem", margin: "0 0 var(--space-4) 0", fontStyle: "italic" }}>
-            No recipes selected yet. Use the searchable picker below to choose recipes to combine.
-          </p>
+          <div className={styles.emptyState}>
+            No recipes selected yet. Click "Add Recipe" above to search and pick recipes to aggregate.
+          </div>
         )}
+      </div>
 
-        {/* Searchable Compact Recipe Picker */}
-        <div style={{ background: "var(--surface-alt)", borderRadius: "var(--radius-md)", padding: "var(--space-4)", border: "1px solid var(--border)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "var(--space-3)" }}>
-            <div style={{ position: "relative", flex: 1 }}>
-              <input
-                type="search"
-                value={searchQuery}
-                onChange={(e): void => setSearchQuery(e.target.value)}
-                placeholder={`Search ${recipes.length} recipes to add...`}
-                style={{
-                  width: "100%",
-                  padding: "8px 12px 8px 34px",
-                  borderRadius: "var(--radius-full)",
-                  border: "1px solid var(--border)",
-                  background: "var(--surface)",
-                  color: "var(--text)",
-                  fontSize: "0.88rem"
-                }}
-              />
-              <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "var(--muted)", pointerEvents: "none" }}>
-                <SearchIcon width={14} height={14} />
-              </span>
-            </div>
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={(): void => setSearchQuery("")}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: "var(--muted)",
-                  cursor: "pointer",
-                  fontSize: "0.82rem"
-                }}
-              >
-                Clear
-              </button>
-            )}
-          </div>
-
-          <div style={{ maxHeight: "240px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "2px" }}>
-            {filteredRecipes.map((recipe: Recipe) => {
-              const isSelected = !!selectedMultipliers[recipe.id];
-              return (
-                <label
-                  key={recipe.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "var(--space-3)",
-                    padding: "8px 12px",
-                    cursor: "pointer",
-                    borderRadius: "var(--radius-sm)",
-                    background: isSelected ? "var(--surface)" : "transparent",
-                    transition: "background 0.1s ease"
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={(): void => toggleSelectRecipe(recipe.id)}
-                    style={{ cursor: "pointer", width: "16px", height: "16px" }}
-                  />
-                  <span style={{ flex: 1, fontWeight: isSelected ? 600 : 400, fontSize: "0.92rem", color: isSelected ? "var(--accent)" : "var(--text)" }}>
-                    {recipe.title}
-                  </span>
-                  {recipe.servings && (
-                    <span style={{ fontSize: "0.78rem", color: "var(--muted)" }}>
-                      {recipe.servings} servings
-                    </span>
-                  )}
-                </label>
-              );
-            })}
-            {filteredRecipes.length === 0 && (
-              <p style={{ color: "var(--muted)", textAlign: "center", padding: "var(--space-3)", fontSize: "0.85rem", margin: 0 }}>
-                No recipes matching &ldquo;{searchQuery}&rdquo;
-              </p>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* Aggregated Totals Results */}
-      {selectionItems.length > 0 ? (
-        <section style={{ background: "var(--surface)", padding: "var(--space-6)", borderRadius: "var(--radius-md)", border: "1px solid var(--border)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-4)", flexWrap: "wrap", gap: "var(--space-2)" }}>
-            <h2 style={{ fontSize: "1.3rem", margin: 0, color: "var(--accent)" }}>
-              2. Combined Total Requirements
+      {/* Aggregate Totals Output */}
+      {selectionItems.length > 0 && (
+        <div className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h2 className={styles.sectionTitle}>
+              Combined Ingredients ({totalsResult.items.length})
             </h2>
-            <button
-              type="button"
-              onClick={(): void => setShowGlobalConverter(true)}
-              style={{
-                background: "var(--surface-alt)",
-                color: "var(--accent)",
-                border: "1px solid var(--border)",
-                borderRadius: "var(--radius-full)",
-                padding: "6px 14px",
-                fontSize: "0.82rem",
-                fontWeight: 600,
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px"
-              }}
-            >
-              <ConvertIcon width={14} height={14} /> Universal Unit Converter
-            </button>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+          <div className={styles.totalsGrid}>
             {totalsResult.items.map((item, index) => {
-              const traceKey = `item-${index}`;
+              const traceKey = `${item.displayName}-${index}`;
               const isTraceOpen = !!expandedTraces[traceKey];
 
               return (
-                <div
-                  key={index}
-                  style={{
-                    padding: "var(--space-3) var(--space-4)",
-                    borderBottom: "1px solid var(--border)",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "4px"
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                    <span style={{ fontWeight: 600, fontSize: "1.1rem" }}>
-                      {item.totalDisplay}
-                    </span>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <button
-                        type="button"
-                        onClick={(): void => {
-                          const parsedTotal = parseIngredient(item.totalDisplay.replace("≈", "").trim(), `total-${index}`);
-                          const qty = parsedTotal.ingredient.quantity;
-                          const totalNumeric = qty ? (qty.kind === "single" ? qty.value : qty.max) : 1;
-                          setActiveConverter({
-                            value: totalNumeric,
-                            unit: parsedTotal.ingredient.unit || (item.unitFamily === "weight" ? "g" : "cup"),
-                            ingredient: item.displayName || parsedTotal.ingredient.name || "ingredient"
-                          });
-                        }}
-                        style={{
-                          background: "var(--surface-alt)",
-                          color: "var(--text)",
-                          border: "1px solid var(--border)",
-                          borderRadius: "var(--radius-full)",
-                          padding: "3px 10px",
-                          fontSize: "0.75rem",
-                          fontWeight: 500,
-                          cursor: "pointer",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "4px"
-                        }}
-                        title={`Convert ${item.totalDisplay} to other units`}
-                      >
-                        <ConvertIcon width={12} height={12} /> Convert Unit
-                      </button>
-                      <span style={{ fontSize: "0.8rem", color: "var(--muted)", background: "var(--surface-alt)", padding: "2px 8px", borderRadius: "var(--radius-full)" }}>
-                        {item.aisle}
-                      </span>
+                <div key={traceKey} className={styles.ingredientCard}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+                    <div>
+                      <div className={styles.ingredientAmount}>{item.totalDisplay}</div>
+                      <div className={styles.ingredientName}>{item.displayName}</div>
                     </div>
-                  </div>
-
-                  {/* Trace toggle */}
-                  <div>
-                    <button
+                    <Button
                       type="button"
-                      onClick={() => toggleTrace(traceKey)}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        color: "var(--accent)",
-                        fontSize: "0.82rem",
-                        cursor: "pointer",
-                        padding: 0,
-                        textDecoration: "underline"
+                      variant="ghost"
+                      size="sm"
+                      onClick={(): void => {
+                        const parsedTotal = parseIngredient(item.totalDisplay.replace("≈", "").trim(), `total-${index}`);
+                        const qty = parsedTotal.ingredient.quantity;
+                        const totalNumeric = qty ? (qty.kind === "single" ? qty.value : qty.max) : 1;
+                        setActiveConverter({
+                          value: totalNumeric,
+                          unit: parsedTotal.ingredient.unit || (item.unitFamily === "weight" ? "g" : "cup"),
+                          ingredient: item.displayName || parsedTotal.ingredient.name || "ingredient"
+                        });
                       }}
                     >
-                      {isTraceOpen ? "Hide Breakdown" : `Why this total? (${item.traces.length} recipes)`}
-                    </button>
+                      <ConvertIcon width={12} height={12} /> Convert
+                    </Button>
+                  </div>
+
+                  <div className={styles.ingredientSources}>
+                    Aisle: {item.aisle} · {item.traces.length} {item.traces.length === 1 ? "recipe" : "recipes"}
+                  </div>
+
+                  {/* Trace Breakdown Toggle */}
+                  <div style={{ marginTop: "4px" }}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={(): void => toggleTrace(traceKey)}
+                      style={{ padding: 0, fontSize: "0.75rem", textDecoration: "underline" }}
+                    >
+                      {isTraceOpen ? "Hide Breakdown" : "View Breakdown"}
+                    </Button>
 
                     {isTraceOpen && (
-                      <ul style={{ marginTop: "6px", paddingLeft: "var(--space-4)", fontSize: "0.85rem", color: "var(--muted)" }}>
+                      <ul style={{ margin: "4px 0 0 0", paddingLeft: "16px", fontSize: "0.8125rem", color: "var(--muted)" }}>
                         {item.traces.map((trace, traceIndex) => (
                           <li key={traceIndex}>
-                            <strong>{trace.recipeTitle}</strong>: {trace.scaledQuantityText} (from "{trace.originalRaw}")
+                            <strong>{trace.recipeTitle}</strong>: {trace.scaledQuantityText}
                           </li>
                         ))}
                       </ul>
@@ -529,88 +343,91 @@ export const IngredientTotalsView: FC<IngredientTotalsViewProps> = ({
 
           {/* Also Needed */}
           {totalsResult.alsoNeeded.length > 0 && (
-            <div style={{ marginTop: "var(--space-6)", paddingTop: "var(--space-4)", borderTop: "2px solid var(--border)" }}>
-              <h3 style={{ fontSize: "1rem", color: "var(--muted)", textTransform: "uppercase", marginBottom: "var(--space-3)" }}>
-                Also Needed (Non-scalable or unquantified)
+            <div style={{ marginTop: "var(--space-4)", paddingTop: "var(--space-3)", borderTop: "1px solid var(--border)" }}>
+              <h3 style={{ fontSize: "0.875rem", color: "var(--muted)", textTransform: "uppercase", margin: "0 0 8px 0" }}>
+                Also Needed (Unscaled items)
               </h3>
-              <ul style={{ paddingLeft: "var(--space-4)", color: "var(--text)" }}>
+              <ul style={{ margin: 0, paddingLeft: "20px", color: "var(--text)", fontSize: "0.875rem" }}>
                 {totalsResult.alsoNeeded.map((item, index) => (
-                  <li key={index} style={{ marginBottom: "4px" }}>
+                  <li key={index}>
                     {item.name}
                   </li>
                 ))}
               </ul>
             </div>
           )}
-        </section>
-      ) : (
-        <div style={{ textAlign: "center", padding: "var(--space-8)", color: "var(--muted)" }}>
-          Check one or more recipes above to see combined ingredient totals.
         </div>
       )}
 
-      {/* Save Combo Modal */}
-      {showSaveComboModal && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 100
-          }}
-        >
-          <div style={{ background: "var(--surface)", padding: "var(--space-6)", borderRadius: "var(--radius-md)", width: "90%", maxWidth: "400px" }}>
-            <h3 style={{ marginBottom: "var(--space-3)" }}>Save Selection as Combo</h3>
-            <form onSubmit={handleSaveCombo}>
-              <input
-                type="text"
-                autoFocus
-                required
-                value={newComboName}
-                onChange={(e) => setNewComboName(e.target.value)}
-                placeholder="e.g. Thanksgiving Dinner, Sunday Baking..."
-                style={{ width: "100%", padding: "8px 12px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", marginBottom: "var(--space-4)" }}
-              />
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-2)" }}>
-                <button
-                  type="button"
-                  onClick={() => setShowSaveComboModal(false)}
-                  style={{ background: "none", border: "1px solid var(--border)", padding: "8px 16px", borderRadius: "var(--radius-full)", cursor: "pointer" }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  style={{ background: "var(--accent)", color: "var(--accent-contrast)", border: "none", padding: "8px 18px", borderRadius: "var(--radius-full)", cursor: "pointer", fontWeight: 600 }}
-                >
-                  Save Combo
-                </button>
-              </div>
-            </form>
+      {/* Save Combo Dialog */}
+      <Dialog
+        isOpen={showSaveComboModal}
+        title="Save Current Recipe Combo"
+        onClose={(): void => setShowSaveComboModal(false)}
+        maxWidth={400}
+      >
+        <form onSubmit={handleSaveCombo} style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+          <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--muted)" }}>
+            Save this set of {selectionItems.length} recipes and multipliers for one-click re-use.
+          </p>
+          <input
+            type="text"
+            autoFocus
+            required
+            value={newComboName}
+            onChange={(e): void => setNewComboName(e.target.value)}
+            placeholder="e.g. Sunday Meal Prep, Taco Night..."
+            style={{
+              padding: "8px 12px",
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--border)",
+              background: "var(--surface)",
+              color: "var(--text)"
+            }}
+          />
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={(): void => setShowSaveComboModal(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={!newComboName.trim()}
+            >
+              Save Combo
+            </Button>
           </div>
-        </div>
-      )}
+        </form>
+      </Dialog>
 
-      {/* Quick Unit Converter Modal for Individual Total Items */}
+      {/* Delete Combo Confirm */}
+      <ConfirmDialog
+        isOpen={Boolean(comboToDelete)}
+        title={`Delete combo "${comboToDelete?.name}"?`}
+        message="Are you sure you want to delete this saved recipe combination?"
+        confirmLabel="Delete"
+        isDanger={true}
+        onConfirm={(): void => {
+          if (comboToDelete && onDeleteCombo) {
+            onDeleteCombo(comboToDelete.id);
+            showToast(`Deleted combo "${comboToDelete.name}"`);
+            setComboToDelete(null);
+          }
+        }}
+        onCancel={(): void => setComboToDelete(null)}
+      />
+
+      {/* Quick Unit Converter Modal */}
       {activeConverter && (
         <QuickUnitConverterModal
+          initialIngredient={activeConverter.ingredient}
           initialValue={activeConverter.value}
           initialUnit={activeConverter.unit}
-          initialIngredient={activeConverter.ingredient}
           onClose={(): void => setActiveConverter(null)}
-        />
-      )}
-
-      {/* Universal Unit Converter Modal */}
-      {showGlobalConverter && (
-        <QuickUnitConverterModal
-          initialValue={1}
-          initialUnit="cup"
-          initialIngredient="All-Purpose Flour"
-          onClose={(): void => setShowGlobalConverter(false)}
         />
       )}
     </div>

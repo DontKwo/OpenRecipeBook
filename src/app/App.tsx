@@ -56,6 +56,7 @@ import { Button } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { ToastProvider, useToast } from "../ui/Toast";
+import { applyThemeAndAccent } from "../styles/themeManager";
 import styles from "./AppShell.module.css";
 
 type ActiveTab =
@@ -154,6 +155,7 @@ function AppContent(): ReactElement {
   };
 
   useEffect(() => {
+    applyThemeAndAccent();
     refreshAllData();
 
     const handleProcessImportFile = async (file: File): Promise<void> => {

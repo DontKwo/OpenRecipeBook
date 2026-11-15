@@ -1,12 +1,15 @@
-import { useState, useEffect, type FC, type ReactElement } from "react";
+import { useState, useEffect, type FC, type ReactElement, type ChangeEvent } from "react";
 import type { Recipe } from "../../domain/recipe/types";
 import { BRAND } from "../../config/brand";
-import { DownloadIcon, UploadIcon, TrashIcon, CheckIcon } from "../../ui/icons";
+import { DownloadIcon, UploadIcon, TrashIcon } from "../../ui/icons";
+import { Button, IconButton } from "../../ui/Button";
+import { applyThemeAndAccent } from "../../styles/themeManager";
 import {
   FileSystemFolderBackupDestination,
   clearStoredDirectoryHandle,
   type AutoBackupResult
 } from "../../domain/backup/backupFolder";
+import styles from "./SettingsView.module.css";
 
 export interface SettingsViewProps {
   onExportFullBackup: () => void;
@@ -66,17 +69,13 @@ export const SettingsView: FC<SettingsViewProps> = ({
   const handleThemeChange = (newTheme: string): void => {
     setTheme(newTheme);
     localStorage.setItem("orb_theme", newTheme);
-    if (newTheme === "system") {
-      document.documentElement.removeAttribute("data-theme");
-    } else {
-      document.documentElement.setAttribute("data-theme", newTheme);
-    }
+    applyThemeAndAccent(newTheme, accent);
   };
 
   const handleAccentChange = (newAccent: string): void => {
     setAccent(newAccent);
     localStorage.setItem("accentTheme", newAccent);
-    document.documentElement.setAttribute("data-accent", newAccent);
+    applyThemeAndAccent(theme, newAccent);
   };
 
   const handlePickFolder = async (): Promise<void> => {
@@ -112,7 +111,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
     }
   };
 
-  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileInput = (e: ChangeEvent<HTMLInputElement>): void => {
     const file = e.target.files?.[0];
     if (file) {
       onRestoreFullBackup(file);
@@ -120,45 +119,35 @@ export const SettingsView: FC<SettingsViewProps> = ({
   };
 
   return (
-    <div style={{ maxWidth: "800px", margin: "0 auto", padding: "var(--space-6)" }}>
-      <header style={{ marginBottom: "var(--space-6)" }}>
-        <h1 style={{ fontFamily: "var(--font-serif)", fontSize: "2.25rem", marginBottom: "var(--space-2)" }}>
-          Settings
-        </h1>
-        <p style={{ color: "var(--muted)" }}>
+    <div className={styles.container}>
+      <header className={styles.header}>
+        <h1 className={styles.title}>Settings</h1>
+        <p className={styles.subtitle}>
           Application preferences, backups, and local storage.
         </p>
       </header>
 
       {/* Appearance Section */}
-      <section style={{ marginBottom: "var(--space-6)", background: "var(--surface)", padding: "var(--space-6)", borderRadius: "var(--radius-md)", border: "1px solid var(--border)" }}>
-        <h2 style={{ fontSize: "1.2rem", marginBottom: "var(--space-4)" }}>Appearance</h2>
-        <div style={{ display: "flex", gap: "var(--space-3)" }}>
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Appearance</h2>
+        <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
           {["system", "light", "dark"].map((mode) => (
-            <button
+            <Button
               key={mode}
               type="button"
-              onClick={() => handleThemeChange(mode)}
-              style={{
-                background: theme === mode ? "var(--accent)" : "var(--surface)",
-                color: theme === mode ? "var(--accent-contrast)" : "var(--text)",
-                border: "1px solid " + (theme === mode ? "var(--accent)" : "var(--border)"),
-                padding: "8px 18px",
-                borderRadius: "var(--radius-full)",
-                fontWeight: 600,
-                textTransform: "capitalize",
-                cursor: "pointer"
-              }}
+              variant={theme === mode ? "primary" : "secondary"}
+              size="sm"
+              onClick={(): void => handleThemeChange(mode)}
             >
-              {mode}
-            </button>
+              {mode.charAt(0).toUpperCase() + mode.slice(1)}
+            </Button>
           ))}
         </div>
 
-        <div style={{ marginTop: "var(--space-4)" }}>
-          <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "var(--muted)", marginBottom: "var(--space-2)" }}>
+        <div style={{ marginTop: "var(--space-3)" }}>
+          <span style={{ display: "block", fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)", marginBottom: "var(--space-2)" }}>
             Accent Color
-          </label>
+          </span>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
             {[
               { id: "terracotta", label: "Terracotta" },
@@ -167,219 +156,165 @@ export const SettingsView: FC<SettingsViewProps> = ({
               { id: "berry", label: "Berry" },
               { id: "ochre", label: "Ochre" }
             ].map((item) => (
-              <button
+              <Button
                 key={item.id}
                 type="button"
-                onClick={() => handleAccentChange(item.id)}
-                style={{
-                  background: accent === item.id ? "var(--surface-alt)" : "var(--surface)",
-                  color: accent === item.id ? "var(--accent)" : "var(--text)",
-                  border: "1px solid var(--border)",
-                  padding: "6px 14px",
-                  borderRadius: "var(--radius-full)",
-                  fontWeight: accent === item.id ? 700 : 500,
-                  fontSize: "0.88rem",
-                  cursor: "pointer"
-                }}
+                variant={accent === item.id ? "primary" : "secondary"}
+                size="sm"
+                onClick={(): void => handleAccentChange(item.id)}
               >
                 {item.label}
-              </button>
+              </Button>
             ))}
           </div>
         </div>
       </section>
 
       {/* Backup and Restore */}
-      <section style={{ marginBottom: "var(--space-6)", background: "var(--surface)", padding: "var(--space-6)", borderRadius: "var(--radius-md)", border: "1px solid var(--border)" }}>
-        <h2 style={{ fontSize: "1.2rem", marginBottom: "var(--space-2)" }}>Data Backup & Restore</h2>
-        <p style={{ color: "var(--muted)", fontSize: "0.9rem", marginBottom: "var(--space-4)" }}>
-          Your data lives locally in your browser/device IndexedDB. Export regular full zip backups to your Google Drive, Dropbox, or local folder to keep your cookbook safe.
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Data Backup & Restore</h2>
+        <p className={styles.sectionText}>
+          Your data lives locally in your device IndexedDB. Export regular full zip backups to Google Drive, Dropbox, or a local folder to keep your cookbook safe.
         </p>
 
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-4)" }}>
-          <button
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-3)", marginTop: "var(--space-2)" }}>
+          <Button
             type="button"
+            variant="primary"
             onClick={onExportFullBackup}
-            style={{
-              background: "var(--accent)",
-              color: "var(--accent-contrast)",
-              border: "none",
-              padding: "10px 20px",
-              borderRadius: "var(--radius-full)",
-              fontWeight: 600,
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "8px"
-            }}
           >
             <DownloadIcon width={16} height={16} /> Export Full Library (.zip)
-          </button>
+          </Button>
 
-          <label
-            style={{
-              background: "var(--surface)",
-              color: "var(--text)",
-              border: "1px solid var(--border)",
-              padding: "10px 20px",
-              borderRadius: "var(--radius-full)",
-              fontWeight: 600,
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "8px"
-            }}
-          >
-            <UploadIcon width={16} height={16} /> Restore from Backup (.zip)
+          <label style={{ cursor: "pointer", display: "inline-flex" }}>
+            <span style={{ display: "none" }}>Restore file</span>
             <input
               type="file"
               accept=".zip,.json"
               onChange={handleFileInput}
               style={{ display: "none" }}
             />
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={(): void => {}}
+            >
+              <UploadIcon width={16} height={16} /> Restore from Backup (.zip)
+            </Button>
           </label>
         </div>
 
-        {/* Synced Backup Folder (Drive, Dropbox, OneDrive) */}
+        {/* Synced Backup Folder */}
         <div
           style={{
-            marginTop: "var(--space-6)",
+            marginTop: "var(--space-3)",
             padding: "var(--space-4)",
             background: "var(--surface-alt)",
-            borderRadius: "var(--radius-sm)",
-            border: "1px solid var(--border)"
+            borderRadius: "var(--radius-md)",
+            border: "1px solid var(--border)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "var(--space-2)"
           }}
         >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-2)" }}>
-            <h3 style={{ fontSize: "1rem", margin: 0 }}>
-              Automatic Cloud-Synced Folder
-            </h3>
-            {folderName && (
-              <span style={{ fontSize: "0.8rem", color: "var(--success)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                <CheckIcon width={14} height={14} /> Linked
-              </span>
-            )}
+          <div style={{ fontWeight: 600, fontSize: "0.9375rem" }}>
+            Local Folder Sync (Auto-Backups)
           </div>
-
-          <p style={{ fontSize: "0.85rem", color: "var(--muted)", margin: "0 0 var(--space-3) 0" }}>
-            Select a folder synced by Google Drive, Dropbox, or OneDrive on your computer. OpenRecipeBook automatically saves dated .openrecipebook.zip backups there and retains the 10 most recent.
+          <p style={{ margin: 0, fontSize: "0.8125rem", color: "var(--muted)" }}>
+            Select a folder on your computer (e.g. inside Google Drive or Dropbox). Every recipe change will automatically write a stamped backup zip.
           </p>
 
           {isFolderBackupAvailable ? (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-3)", alignItems: "center" }}>
-              <button
-                type="button"
-                onClick={handlePickFolder}
-                style={{
-                  background: "var(--surface)",
-                  color: "var(--text)",
-                  border: "1px solid var(--border)",
-                  padding: "6px 14px",
-                  borderRadius: "var(--radius-full)",
-                  fontSize: "0.85rem",
-                  fontWeight: 600,
-                  cursor: "pointer"
-                }}
-              >
-                {folderName ? `Change Folder (${folderName})` : "Choose Synced Folder"}
-              </button>
-
-              {folderName && (
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", flexWrap: "wrap", marginTop: "var(--space-2)" }}>
+              {folderName ? (
                 <>
-                  <button
+                  <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--accent)" }}>
+                    Connected: {folderName}
+                  </span>
+                  <Button
                     type="button"
+                    variant="secondary"
+                    size="sm"
                     disabled={isBackingUp}
                     onClick={handleTriggerFolderBackup}
-                    style={{
-                      background: "var(--accent)",
-                      color: "var(--accent-contrast)",
-                      border: "none",
-                      padding: "6px 14px",
-                      borderRadius: "var(--radius-full)",
-                      fontSize: "0.85rem",
-                      fontWeight: 600,
-                      cursor: isBackingUp ? "wait" : "pointer",
-                      opacity: isBackingUp ? 0.7 : 1
-                    }}
                   >
-                    {isBackingUp ? "Backing up..." : "Back Up Now"}
-                  </button>
-
-                  <button
+                    {isBackingUp ? "Saving..." : "Backup Now"}
+                  </Button>
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="sm"
                     onClick={handleDisconnectFolder}
-                    style={{
-                      background: "none",
-                      color: "var(--danger)",
-                      border: "none",
-                      padding: "4px 8px",
-                      fontSize: "0.82rem",
-                      cursor: "pointer"
-                    }}
                   >
                     Disconnect
-                  </button>
+                  </Button>
                 </>
+              ) : (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={handlePickFolder}
+                >
+                  Choose Backup Folder
+                </Button>
               )}
             </div>
           ) : (
-            <p style={{ fontSize: "0.82rem", color: "var(--muted)", margin: 0, fontStyle: "italic" }}>
-              Automatic folder sync uses the File System Access API (supported in desktop Chrome, Edge, and the Windows app). On mobile, export manually using the button above to save directly to your cloud drive.
-            </p>
+            <div style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
+              Direct folder sync requires a desktop browser supporting the File System Access API (Chrome, Edge). Use manual .zip backup on mobile.
+            </div>
           )}
 
           {backupFeedback && (
-            <div style={{ marginTop: "var(--space-3)", fontSize: "0.82rem", color: "var(--accent)", fontWeight: 500 }}>
+            <div style={{ fontSize: "0.8125rem", color: "var(--accent)", marginTop: "4px" }}>
               {backupFeedback}
             </div>
           )}
         </div>
       </section>
 
-      {/* My Ingredients Section */}
-      <section style={{ marginBottom: "var(--space-6)", background: "var(--surface)", padding: "var(--space-6)", borderRadius: "var(--radius-md)", border: "1px solid var(--border)" }}>
-        <h2 style={{ fontSize: "1.2rem", marginBottom: "var(--space-2)" }}>My Ingredients Dictionary</h2>
-        <p style={{ color: "var(--muted)", fontSize: "0.9rem", marginBottom: "var(--space-4)" }}>
+      {/* Dictionary Section */}
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>My Ingredients Dictionary</h2>
+        <p className={styles.sectionText}>
           Manage custom ingredients, aisles, aliases, and density values used for autocomplete, shopping lists, and ingredient totals.
         </p>
-        <button
-          type="button"
-          onClick={onOpenUserIngredients}
-          style={{
-            background: "var(--surface)",
-            color: "var(--accent)",
-            border: "1px solid var(--border)",
-            padding: "8px 18px",
-            borderRadius: "var(--radius-full)",
-            fontWeight: 600,
-            cursor: "pointer"
-          }}
-        >
-          Manage Custom Ingredients
-        </button>
+        <div>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onOpenUserIngredients}
+          >
+            Manage Custom Ingredients
+          </Button>
+        </div>
       </section>
 
       {/* Trash Section (30-day retention) */}
-      <section style={{ marginBottom: "var(--space-6)", background: "var(--surface)", padding: "var(--space-6)", borderRadius: "var(--radius-md)", border: "1px solid var(--border)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-2)" }}>
-          <h2 style={{ fontSize: "1.2rem", margin: 0 }}>Trash ({trashedRecipes.length})</h2>
+      <section className={styles.section}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h2 className={styles.sectionTitle} style={{ margin: 0 }}>
+            Trash ({trashedRecipes.length})
+          </h2>
           {trashedRecipes.length > 0 && onEmptyTrash && (
-            <button
+            <Button
               type="button"
+              variant="danger"
+              size="sm"
               onClick={onEmptyTrash}
-              style={{ background: "none", border: "1px solid var(--danger)", color: "var(--danger)", padding: "4px 12px", borderRadius: "var(--radius-full)", cursor: "pointer", fontSize: "0.82rem" }}
             >
               Empty Trash
-            </button>
+            </Button>
           )}
         </div>
-        <p style={{ color: "var(--muted)", fontSize: "0.85rem", marginBottom: "var(--space-4)" }}>
+        <p className={styles.sectionText}>
           Deleted recipes remain in trash for 30 days before being automatically purged.
         </p>
 
         {trashedRecipes.length > 0 ? (
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-            {trashedRecipes.map((r) => (
+            {trashedRecipes.map((r: Recipe) => (
               <div
                 key={r.id}
                 style={{
@@ -389,64 +324,63 @@ export const SettingsView: FC<SettingsViewProps> = ({
                   padding: "8px 12px",
                   background: "var(--surface-alt)",
                   borderRadius: "var(--radius-sm)",
-                  fontSize: "0.9rem"
+                  border: "1px solid var(--border)"
                 }}
               >
                 <div>
-                  <span style={{ fontWeight: 600 }}>{r.title}</span>
-                  <span style={{ fontSize: "0.78rem", color: "var(--muted)", marginLeft: "8px" }}>
-                    Deleted {r.deletedAt ? new Date(r.deletedAt).toLocaleDateString() : ""}
-                  </span>
+                  <div style={{ fontWeight: 600, fontSize: "0.9375rem" }}>{r.title}</div>
+                  <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+                    Deleted {r.deletedAt ? new Date(r.deletedAt).toLocaleDateString() : "recently"}
+                  </div>
                 </div>
-                <div style={{ display: "flex", gap: "var(--space-2)" }}>
+                <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
                   {onRestoreRecipe && (
-                    <button
+                    <Button
                       type="button"
-                      onClick={() => onRestoreRecipe(r.id)}
-                      style={{ background: "none", border: "1px solid var(--accent)", color: "var(--accent)", padding: "3px 10px", borderRadius: "var(--radius-full)", cursor: "pointer", fontSize: "0.8rem" }}
+                      variant="secondary"
+                      size="sm"
+                      onClick={(): void => onRestoreRecipe(r.id)}
                     >
                       Restore
-                    </button>
+                    </Button>
                   )}
                   {onPermanentDeleteRecipe && (
-                    <button
-                      type="button"
-                      onClick={() => onPermanentDeleteRecipe(r.id)}
-                      style={{ background: "none", border: "none", color: "var(--danger)", cursor: "pointer", padding: "4px" }}
-                      title="Delete permanently"
-                    >
-                      <TrashIcon width={14} height={14} />
-                    </button>
+                    <IconButton
+                      icon={<TrashIcon width={14} height={14} />}
+                      aria-label={`Permanently delete ${r.title}`}
+                      size="sm"
+                      onClick={(): void => onPermanentDeleteRecipe(r.id)}
+                    />
                   )}
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <div style={{ color: "var(--muted)", fontSize: "0.9rem" }}>Trash is empty.</div>
+          <div style={{ color: "var(--muted)", fontSize: "0.875rem" }}>Trash is empty.</div>
         )}
       </section>
 
       {/* Storage & Library Stats */}
-      <section style={{ marginBottom: "var(--space-6)", background: "var(--surface)", padding: "var(--space-6)", borderRadius: "var(--radius-md)", border: "1px solid var(--border)" }}>
-        <h2 style={{ fontSize: "1.2rem", marginBottom: "var(--space-4)" }}>Storage & Statistics</h2>
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", fontSize: "0.95rem" }}>
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Storage & Statistics</h2>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", fontSize: "0.9375rem" }}>
           <div>
             <strong>Stored Recipes:</strong> {recipeCount}
           </div>
           <div>
             <strong>Local Storage Used:</strong> {storageUsage}
           </div>
-          <p style={{ fontSize: "0.82rem", color: "var(--muted)", margin: "4px 0 0 0", lineHeight: 1.5 }}>
-            OpenRecipeBook is 100% private and offline-first. All data and photos reside solely within your device&rsquo;s sandboxed local storage (IndexedDB). No servers, tracking, or background tasks use your device hardware or storage.
+          <p className={styles.sectionText}>
+            OpenRecipeBook is 100% private and offline-first. All data and photos reside solely within your device sandboxed local storage (IndexedDB). No servers, tracking, or background tasks use your device hardware or storage.
           </p>
         </div>
       </section>
 
-      {/* Desktop Keyboard Shortcuts */}
-      <section style={{ marginBottom: "var(--space-6)", background: "var(--surface)", padding: "var(--space-6)", borderRadius: "var(--radius-md)", border: "1px solid var(--border)" }}>
-        <h2 style={{ fontSize: "1.2rem", marginBottom: "var(--space-4)" }}>Keyboard Shortcuts (Desktop)</h2>
-        <ul style={{ listStyle: "none", padding: 0, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "var(--space-3)" }}>
+      {/* Desktop Keyboard Shortcuts (Hidden on touch devices) */}
+      <section className={styles.keyboardSection}>
+        <h2 className={styles.sectionTitle}>Keyboard Shortcuts (Desktop)</h2>
+        <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "var(--space-2)" }}>
           <li>
             <kbd style={{ background: "var(--surface-alt)", padding: "2px 8px", borderRadius: "4px", border: "1px solid var(--border)", fontFamily: "var(--font-mono)" }}>/</kbd> Focus search
           </li>
@@ -472,12 +406,12 @@ export const SettingsView: FC<SettingsViewProps> = ({
       </section>
 
       {/* About */}
-      <section style={{ background: "var(--surface)", padding: "var(--space-6)", borderRadius: "var(--radius-md)", border: "1px solid var(--border)" }}>
-        <h2 style={{ fontSize: "1.2rem", marginBottom: "var(--space-2)" }}>About {BRAND.appName}</h2>
-        <p style={{ color: "var(--muted)", fontSize: "0.9rem", marginBottom: "var(--space-3)" }}>
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>About {BRAND.appName}</h2>
+        <p className={styles.sectionText}>
           {BRAND.tagline}. Free, local-first open-source cookbook under the MIT License.
         </p>
-        <p style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
+        <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: 0 }}>
           Package ID: <code>{BRAND.packageId}</code> · Version 0.1.0
         </p>
       </section>
