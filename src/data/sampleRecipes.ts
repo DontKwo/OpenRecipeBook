@@ -82,12 +82,12 @@ export const SAMPLE_RECIPES: Recipe[] = [
         "steps": [
           {
             "id": "recipe-starbucks-lemon-loaf-step-1",
-            "text": "Preheat oven to 350F. Spray a 9x5-inch loaf pan with floured cooking spray, or grease and flour the pan; set aside."
+            "text": "Preheat oven to 350°F. Spray a 9x5-inch loaf pan with floured cooking spray, or grease and flour the pan; set aside."
           }
         ]
       },
       {
-        "heading": "Make the loaf:",
+        "heading": "Make the loaf",
         "steps": [
           {
             "id": "recipe-starbucks-lemon-loaf-step-2",
@@ -99,7 +99,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
           },
           {
             "id": "recipe-starbucks-lemon-loaf-step-4",
-            "text": "Note - I used 2 tablespoons of lemon extract because no actual lemon juice is used in the loaf and I found 2 tablespoons lemon extract necessary for full-bodied lemon flavor, but add to taste.*"
+            "text": "Add 2 tablespoons of lemon extract for full-bodied lemon flavor, adjusting to taste."
           },
           {
             "id": "recipe-starbucks-lemon-loaf-step-5",
@@ -120,7 +120,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
         ]
       },
       {
-        "heading": "Make the lemon glaze:",
+        "heading": "Make the lemon glaze",
         "steps": [
           {
             "id": "recipe-starbucks-lemon-loaf-step-9",
@@ -189,7 +189,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
           },
           {
             "id": "recipe-avalanche-bars-ing-4",
-            "raw": "3 cups+ mini marshmallows (to taste)",
+            "raw": "3 cups mini marshmallows (to taste)",
             "scalable": true
           },
           {
@@ -222,7 +222,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
         ]
       }
     ],
-    "notes": "Notes:\n- 1 batch costs about $14.10 to make or 44 cents per bar",
+    "notes": "- 1 batch costs about $14.10 to make or 44 cents per bar",
     "cookLog": [],
     "courses": [
       "Dessert",
@@ -301,7 +301,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
         "steps": [
           {
             "id": "recipe-lemon-bars-step-1",
-            "text": "Preheat oven to 350 degrees F (175 degrees C)."
+            "text": "Preheat oven to 350°F (175°C)."
           },
           {
             "id": "recipe-lemon-bars-step-2",
@@ -689,7 +689,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
         ]
       }
     ],
-    "notes": "Notes:\n- When I make this recipe I use chicken breasts that are about 1 inch thick. If you use thinner chicken breasts, be sure to decrease the bake time accordingly.",
+    "notes": "- When I make this recipe I use chicken breasts that are about 1 inch thick. If you use thinner chicken breasts, be sure to decrease the bake time accordingly.",
     "cookLog": [],
     "courses": [
       "Dinner"
@@ -756,7 +756,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
           },
           {
             "id": "recipe-bbq-mac-n-cheese-ing-7",
-            "raw": "1 tsp+ hot sauce",
+            "raw": "1 tsp hot sauce",
             "scalable": true
           },
           {
@@ -942,7 +942,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
           },
           {
             "id": "recipe-nashville-hot-chicken-step-3",
-            "text": "In a large pot, heat oil until a candy thermometer inserted into pot reads 350 deg . Working in batches, fry chicken until golden, about 6 to 8 minutes. Scoop out 1/2 cup hot oil, and let remaining oil cool in pot before discarding."
+            "text": "In a large pot, heat oil until a candy thermometer inserted into pot reads 350°F. Working in batches, fry chicken until golden, about 6 to 8 minutes. Scoop out 1/2 cup hot oil, and let remaining oil cool in pot before discarding."
           },
           {
             "id": "recipe-nashville-hot-chicken-step-4",
@@ -1002,7 +1002,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
           },
           {
             "id": "recipe-chicken-white-queso-ing-4",
-            "raw": "~3/4 cup of milk, add more or less based on desired consistency",
+            "raw": "3/4 cup of milk, add more or less based on desired consistency",
             "scalable": true
           },
           {
@@ -1017,7 +1017,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
           },
           {
             "id": "recipe-chicken-white-queso-ing-7",
-            "raw": "~3/4 tsp cumin and garlic powder",
+            "raw": "3/4 tsp cumin and garlic powder",
             "scalable": true
           },
           {
@@ -1055,7 +1055,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
         ]
       }
     ],
-    "notes": "Notes:\n- I doubled this recipe for the potluck, so you can judge how much to make.\n- I buy the individually wrapped white American cheese and painstakingly unwrap each one because it's cheaper than the deli.",
+    "notes": "- I doubled this recipe for the potluck, so you can judge how much to make.\n- I buy the individually wrapped white American cheese and painstakingly unwrap each one because it's cheaper than the deli.",
     "cookLog": [],
     "courses": [
       "Appetizer",
@@ -1376,8 +1376,8 @@ export const SAMPLE_RECIPES: Recipe[] = [
   },
   {
     "id": "recipe-slow-cooker-turkey-breast-with-aromatics",
-    "title": "Slow Cooker Turkey Breast with Aromatics",
-    "description": "Juicy slow cooker turkey breast infused with lemon, garlic, and fresh herb aromatics, finished under the broiler.",
+    "title": "Slow Cooked Whole Turkey",
+    "description": "Juicy slow cooked whole turkey infused with lemon, garlic, and fresh herb aromatics.",
     "servings": 8,
     "servingsLabel": "servings",
     "prepMinutes": 20,
@@ -1388,7 +1388,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
         "items": [
           {
             "id": "recipe-slow-cooker-turkey-breast-with-aromatics-ing-1",
-            "raw": "2 kg / 4 lb turkey breast, skin on, bone in or boneless (thaw first if frozen)",
+            "raw": "Whole turkey",
             "scalable": true
           },
           {
@@ -1443,12 +1443,12 @@ export const SAMPLE_RECIPES: Recipe[] = [
         "items": [
           {
             "id": "recipe-slow-cooker-turkey-breast-with-aromatics-ing-11",
-            "raw": "11/2 tsp garlic powder",
+            "raw": "1 1/2 tsp garlic powder",
             "scalable": true
           },
           {
             "id": "recipe-slow-cooker-turkey-breast-with-aromatics-ing-12",
-            "raw": "11/2 tsp onion powder",
+            "raw": "1 1/2 tsp onion powder",
             "scalable": true
           },
           {
@@ -1468,7 +1468,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
           },
           {
             "id": "recipe-slow-cooker-turkey-breast-with-aromatics-ing-16",
-            "raw": "11/2 to 2 tbsp olive oil or melted butter",
+            "raw": "1 1/2 to 2 tbsp olive oil or melted butter",
             "scalable": true
           }
         ]
@@ -1480,19 +1480,19 @@ export const SAMPLE_RECIPES: Recipe[] = [
         "steps": [
           {
             "id": "recipe-slow-cooker-turkey-breast-with-aromatics-step-1",
-            "text": "*Thaw and de-chill.** If frozen, thaw in the refrigerator in a pan to catch leaks (about 5 hours per pound). For a faster thaw, use a tub of cold water and change it often. Take the turkey out of the fridge 1 to 2 hours before cooking so it cooks more evenly."
+            "text": "**Thaw and de-chill.** If frozen, thaw in the refrigerator in a pan to catch leaks (about 5 hours per pound). For a faster thaw, use a tub of cold water and change it often. Take the turkey out of the fridge 1 to 2 hours before cooking so it cooks more evenly."
           },
           {
             "id": "recipe-slow-cooker-turkey-breast-with-aromatics-step-2",
-            "text": "*Prep the turkey.** Remove it from the packaging and check for any giblets or neck. Rinse it, pluck any stray feathers, and pat it very dry with paper towels."
+            "text": "**Prep the turkey.** Remove it from the packaging and check for any giblets or neck. Rinse it, pluck any stray feathers, and pat it very dry with paper towels."
           },
           {
             "id": "recipe-slow-cooker-turkey-breast-with-aromatics-step-3",
-            "text": "*Mix the rub.** Combine the rub ingredients in a bowl into a wet paste."
+            "text": "**Mix the rub.** Combine the rub ingredients in a bowl into a wet paste."
           },
           {
             "id": "recipe-slow-cooker-turkey-breast-with-aromatics-step-4",
-            "text": "*Add lemon and rub.** Squeeze lemon juice over the turkey, then slather it all over with the rub, using most of it on the sides and top."
+            "text": "**Add lemon and rub.** Squeeze lemon juice over the turkey, then slather it all over with the rub, using most of it on the sides and top."
           }
         ]
       },
@@ -1501,41 +1501,24 @@ export const SAMPLE_RECIPES: Recipe[] = [
         "steps": [
           {
             "id": "recipe-slow-cooker-turkey-breast-with-aromatics-step-5",
-            "text": "*Build the aromatic bed.** Place the garlic, halved onion, quartered onion, celery, carrots, parsley and thyme in the slow cooker, with the onion and garlic cut side down. Set the turkey breast on top so it is elevated above the liquid."
+            "text": "**Build the aromatics.** Stuff the turkey with the garlic, halved onion, quartered onion, celery, carrots, parsley and thyme. Place any aromatics that do not fit in the slow cooker. Set the turkey breast on top."
           },
           {
             "id": "recipe-slow-cooker-turkey-breast-with-aromatics-step-6",
-            "text": "*Add rosemary.** Tuck a few rosemary sprigs on and around the turkey."
+            "text": "**Add rosemary.** Tuck a few rosemary sprigs on and around the turkey."
           },
           {
             "id": "recipe-slow-cooker-turkey-breast-with-aromatics-step-7",
-            "text": "*Slow cook.** Cook on low for 6 to 7 hours. Check that the thickest part of the breast reaches 165 deg F (74 deg C) on a meat thermometer."
-          }
-        ]
-      },
-      {
-        "heading": "Rest and crisp the skin",
-        "steps": [
+            "text": "**Slow cook.** Cook on low for 6 to 7 hours. Check that the thickest part of the breast reaches 165°F (74°C) on a meat thermometer."
+          },
           {
             "id": "recipe-slow-cooker-turkey-breast-with-aromatics-step-8",
-            "text": "*Rest.** Remove the turkey and let it rest for 20 minutes, tented with foil."
-          },
-          {
-            "id": "recipe-slow-cooker-turkey-breast-with-aromatics-step-9",
-            "text": "*Heat the broiler.** Preheat the broiler to high and place an oven shelf about 30 cm / 1 foot from the heat."
-          },
-          {
-            "id": "recipe-slow-cooker-turkey-breast-with-aromatics-step-10",
-            "text": "*Broil.** Move the turkey to a heatproof dish and broil for 3 to 5 minutes until the skin is crisp. Watch it closely, since it browns very quickly."
-          },
-          {
-            "id": "recipe-slow-cooker-turkey-breast-with-aromatics-step-11",
-            "text": "*Serve.** Serve immediately with gravy on the side."
+            "text": "**Serve.** Serve immediately with gravy on the side."
           }
         ]
       }
     ],
-    "notes": "Cook Times (on low):\n| Turkey breast size | Time |\n| --- | --- |\n| 2 lb | 5 hours |\n| 4 to 6 lb | 6 to 7 hours |\n| 8 to 10 lb | 8 to 9 hours |\nStuffing Notes:\n- **Don't stuff the turkey.** Stuffing adds cooking time and makes it cook unevenly. A breast has no real cavity anyway, so the aromatics go underneath it in the slow cooker instead.\n- **Make the stuffing separately.** Use stock for extra turkey flavor. A breast doesn't come with giblets, so use the strained juices from the slow cooker, or store-bought turkey or chicken stock. If you do get a whole bird with giblets, simmer the chopped heart and gizzard in salted water for an hour to make stock.\nAdaptations:\n- **Aromatics.** The original recipe put these inside the turkey cavity, but a breast doesn't have one. I moved them to the slow cooker base, which flavors the turkey from below and gives you juices for gravy.\n- **Temperature.** I kept the 165 deg F target for white meat from the roast recipe.\n- **Omitted.** I left out the oven roasting steps, breast-down roasting, trussing and carving.",
+    "notes": "Cook Times (on low):\n- 2 lb: 5 hours\n- 4 to 6 lb: 6 to 7 hours\n- 8 to 10 lb: 8 to 9 hours",
     "cookLog": [],
     "courses": [
       "Dinner",
@@ -1625,7 +1608,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
         ]
       }
     ],
-    "notes": "Options:\nTo make this gravy using all chicken broth, prepare as directed using 4 cups low sodium chicken broth and 1 tablespoon chicken bouillon powder - or you may add in low sodium chicken broth, omitting bouillon powder, to pan drippings to make up 4 cups.",
+    "notes": "To make this gravy using all chicken broth, prepare as directed using 4 cups low sodium chicken broth and 1 tablespoon chicken bouillon powder - or you may add in low sodium chicken broth, omitting bouillon powder, to pan drippings to make up 4 cups.",
     "cookLog": [],
     "courses": [
       "Sauces & Gravies"
@@ -1783,7 +1766,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
         "steps": [
           {
             "id": "recipe-bisquick-sausage-balls-step-1",
-            "text": "Preheat the oven to 300 degrees F (150 degrees C). Grease baking sheets."
+            "text": "Preheat the oven to 300°F (150°C). Grease baking sheets."
           },
           {
             "id": "recipe-bisquick-sausage-balls-step-2",
@@ -1938,11 +1921,11 @@ export const SAMPLE_RECIPES: Recipe[] = [
           },
           {
             "id": "recipe-cheesecake-factory-brown-bread-step-10",
-            "text": "While the loaves are proofing, preheat the oven to 375 degrees Fahrenheit."
+            "text": "While the loaves are proofing, preheat the oven to 375°F."
           },
           {
             "id": "recipe-cheesecake-factory-brown-bread-step-11",
-            "text": "Once the loaves are proofed and ready to bake, brush the tops of each loaf with water and sprinkle the rolled oats on top. Bake the loaves for 20-30 minutes. The internal temperature of each loaf should reach 190 degrees Fahrenheit."
+            "text": "Once the loaves are proofed and ready to bake, brush the tops of each loaf with water and sprinkle the rolled oats on top. Bake the loaves for 20-30 minutes. The internal temperature of each loaf should reach 190°F."
           },
           {
             "id": "recipe-cheesecake-factory-brown-bread-step-12",
@@ -2155,7 +2138,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
           },
           {
             "id": "recipe-texas-roadhouse-rolls-ing-2",
-            "raw": "1 1/4 cups warm milk (about 105-110 degrees F)",
+            "raw": "1 1/4 cups warm milk (about 105-110°F)",
             "scalable": true
           },
           {
@@ -2236,11 +2219,11 @@ export const SAMPLE_RECIPES: Recipe[] = [
           },
           {
             "id": "recipe-texas-roadhouse-rolls-step-11",
-            "text": "About 20 minutes prior to rising being done, preheat oven to 350 degrees F."
+            "text": "About 20 minutes prior to rising being done, preheat oven to 350°F."
           },
           {
             "id": "recipe-texas-roadhouse-rolls-step-12",
-            "text": "Place the rolls in the preheated oven at 350 degrees F. Bake rolls for 12-15 minutes or until golden brown."
+            "text": "Place the rolls in the preheated oven at 350°F. Bake rolls for 12-15 minutes or until golden brown."
           },
           {
             "id": "recipe-texas-roadhouse-rolls-step-13",
@@ -2249,7 +2232,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
         ]
       }
     ],
-    "notes": "Notes:\n- Makes 24-30 square rolls",
+    "notes": "- Makes 24-30 square rolls",
     "cookLog": [],
     "courses": [
       "Side Dish",

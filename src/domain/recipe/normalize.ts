@@ -1,5 +1,6 @@
 import type { Recipe, Step, Ingredient, IngredientGroup, DirectionGroup } from "./types";
 import { parseIngredient } from "../scaling/parseIngredient";
+import { sanitizeText, sanitizeHeading } from "./sanitizeText";
 
 export function cleanTrackingUrl(sourceUrl?: string): string | undefined {
   if (!sourceUrl) {
@@ -28,13 +29,11 @@ export function cleanTrackingUrl(sourceUrl?: string): string | undefined {
 }
 
 export function cleanStepText(text: string): string {
-  let cleaned = text.trim();
+  let cleaned = sanitizeText(text);
   // Strip leading numbering: "1.", "1)", "Step 1:", "Step 1 -", "1 - "
   cleaned = cleaned.replace(/^(?:step\s+)?\d+[\.\:\-\)]\s*/i, "");
-  // Strip bullet symbols at start
-  cleaned = cleaned.replace(/^[\*\-\u2022]\s+/, "");
-  // Standardize temperature formatting: e.g. "350 degrees F" or "350 deg F" -> "350\u00B0F"
-  cleaned = cleaned.replace(/(\d+)\s*(?:degrees|deg\.?)\s*([FC])\b/gi, "$1\u00B0$2");
+  // Strip bullet symbols at start, but preserve markdown bold (**)
+  cleaned = cleaned.replace(/^(?:[\-\u2022]|\*(?!\*))\s+/, "");
   return cleaned.trim();
 }
 
@@ -53,9 +52,17 @@ export function formatTimeMinutes(minutes?: number): string {
   return `${remainingMinutes} min`;
 }
 
-export function normalizeIngredient(rawLine: string, ingredientId: string): Ingredient {
-  const parsed = parseIngredient(rawLine, ingredientId);
-  return parsed.ingredient;
+export function normalizeIngredient(sourceItem: Ingredient, fallbackId: string): Ingredient {
+  const sanitizedRaw = sanitizeText(sourceItem.raw);
+  const id = sourceItem.id || fallbackId;
+  const parsed = parseIngredient(sanitizedRaw, id);
+
+  return {
+    ...parsed.ingredient,
+    ingredientId: sourceItem.ingredientId || parsed.ingredient.ingredientId,
+    note: sourceItem.note || parsed.ingredient.note,
+    scalable: sourceItem.scalable !== undefined ? sourceItem.scalable : parsed.ingredient.scalable
+  };
 }
 
 export function normalizeRecipe(sourceRecipe: Recipe): Recipe {
@@ -68,13 +75,12 @@ export function normalizeRecipe(sourceRecipe: Recipe): Recipe {
     (group: IngredientGroup): IngredientGroup => {
       const items: Ingredient[] = group.items
         .map((item: Ingredient, index: number): Ingredient => {
-          const id = item.id || `ing-${index + 1}`;
-          return normalizeIngredient(item.raw, id);
+          return normalizeIngredient(item, `ing-${index + 1}`);
         })
         .filter((item: Ingredient): boolean => item.raw.trim().length > 0);
 
       return {
-        heading: group.heading ? group.heading.trim() : undefined,
+        heading: sanitizeHeading(group.heading),
         items
       };
     }
@@ -89,13 +95,14 @@ export function normalizeRecipe(sourceRecipe: Recipe): Recipe {
             id: step.id || `step-${index + 1}`,
             text: cleanedText,
             photoId: step.photoId,
-            timers: step.timers
+            timers: step.timers,
+            note: step.note ? sanitizeText(step.note) : undefined
           };
         })
         .filter((step: Step): boolean => step.text.length > 0);
 
       return {
-        heading: group.heading ? group.heading.trim() : undefined,
+        heading: sanitizeHeading(group.heading),
         steps
       };
     }
@@ -104,7 +111,7 @@ export function normalizeRecipe(sourceRecipe: Recipe): Recipe {
   return {
     ...sourceRecipe,
     title: sourceRecipe.title.trim(),
-    description: sourceRecipe.description ? sourceRecipe.description.trim() : undefined,
+    description: sourceRecipe.description ? sanitizeText(sourceRecipe.description) : undefined,
     sourceUrl: cleanTrackingUrl(sourceRecipe.sourceUrl),
     sourceName: sourceRecipe.sourceName ? sourceRecipe.sourceName.trim() : undefined,
     servings: Math.max(1, sourceRecipe.servings || 4),
@@ -112,7 +119,7 @@ export function normalizeRecipe(sourceRecipe: Recipe): Recipe {
     totalMinutes: derivedTotal,
     ingredientGroups: normalizedIngredientGroups,
     directionGroups: normalizedDirectionGroups,
-    notes: sourceRecipe.notes ? sourceRecipe.notes.trim() : undefined,
+    notes: sourceRecipe.notes ? sanitizeText(sourceRecipe.notes) : undefined,
     courses: sourceRecipe.courses.map((course: string): string => course.trim()).filter(Boolean),
     categories: sourceRecipe.categories.map((category: string): string => category.trim()).filter(Boolean),
     tags: sourceRecipe.tags.map((tag: string): string => tag.trim()).filter(Boolean),
