@@ -27,65 +27,68 @@ export const NutritionFactsCard: FC<NutritionFactsCardProps> = ({
       <div
         style={{
           display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
+          flexDirection: "column",
           gap: "var(--space-3)",
           borderBottom: "2px solid var(--border)",
           paddingBottom: "var(--space-3)",
           marginBottom: "var(--space-4)"
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-          <h3
-            style={{
-              fontFamily: "var(--font-serif)",
-              fontSize: "1.25rem",
-              fontWeight: 700,
-              margin: 0
-            }}
-          >
-            Nutrition Facts
-          </h3>
-          <span
-            style={{
-              fontSize: "0.7rem",
-              fontWeight: 700,
-              letterSpacing: "0.05em",
-              textTransform: "uppercase",
-              padding: "2px 8px",
-              borderRadius: "var(--radius-full)",
-              background: "var(--surface-alt)",
-              color: "var(--muted)",
-              border: "1px solid var(--border)"
-            }}
-          >
-            Estimated
-          </span>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+            <h3
+              style={{
+                fontFamily: "var(--font-serif)",
+                fontSize: "1.25rem",
+                fontWeight: 700,
+                margin: 0
+              }}
+            >
+              Nutrition Facts
+            </h3>
+            <span
+              style={{
+                fontSize: "0.7rem",
+                fontWeight: 700,
+                letterSpacing: "0.05em",
+                textTransform: "uppercase",
+                padding: "2px 8px",
+                borderRadius: "var(--radius-full)",
+                background: "var(--surface-alt)",
+                color: "var(--muted)",
+                border: "1px solid var(--border)"
+              }}
+            >
+              Estimated
+            </span>
+          </div>
         </div>
 
-        {/* View toggle */}
+        {/* View toggle full width below title */}
         <div
           style={{
-            display: "inline-flex",
+            display: "flex",
             background: "var(--surface-alt)",
             borderRadius: "var(--radius-full)",
-            padding: "2px"
+            padding: "2px",
+            width: "100%"
           }}
         >
           <button
             type="button"
             onClick={(): void => setViewMode("serving")}
             style={{
+              flex: 1,
               background: viewMode === "serving" ? "var(--surface)" : "transparent",
               color: viewMode === "serving" ? "var(--text)" : "var(--muted)",
               border: "none",
               borderRadius: "var(--radius-full)",
-              padding: "4px 12px",
-              fontSize: "0.8rem",
+              padding: "6px 12px",
+              fontSize: "0.8125rem",
               fontWeight: 600,
               cursor: "pointer",
-              boxShadow: viewMode === "serving" ? "var(--shadow-sm)" : "none"
+              boxShadow: viewMode === "serving" ? "var(--shadow-sm)" : "none",
+              textAlign: "center"
             }}
           >
             Per Serving
@@ -94,10 +97,23 @@ export const NutritionFactsCard: FC<NutritionFactsCardProps> = ({
             type="button"
             onClick={(): void => setViewMode("batch")}
             style={{
+              flex: 1,
               background: viewMode === "batch" ? "var(--surface)" : "transparent",
               color: viewMode === "batch" ? "var(--text)" : "var(--muted)",
               border: "none",
               borderRadius: "var(--radius-full)",
+              padding: "6px 12px",
+              fontSize: "0.8125rem",
+              fontWeight: 600,
+              cursor: "pointer",
+              boxShadow: viewMode === "batch" ? "var(--shadow-sm)" : "none",
+              textAlign: "center"
+            }}
+          >
+            Entire Batch
+          </button>
+        </div>
+      </div>
               padding: "4px 12px",
               fontSize: "0.8rem",
               fontWeight: 600,
