@@ -1,18 +1,41 @@
-import { useState, useMemo, type FC, type ReactElement, type FormEvent, type DragEvent } from "react";
+import {
+  useState,
+  useMemo,
+  type FC,
+  type ReactElement,
+  type ChangeEvent,
+  type FormEvent
+} from "react";
 import type { MealPlanEntry, Recipe, SavedMenu, SavedMenuItem } from "../../domain/recipe/types";
 import {
   generateMonthGrid,
   formatMonthYearHeader,
-  getSlotBadgeStyle,
   type CalendarGridDay
 } from "../../domain/planner/calendarGrid";
 import {
   calculateWeekMonday,
   createMealPlanEntry,
-  moveMealPlanEntry,
   filterEntriesForWeek
 } from "../../domain/planner/plannerService";
-import { TrashIcon, ShoppingCartIcon, CloseIcon, BookOpenIcon, SearchIcon } from "../../ui/icons";
+import {
+  ChevronLeft,
+  ChevronRight,
+  PlusIcon,
+  TrashIcon,
+  ShoppingCartIcon,
+  CalendarIcon,
+  MoreIcon,
+  BookOpenIcon,
+  CopyIcon
+} from "../../ui/icons";
+import { Button, IconButton } from "../../ui/Button";
+import { SegmentedControl } from "../../ui/SegmentedControl";
+import { Menu } from "../../ui/Menu";
+import { Dialog } from "../../ui/Dialog";
+import { ConfirmDialog } from "../../ui/ConfirmDialog";
+import { RecipePicker } from "../../ui/RecipePicker";
+import { useToast } from "../../ui/Toast";
+import styles from "./MealPlannerView.module.css";
 
 export interface MealPlannerViewProps {
   entries: MealPlanEntry[];
@@ -39,6 +62,8 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
   onSaveMenu,
   onDeleteMenu
 }): ReactElement => {
+  const { showToast } = useToast();
+
   // View mode switcher: week vs month
   const [viewMode, setViewMode] = useState<"week" | "month">("week");
 
@@ -46,11 +71,7 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
   const [slots, setSlots] = useState<string[]>(DEFAULT_SLOTS);
   const [showSlotsModal, setShowSlotsModal] = useState<boolean>(false);
   const [newSlotInput, setNewSlotInput] = useState<string>("");
-
-  // Recipe tray & drag-and-drop state
-  const [showRecipeTray, setShowRecipeTray] = useState<boolean>(true);
-  const [traySearchQuery, setTraySearchQuery] = useState<string>("");
-  const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
+  const [deletingSlotName, setDeletingSlotName] = useState<string | null>(null);
 
   // Current week start (Monday)
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>((): Date => {
@@ -63,37 +84,53 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
     return { year: today.getFullYear(), month: today.getMonth() };
   });
 
-  // Modal state for adding a meal
-  const [modalDate, setModalDate] = useState<string | null>(null);
+  // Add meal modal state
+  const [showAddModal, setShowAddModal] = useState<boolean>(false);
+  const [modalDate, setModalDate] = useState<string>("");
   const [modalSlot, setModalSlot] = useState<string>("Dinner");
-  const [selectedRecipeId, setSelectedRecipeId] = useState<string>("");
-  const [freeTextMeal, setFreeTextMeal] = useState<string>("");
-  const [multiplier, setMultiplier] = useState<number>(1);
+  const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
+  const [customDishText, setCustomDishText] = useState<string>("");
+  const [modalMultiplier, setModalMultiplier] = useState<number>(1);
 
-  // Reusable Menus state
-  const [showSaveMenuModal, setShowSaveMenuModal] = useState<boolean>(false);
+  // Meal detail / move modal state
+  const [activeMealEntry, setActiveMealEntry] = useState<MealPlanEntry | null>(null);
+  const [moveDate, setMoveDate] = useState<string>("");
+  const [moveSlot, setMoveSlot] = useState<string>("Dinner");
+
+  // Saved Menus modal state
   const [showMenusModal, setShowMenusModal] = useState<boolean>(false);
-  const [menuNameInput, setMenuNameInput] = useState<string>("");
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [newMenuName, setNewMenuName] = useState<string>("");
+  const [deletingMenu, setDeletingMenu] = useState<SavedMenu | null>(null);
 
-  // Month grid calculation
-  const monthGridDays = useMemo((): CalendarGridDay[] => {
-    return generateMonthGrid(currentMonthYear.year, currentMonthYear.month);
-  }, [currentMonthYear]);
+  // Recipe lookup map
+  const recipeMap = useMemo((): Map<string, Recipe> => {
+    return new Map<string, Recipe>(recipes.map((r: Recipe): [string, Recipe] => [r.id, r]));
+  }, [recipes]);
 
-  // Generate 7 days of current week
+  // Current week entries
+  const currentWeekEntries = useMemo((): MealPlanEntry[] => {
+    return filterEntriesForWeek(entries, currentWeekStart);
+  }, [entries, currentWeekStart]);
+
+  // 7 days of current week
   const weekDays = useMemo(() => {
-    const days: { dateStr: string; label: string; dayName: string }[] = [];
+    const days: { dateStr: string; label: string; dayName: string; isToday: boolean }[] = [];
+    const todayStr = new Date().toISOString().split("T")[0];
     for (let index = 0; index < 7; index += 1) {
       const d = new Date(currentWeekStart);
       d.setDate(d.getDate() + index);
       const dateStr = d.toISOString().split("T")[0];
       const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
       const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-      days.push({ dateStr, label, dayName });
+      days.push({ dateStr, label, dayName, isToday: dateStr === todayStr });
     }
     return days;
   }, [currentWeekStart]);
+
+  // Month grid
+  const monthGridDays = useMemo((): CalendarGridDay[] => {
+    return generateMonthGrid(currentMonthYear.year, currentMonthYear.month);
+  }, [currentMonthYear]);
 
   const changeWeek = (offsetWeeks: number): void => {
     const next = new Date(currentWeekStart);
@@ -122,135 +159,83 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
     setCurrentMonthYear({ year: today.getFullYear(), month: today.getMonth() });
   };
 
-  const jumpToSpecificDate = (isoDateStr: string): void => {
-    const target = new Date(`${isoDateStr}T00:00:00`);
-    if (isNaN(target.getTime())) return;
-    setCurrentWeekStart(calculateWeekMonday(target));
-    setCurrentMonthYear({ year: target.getFullYear(), month: target.getMonth() });
-  };
-
-  const handleDragStartRecipe = (e: DragEvent, recipeId: string): void => {
-    e.dataTransfer.setData("application/json", JSON.stringify({ type: "new-recipe", recipeId }));
-    e.dataTransfer.effectAllowed = "copy";
-  };
-
-  const handleDragStartEntry = (e: DragEvent, entryId: string): void => {
-    e.stopPropagation();
-    e.dataTransfer.setData("application/json", JSON.stringify({ type: "move-entry", entryId }));
-    e.dataTransfer.effectAllowed = "move";
-  };
-
-  const handleSlotDragOver = (e: DragEvent, targetId: string): void => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "copy";
-    if (dragOverTarget !== targetId) {
-      setDragOverTarget(targetId);
-    }
-  };
-
-  const handleSlotDragLeave = (targetId: string): void => {
-    if (dragOverTarget === targetId) {
-      setDragOverTarget(null);
-    }
-  };
-
-  const handleSlotDrop = (e: DragEvent, dateStr: string, slot: string): void => {
-    e.preventDefault();
-    setDragOverTarget(null);
-    try {
-      const raw = e.dataTransfer.getData("application/json");
-      if (!raw) return;
-      const data = JSON.parse(raw);
-
-      if (data.type === "new-recipe" && data.recipeId) {
-        const newEntry = createMealPlanEntry(dateStr, slot, data.recipeId, undefined, 1);
-        onSaveEntry(newEntry);
-        const r = recipeMap.get(data.recipeId);
-        if (r) {
-          setToastMessage(`Scheduled "${r.title}" for ${slot}`);
-          setTimeout((): void => setToastMessage(null), 3000);
-        }
-      } else if (data.type === "move-entry" && data.entryId) {
-        const existing = entries.find((en): boolean => en.id === data.entryId);
-        if (existing) {
-          const updated = moveMealPlanEntry(existing, dateStr, slot);
-          onSaveEntry(updated);
-          setToastMessage(`Moved meal to ${slot}`);
-          setTimeout((): void => setToastMessage(null), 2500);
-        }
-      }
-    } catch {
-      // Ignore parse error
-    }
-  };
-
-  const handleAddSlot = (e: FormEvent): void => {
-    e.preventDefault();
-    const trimmed = newSlotInput.trim();
-    if (!trimmed || slots.includes(trimmed)) return;
-    setSlots((prev) => [...prev, trimmed]);
-    setNewSlotInput("");
-    setShowSlotsModal(false);
-  };
-
-  const handleDeleteSlot = (slotToRemove: string): void => {
-    if (slots.length <= 1) return;
-    if (!window.confirm(`Remove meal slot "${slotToRemove}"?`)) return;
-    setSlots((prev) => prev.filter((s) => s !== slotToRemove));
-  };
-
-  const handleResetSlots = (): void => {
-    setSlots(DEFAULT_SLOTS);
-  };
-
-  const handleOpenAddModal = (dateStr: string, slot: string) => {
+  const handleOpenAddModal = (dateStr: string, slot: string): void => {
     setModalDate(dateStr);
     setModalSlot(slot);
-    setSelectedRecipeId(recipes[0]?.id || "");
-    setFreeTextMeal("");
-    setMultiplier(1);
+    setSelectedRecipe(null);
+    setCustomDishText("");
+    setModalMultiplier(1);
+    setShowAddModal(true);
   };
 
-  const handleSaveModalEntry = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveAddModal = (): void => {
     if (!modalDate) return;
+    const title = selectedRecipe ? selectedRecipe.title : customDishText.trim();
+    if (!title) return;
 
     const newEntry = createMealPlanEntry(
       modalDate,
       modalSlot,
-      selectedRecipeId || undefined,
-      freeTextMeal.trim() || undefined,
-      multiplier
+      selectedRecipe ? selectedRecipe.id : undefined,
+      selectedRecipe ? undefined : customDishText.trim(),
+      modalMultiplier
     );
 
     onSaveEntry(newEntry);
-    setModalDate(null);
+    setShowAddModal(false);
+    showToast(`Added "${title}" to ${modalSlot}`);
   };
 
-  // Filter entries for the current week using plannerService
-  const currentWeekEntries = useMemo(() => {
-    return filterEntriesForWeek(entries, currentWeekStart);
-  }, [entries, currentWeekStart]);
+  const handleOpenMealDetail = (entry: MealPlanEntry): void => {
+    setActiveMealEntry(entry);
+    setMoveDate(entry.date);
+    setMoveSlot(entry.slot);
+  };
 
-  const recipeMap = useMemo(() => {
-    return new Map<string, Recipe>(recipes.map((r) => [r.id, r]));
-  }, [recipes]);
-
-  const filteredTrayRecipes = useMemo((): Recipe[] => {
-    const q = traySearchQuery.trim().toLowerCase();
-    if (!q) return recipes;
-    return recipes.filter((r: Recipe): boolean => {
-      const matchTitle = r.title.toLowerCase().includes(q);
-      const matchCourse = r.courses.some((c: string): boolean => c.toLowerCase().includes(q));
-      return matchTitle || matchCourse;
+  const handleDeleteMeal = (entry: MealPlanEntry): void => {
+    const recipe = entry.recipeId ? recipeMap.get(entry.recipeId) : undefined;
+    const title = recipe ? recipe.title : entry.freeText || "Meal";
+    onDeleteEntry(entry.id);
+    setActiveMealEntry(null);
+    showToast({
+      message: `Removed "${title}" from plan`,
+      undo: (): void => onSaveEntry(entry),
+      undoLabel: "Undo"
     });
-  }, [recipes, traySearchQuery]);
+  };
+
+  const handleMoveMeal = (): void => {
+    if (!activeMealEntry) return;
+    const updated: MealPlanEntry = {
+      ...activeMealEntry,
+      date: moveDate,
+      slot: moveSlot
+    };
+    onSaveEntry(updated);
+    setActiveMealEntry(null);
+    showToast(`Moved meal to ${moveSlot}`);
+  };
+
+  const handleDuplicateMeal = (): void => {
+    if (!activeMealEntry) return;
+    const duplicate: MealPlanEntry = {
+      ...activeMealEntry,
+      id: `meal-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      date: moveDate,
+      slot: moveSlot
+    };
+    onSaveEntry(duplicate);
+    setActiveMealEntry(null);
+    showToast(`Duplicated meal to ${moveSlot}`);
+  };
 
   const handleSuggestPlan = (): void => {
     if (recipes.length === 0) return;
 
-    const existingKeys = new Set(currentWeekEntries.map((e) => `${e.date}__${e.slot}`));
-    const usedRecipeIds = new Set(currentWeekEntries.map((e) => e.recipeId).filter(Boolean));
+    const existingKeys = new Set(currentWeekEntries.map((e: MealPlanEntry): string => `${e.date}__${e.slot}`));
+    const usedRecipeIds = new Set(
+      currentWeekEntries.map((e: MealPlanEntry): string | undefined => e.recipeId).filter(Boolean)
+    );
     const newEntries: MealPlanEntry[] = [];
 
     for (const day of weekDays) {
@@ -258,17 +243,17 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
         const key = `${day.dateStr}__${slot}`;
         if (existingKeys.has(key)) continue;
 
-        // Find candidates matching slot course
-        let candidates = recipes.filter((r) => r.courses.includes(slot) && !usedRecipeIds.has(r.id));
+        let candidates = recipes.filter(
+          (r: Recipe): boolean => r.courses.includes(slot) && !usedRecipeIds.has(r.id)
+        );
         if (candidates.length === 0) {
-          candidates = recipes.filter((r) => !usedRecipeIds.has(r.id));
+          candidates = recipes.filter((r: Recipe): boolean => !usedRecipeIds.has(r.id));
         }
         if (candidates.length === 0) {
           candidates = [...recipes];
         }
 
-        // Prioritize favorites and high ratings
-        candidates.sort((a, b) => {
+        candidates.sort((a: Recipe, b: Recipe): number => {
           if (a.favorite && !b.favorite) return -1;
           if (!a.favorite && b.favorite) return 1;
           return (b.rating || 0) - (a.rating || 0);
@@ -298,19 +283,21 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
           onSaveEntry(entry);
         }
       }
-      setToastMessage(`Added ${newEntries.length} meals to your weekly plan`);
-      setTimeout(() => setToastMessage(null), 3500);
+      showToast(`Scheduled ${newEntries.length} meals for this week`);
     }
   };
 
-  const handleSaveCurrentAsMenu = (e: React.FormEvent): void => {
+  const handleSaveWeekAsMenu = (e: FormEvent): void => {
     e.preventDefault();
-    if (!menuNameInput.trim()) return;
+    const name = newMenuName.trim();
+    if (!name || currentWeekEntries.length === 0) return;
 
     const items: SavedMenuItem[] = [];
     for (const entry of currentWeekEntries) {
-      const entryDate = new Date(entry.date + "T00:00:00");
-      const diffDays = Math.round((entryDate.getTime() - currentWeekStart.getTime()) / (1000 * 60 * 60 * 24));
+      const entryDate = new Date(`${entry.date}T00:00:00`);
+      const diffDays = Math.round(
+        (entryDate.getTime() - currentWeekStart.getTime()) / (1000 * 60 * 60 * 24)
+      );
       if (diffDays >= 0 && diffDays < 7) {
         items.push({
           dayOffset: diffDays,
@@ -324,16 +311,14 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
 
     const menu: SavedMenu = {
       id: `menu-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      name: menuNameInput.trim(),
+      name,
       createdAt: new Date().toISOString(),
       items
     };
 
     onSaveMenu?.(menu);
-    setShowSaveMenuModal(false);
-    setMenuNameInput("");
-    setToastMessage(`Saved menu "${menu.name}"`);
-    setTimeout(() => setToastMessage(null), 3500);
+    setNewMenuName("");
+    showToast(`Saved menu "${name}"`);
   };
 
   const handleApplyMenu = (menu: SavedMenu): void => {
@@ -362,615 +347,168 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
     }
 
     setShowMenusModal(false);
-    setToastMessage(`Applied menu "${menu.name}" to this week`);
-    setTimeout(() => setToastMessage(null), 3500);
+    showToast(`Applied menu "${menu.name}" to this week`);
+  };
+
+  const handleAddSlot = (e: FormEvent): void => {
+    e.preventDefault();
+    const trimmed = newSlotInput.trim();
+    if (!trimmed || slots.includes(trimmed)) return;
+    setSlots((prev: string[]): string[] => [...prev, trimmed]);
+    setNewSlotInput("");
+  };
+
+  const handleConfirmDeleteSlot = (): void => {
+    if (!deletingSlotName || slots.length <= 1) return;
+    setSlots((prev: string[]): string[] => prev.filter((s: string): boolean => s !== deletingSlotName));
+    setDeletingSlotName(null);
   };
 
   return (
-    <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "var(--space-6)" }}>
-      {/* Toast Feedback */}
-      {toastMessage && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: "24px",
-            right: "24px",
-            background: "var(--text)",
-            color: "var(--bg)",
-            padding: "10px 18px",
-            borderRadius: "var(--radius-full)",
-            boxShadow: "var(--shadow-lg)",
-            fontSize: "0.9rem",
-            fontWeight: 500,
-            zIndex: 1500
-          }}
-        >
-          {toastMessage}
-        </div>
-      )}
-
-      {/* Header and View Mode Switcher */}
-      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-6)", gap: "var(--space-3)" }}>
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-4)", marginBottom: "6px" }}>
-            <h1 style={{ fontFamily: "var(--font-serif)", fontSize: "2.25rem", margin: 0 }}>
-              Meal Planner
-            </h1>
-            {/* View Mode Toggle */}
-            <div
-              style={{
-                display: "inline-flex",
-                background: "var(--surface-alt)",
-                borderRadius: "var(--radius-full)",
-                padding: "2px",
-                border: "1px solid var(--border)"
-              }}
-            >
-              <button
-                type="button"
-                onClick={(): void => setViewMode("week")}
-                style={{
-                  background: viewMode === "week" ? "var(--surface)" : "transparent",
-                  color: viewMode === "week" ? "var(--text)" : "var(--muted)",
-                  border: "none",
-                  borderRadius: "var(--radius-full)",
-                  padding: "4px 14px",
-                  fontSize: "0.85rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  boxShadow: viewMode === "week" ? "var(--shadow-sm)" : "none"
-                }}
-              >
-                Week
-              </button>
-              <button
-                type="button"
-                onClick={(): void => setViewMode("month")}
-                style={{
-                  background: viewMode === "month" ? "var(--surface)" : "transparent",
-                  color: viewMode === "month" ? "var(--text)" : "var(--muted)",
-                  border: "none",
-                  borderRadius: "var(--radius-full)",
-                  padding: "4px 14px",
-                  fontSize: "0.85rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  boxShadow: viewMode === "month" ? "var(--shadow-sm)" : "none"
-                }}
-              >
-                Month
-              </button>
-            </div>
-          </div>
-
-          {/* Time Navigation Bar */}
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-            {viewMode === "week" ? (
-              <>
-                <button
-                  type="button"
-                  onClick={(): void => changeWeek(-1)}
-                  style={{
-                    background: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    padding: "6px 12px",
-                    borderRadius: "var(--radius-full)",
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    fontSize: "0.85rem"
-                  }}
-                >
-                  &larr; Prev Week
-                </button>
-                <span style={{ fontWeight: 600, fontSize: "1rem", margin: "0 4px" }}>
-                  {weekDays[0].label} to {weekDays[6].label}
-                </span>
-                <button
-                  type="button"
-                  onClick={(): void => changeWeek(1)}
-                  style={{
-                    background: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    padding: "6px 12px",
-                    borderRadius: "var(--radius-full)",
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    fontSize: "0.85rem"
-                  }}
-                >
-                  Next Week &rarr;
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={(): void => changeMonth(-1)}
-                  style={{
-                    background: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    padding: "6px 12px",
-                    borderRadius: "var(--radius-full)",
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    fontSize: "0.85rem"
-                  }}
-                >
-                  &larr; Prev Month
-                </button>
-                <span style={{ fontWeight: 600, fontSize: "1rem", margin: "0 4px" }}>
-                  {formatMonthYearHeader(currentMonthYear.year, currentMonthYear.month)}
-                </span>
-                <button
-                  type="button"
-                  onClick={(): void => changeMonth(1)}
-                  style={{
-                    background: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    padding: "6px 12px",
-                    borderRadius: "var(--radius-full)",
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    fontSize: "0.85rem"
-                  }}
-                >
-                  Next Month &rarr;
-                </button>
-              </>
-            )}
-
-            <button
-              type="button"
+    <div className={styles.container}>
+      {/* Planner Header Toolbar */}
+      <div className={styles.header}>
+        <div className={styles.headerRowDesktop}>
+          {/* Nav Group */}
+          <div className={styles.navGroup}>
+            <IconButton
+              variant="secondary"
+              size="sm"
+              icon={<ChevronLeft width={18} height={18} />}
+              aria-label={viewMode === "week" ? "Previous week" : "Previous month"}
+              onClick={(): void => (viewMode === "week" ? changeWeek(-1) : changeMonth(-1))}
+            />
+            <span className={styles.dateRangeText}>
+              {viewMode === "week"
+                ? `${weekDays[0].label} - ${weekDays[6].label}`
+                : formatMonthYearHeader(currentMonthYear.year, currentMonthYear.month)}
+            </span>
+            <IconButton
+              variant="secondary"
+              size="sm"
+              icon={<ChevronRight width={18} height={18} />}
+              aria-label={viewMode === "week" ? "Next week" : "Next month"}
+              onClick={(): void => (viewMode === "week" ? changeWeek(1) : changeMonth(1))}
+            />
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={jumpToToday}
-              style={{
-                background: "var(--surface-alt)",
-                border: "1px solid var(--border)",
-                padding: "6px 12px",
-                borderRadius: "var(--radius-full)",
-                fontSize: "0.82rem",
-                fontWeight: 600,
-                cursor: "pointer"
-              }}
             >
               Today
-            </button>
+            </Button>
+          </div>
 
-            <input
-              type="date"
-              value={currentWeekStart.toISOString().split("T")[0]}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>): void => {
-                if (e.target.value) {
-                  jumpToSpecificDate(e.target.value);
+          {/* Action Group */}
+          <div className={styles.actionGroup}>
+            <SegmentedControl
+              options={[
+                { value: "week", label: "Week" },
+                { value: "month", label: "Month" }
+              ]}
+              value={viewMode}
+              onChange={(val: string): void => setViewMode(val as "week" | "month")}
+              size="sm"
+            />
+
+            <Button
+              variant="primary"
+              size="sm"
+              icon={<ShoppingCartIcon width={16} height={16} />}
+              onClick={(): void => {
+                onAddMealsToShoppingList(currentWeekEntries);
+                showToast(`Added ${currentWeekEntries.length} meals to shopping list`);
+              }}
+              disabled={currentWeekEntries.length === 0}
+            >
+              Add to Shopping
+            </Button>
+
+            <Menu
+              trigger={
+                <IconButton
+                  variant="ghost"
+                  size="md"
+                  icon={<MoreIcon width={18} height={18} />}
+                  aria-label="Meal planner options"
+                />
+              }
+              items={[
+                {
+                  id: "suggest",
+                  icon: <CalendarIcon width={16} height={16} />,
+                  label: "Suggest a Plan",
+                  onClick: handleSuggestPlan,
+                  disabled: recipes.length === 0
+                },
+                {
+                  id: "menus",
+                  icon: <BookOpenIcon width={16} height={16} />,
+                  label: `Saved Menus (${savedMenus.length})`,
+                  onClick: (): void => setShowMenusModal(true)
+                },
+                {
+                  id: "slots",
+                  icon: <PlusIcon width={16} height={16} />,
+                  label: `Meal Slots (${slots.length})`,
+                  onClick: (): void => setShowSlotsModal(true)
                 }
-              }}
-              style={{
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
-                padding: "4px 8px",
-                borderRadius: "var(--radius-sm)",
-                fontSize: "0.82rem",
-                color: "var(--text)",
-                cursor: "pointer"
-              }}
-              title="Jump to date"
-              aria-label="Jump to specific date"
+              ]}
             />
           </div>
         </div>
-
-        {/* Action Controls */}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)", alignItems: "center" }}>
-          <button
-            type="button"
-            onClick={(): void => setShowRecipeTray(!showRecipeTray)}
-            style={{
-              background: showRecipeTray ? "var(--surface-alt)" : "var(--surface)",
-              color: showRecipeTray ? "var(--accent)" : "var(--text)",
-              border: "1px solid var(--border)",
-              padding: "8px 14px",
-              borderRadius: "var(--radius-full)",
-              fontSize: "0.88rem",
-              fontWeight: 500,
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px"
-            }}
-            title="Toggle Recipe Tray for drag and drop"
-          >
-            <BookOpenIcon width={16} height={16} /> Recipe Tray
-          </button>
-
-          <button
-            type="button"
-            onClick={(): void => setShowSlotsModal(true)}
-            style={{
-              background: "var(--surface)",
-              color: "var(--text)",
-              border: "1px solid var(--border)",
-              padding: "8px 14px",
-              borderRadius: "var(--radius-full)",
-              fontSize: "0.88rem",
-              cursor: "pointer"
-            }}
-            title="Configure breakfast, lunch, dinner, snack, and custom slots"
-          >
-            Slots ({slots.length})
-          </button>
-
-          {recipes.length > 0 && (
-            <button
-              type="button"
-              onClick={handleSuggestPlan}
-              style={{
-                background: "var(--surface)",
-                color: "var(--accent)",
-                border: "1px solid var(--border)",
-                padding: "8px 14px",
-                borderRadius: "var(--radius-full)",
-                fontWeight: 600,
-                fontSize: "0.88rem",
-                cursor: "pointer"
-              }}
-              title="Auto-fill empty slots using favorite and top-rated recipes"
-            >
-              Suggest a Plan
-            </button>
-          )}
-
-          {currentWeekEntries.length > 0 && (
-            <button
-              type="button"
-              onClick={(): void => setShowSaveMenuModal(true)}
-              style={{
-                background: "var(--surface)",
-                color: "var(--text)",
-                border: "1px solid var(--border)",
-                padding: "8px 14px",
-                borderRadius: "var(--radius-full)",
-                fontSize: "0.88rem",
-                cursor: "pointer"
-              }}
-              title="Save this week as a reusable Menu"
-            >
-              Save as Menu
-            </button>
-          )}
-
-          {savedMenus.length > 0 && (
-            <button
-              type="button"
-              onClick={(): void => setShowMenusModal(true)}
-              style={{
-                background: "var(--surface)",
-                color: "var(--text)",
-                border: "1px solid var(--border)",
-                padding: "8px 14px",
-                borderRadius: "var(--radius-full)",
-                fontSize: "0.88rem",
-                cursor: "pointer"
-              }}
-            >
-              Menus ({savedMenus.length})
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={(): void => onAddMealsToShoppingList(currentWeekEntries)}
-            style={{
-              background: "var(--accent)",
-              color: "var(--accent-contrast)",
-              border: "none",
-              padding: "10px 18px",
-              borderRadius: "var(--radius-full)",
-              fontWeight: 600,
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "8px"
-            }}
-          >
-            <ShoppingCartIcon width={16} height={16} /> Add Week to Shopping List
-          </button>
-        </div>
       </div>
 
-      {/* Main Grid & Recipe Tray Container */}
-      <div className="planner-main-container">
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {/* Week Grid Mode */}
-          {viewMode === "week" && (
-            <div
-              className="planner-week-grid"
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
-                gap: "var(--space-2)",
-                paddingBottom: "var(--space-4)"
-              }}
-            >
-              {weekDays.map((day) => {
-                const dayEntries = currentWeekEntries.filter((e) => e.date === day.dateStr);
-
-                return (
-                  <div
-                    key={day.dateStr}
-                    style={{
-                      background: "var(--surface)",
-                      border: "1px solid var(--border)",
-                      borderRadius: "var(--radius-md)",
-                      display: "flex",
-                      flexDirection: "column",
-                      minHeight: "450px",
-                      overflow: "hidden"
-                    }}
-                  >
-                    {/* Day Header */}
-                    <div
-                      style={{
-                        background: "var(--surface-alt)",
-                        padding: "var(--space-3)",
-                        textAlign: "center",
-                        borderBottom: "1px solid var(--border)"
-                      }}
-                    >
-                      <div style={{ fontWeight: 700, fontSize: "0.95rem" }}>{day.dayName}</div>
-                      <div style={{ fontSize: "0.82rem", color: "var(--muted)" }}>{day.label}</div>
-                    </div>
-
-                    {/* Slots */}
-                    <div style={{ padding: "var(--space-2)", display: "flex", flexDirection: "column", gap: "var(--space-3)", flex: 1 }}>
-                      {slots.map((slotName) => {
-                        const slotEntries = dayEntries.filter((e) => e.slot === slotName);
-                        const targetKey = `${day.dateStr}:${slotName}`;
-                        const isDragOver = dragOverTarget === targetKey;
-
-                        return (
-                          <div
-                            key={slotName}
-                            onDragOver={(e: DragEvent): void => handleSlotDragOver(e, targetKey)}
-                            onDragLeave={(): void => handleSlotDragLeave(targetKey)}
-                            onDrop={(e: DragEvent): void => handleSlotDrop(e, day.dateStr, slotName)}
-                            style={{
-                              display: "flex",
-                              flexDirection: "column",
-                              gap: "4px",
-                              padding: "4px",
-                              borderRadius: "var(--radius-sm)",
-                              background: isDragOver ? "var(--surface-alt)" : "transparent",
-                              border: isDragOver ? "1px dashed var(--accent)" : "1px solid transparent",
-                              transition: "background 0.15s ease, border 0.15s ease"
-                            }}
-                          >
-                            <div style={{ fontSize: "0.75rem", textTransform: "uppercase", color: "var(--muted)", fontWeight: 600 }}>
-                              {slotName}
-                            </div>
-
-                            {slotEntries.map((entry) => {
-                              const recipe = entry.recipeId ? recipeMap.get(entry.recipeId) : undefined;
-                              const title = recipe ? recipe.title : entry.freeText || "Custom Meal";
-
-                              return (
-                                <div
-                                  key={entry.id}
-                                  draggable={true}
-                                  onDragStart={(e: DragEvent): void => handleDragStartEntry(e, entry.id)}
-                                  style={{
-                                    background: "var(--surface-alt)",
-                                    padding: "6px 8px",
-                                    borderRadius: "var(--radius-sm)",
-                                    fontSize: "0.85rem",
-                                    position: "relative",
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    alignItems: "center",
-                                    cursor: "grab"
-                                  }}
-                                  title="Drag to move meal"
-                                >
-                                  <span style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                    {title} {entry.multiplier !== 1 && `(${entry.multiplier}×)`}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={(): void => {
-                                      if (window.confirm("Remove this meal from the plan?")) onDeleteEntry(entry.id);
-                                    }}
-                                    style={{
-                                      background: "none",
-                                      border: "none",
-                                      color: "var(--danger)",
-                                      cursor: "pointer",
-                                      padding: "2px"
-                                    }}
-                                    title="Delete meal"
-                                    aria-label="Delete meal"
-                                  >
-                                    <TrashIcon width={14} height={14} />
-                                  </button>
-                                </div>
-                              );
-                            })}
-
-                            <button
-                              type="button"
-                              onClick={(): void => handleOpenAddModal(day.dateStr, slotName)}
-                              style={{
-                                background: "none",
-                                border: "1px dashed var(--border)",
-                                borderRadius: "var(--radius-sm)",
-                                padding: "4px",
-                                fontSize: "0.75rem",
-                                color: "var(--muted)",
-                                cursor: "pointer",
-                                textAlign: "center"
-                              }}
-                            >
-                              + Add {slotName}
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-      {/* Month Grid Mode */}
-      {viewMode === "month" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-          {/* Day of Week Headers */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(7, 1fr)",
-              gap: "var(--space-2)",
-              textAlign: "center",
-              fontWeight: 700,
-              fontSize: "0.85rem",
-              color: "var(--muted)",
-              paddingBottom: "var(--space-1)"
-            }}
-          >
-            <div>Mon</div>
-            <div>Tue</div>
-            <div>Wed</div>
-            <div>Thu</div>
-            <div>Fri</div>
-            <div>Sat</div>
-            <div>Sun</div>
-          </div>
-
-          {/* Month Days Grid */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(7, 1fr)",
-              gap: "var(--space-2)"
-            }}
-          >
-            {monthGridDays.map((calDay) => {
-              const dayEntries = entries.filter((e) => e.date === calDay.dateStr);
+      {/* Week Grid Mode */}
+      {viewMode === "week" && (
+        <div className={styles.weekGridWrapper}>
+          <div className={styles.weekGrid}>
+            {weekDays.map((day) => {
+              const dayEntries = currentWeekEntries.filter((e: MealPlanEntry): boolean => e.date === day.dateStr);
 
               return (
-                <div
-                  key={calDay.dateStr}
-                  onDragOver={(e: DragEvent): void => handleSlotDragOver(e, calDay.dateStr)}
-                  onDragLeave={(): void => handleSlotDragLeave(calDay.dateStr)}
-                  onDrop={(e: DragEvent): void => handleSlotDrop(e, calDay.dateStr, slots[0] || "Dinner")}
-                  style={{
-                    background: dragOverTarget === calDay.dateStr ? "var(--surface-alt)" : calDay.isCurrentMonth ? "var(--surface)" : "var(--surface-alt)",
-                    border: dragOverTarget === calDay.dateStr ? "2px dashed var(--accent)" : calDay.isToday ? "2px solid var(--accent)" : "1px solid var(--border)",
-                    borderRadius: "var(--radius-md)",
-                    minHeight: "110px",
-                    padding: "var(--space-2)",
-                    display: "flex",
-                    flexDirection: "column",
-                    opacity: calDay.isCurrentMonth ? 1 : 0.45,
-                    boxShadow: "var(--shadow-sm)",
-                    transition: "border 0.15s ease, background 0.15s ease"
-                  }}
-                >
-                  {/* Cell Header with Day Number and Quick Add Button */}
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      marginBottom: "4px"
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontWeight: calDay.isToday ? 800 : 600,
-                        fontSize: "0.85rem",
-                        color: calDay.isToday ? "var(--accent)" : "var(--text)"
-                      }}
-                    >
-                      {calDay.dayNumber}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={(): void => handleOpenAddModal(calDay.dateStr, slots[0] || "Dinner")}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        color: "var(--muted)",
-                        padding: "2px 4px",
-                        fontSize: "0.85rem",
-                        borderRadius: "var(--radius-sm)"
-                      }}
-                      title={`Add meal on ${calDay.dateStr}`}
-                    >
-                      +
-                    </button>
+                <div key={day.dateStr} className={styles.dayColumn}>
+                  {/* Day Header */}
+                  <div className={`${styles.dayHeader} ${day.isToday ? styles.todayHeader : ""}`}>
+                    <span className={styles.dayName}>{day.dayName}</span>
+                    <span className={styles.dayDate}>{day.label}</span>
                   </div>
 
-                  {/* Planned meals pills */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "2px", overflowY: "auto", flex: 1 }}>
-                    {dayEntries.map((entry) => {
-                      const recipe = entry.recipeId ? recipeMap.get(entry.recipeId) : undefined;
-                      const title = recipe ? recipe.title : entry.freeText || "Custom Meal";
-                      const badgeStyle = getSlotBadgeStyle(entry.slot);
+                  {/* Day Slots */}
+                  <div className={styles.daySlots}>
+                    {slots.map((slotName: string): ReactElement => {
+                      const slotEntries = dayEntries.filter((e: MealPlanEntry): boolean => e.slot === slotName);
 
                       return (
-                        <div
-                          key={entry.id}
-                          draggable={true}
-                          onDragStart={(e: DragEvent): void => handleDragStartEntry(e, entry.id)}
-                          style={{
-                            background: badgeStyle.bg,
-                            border: badgeStyle.border,
-                            borderRadius: "var(--radius-sm)",
-                            padding: "2px 4px",
-                            fontSize: "0.75rem",
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            gap: "4px",
-                            cursor: "grab"
-                          }}
-                        >
-                          <span
-                            style={{
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                              color: badgeStyle.color,
-                              fontWeight: 600
-                            }}
-                            title={`${entry.slot}: ${title}`}
-                          >
-                            <span style={{ opacity: 0.8, marginRight: "3px" }}>
-                              {entry.slot.charAt(0)}:
-                            </span>
-                            {title}
-                          </span>
+                        <div key={slotName} className={styles.slotBox}>
+                          <span className={styles.slotLabel}>{slotName}</span>
+
+                          {slotEntries.map((entry: MealPlanEntry): ReactElement => {
+                            const recipe = entry.recipeId ? recipeMap.get(entry.recipeId) : undefined;
+                            const title = recipe ? recipe.title : entry.freeText || "Custom Meal";
+
+                            return (
+                              <div
+                                key={entry.id}
+                                className={styles.mealCard}
+                                onClick={(): void => handleOpenMealDetail(entry)}
+                                title="Click to move, duplicate, or delete"
+                              >
+                                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, fontWeight: 500 }}>
+                                  {title} {entry.multiplier !== 1 && `(${entry.multiplier}x)`}
+                                </span>
+                              </div>
+                            );
+                          })}
+
                           <button
                             type="button"
-                            onClick={(): void => {
-                              if (window.confirm("Remove this meal from the plan?")) onDeleteEntry(entry.id);
-                            }}
-                            style={{
-                              background: "none",
-                              border: "none",
-                              color: "var(--danger)",
-                              cursor: "pointer",
-                              padding: "0 2px",
-                              fontSize: "0.75rem",
-                              lineHeight: 1
-                            }}
-                            title="Remove meal"
+                            className={styles.addSlotBtn}
+                            onClick={(): void => handleOpenAddModal(day.dateStr, slotName)}
+                            aria-label={`Add meal to ${day.dayName} ${slotName}`}
                           >
-                            &times;
+                            <PlusIcon width={13} height={13} style={{ marginRight: 4 }} />
+                            Add
                           </button>
                         </div>
                       );
@@ -982,421 +520,351 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
           </div>
         </div>
       )}
-        </div>
 
-        {/* Recipe Tray Sidebar */}
-        {showRecipeTray && (
-          <aside
-            style={{
-              width: "280px",
-              flexShrink: 0,
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius-md)",
-              padding: "var(--space-4)",
-              display: "flex",
-              flexDirection: "column",
-              gap: "var(--space-3)",
-              maxHeight: "750px"
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h3 style={{ fontSize: "1rem", margin: 0, fontFamily: "var(--font-serif)" }}>
-                Recipe Tray
-              </h3>
-              <button
-                type="button"
-                onClick={(): void => setShowRecipeTray(false)}
-                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", padding: 0 }}
-                aria-label="Close recipe tray"
-              >
-                <CloseIcon width={14} height={14} />
-              </button>
-            </div>
+      {/* Month Grid Mode */}
+      {viewMode === "month" && (
+        <div className={styles.monthGrid}>
+          {monthGridDays.map((calDay: CalendarGridDay): ReactElement => {
+            const dayEntries = entries.filter((e: MealPlanEntry): boolean => e.date === calDay.dateStr);
 
-            <p style={{ fontSize: "0.8rem", color: "var(--muted)", margin: 0 }}>
-              Drag any recipe onto a calendar slot to schedule it.
-            </p>
-
-            <div style={{ position: "relative" }}>
-              <input
-                type="search"
-                value={traySearchQuery}
-                onChange={(e): void => setTraySearchQuery(e.target.value)}
-                placeholder="Search recipes..."
-                style={{
-                  width: "100%",
-                  padding: "6px 10px 6px 28px",
-                  borderRadius: "var(--radius-sm)",
-                  border: "1px solid var(--border)",
-                  background: "var(--surface-alt)",
-                  fontSize: "0.85rem"
+            return (
+              <div
+                key={calDay.dateStr}
+                className={`${styles.monthCell} ${calDay.isToday ? styles.monthCellToday : ""}`}
+                style={{ opacity: calDay.isCurrentMonth ? 1 : 0.45 }}
+                onClick={(): void => {
+                  const target = new Date(`${calDay.dateStr}T00:00:00`);
+                  setCurrentWeekStart(calculateWeekMonday(target));
+                  setViewMode("week");
                 }}
-              />
-              <span style={{ position: "absolute", left: "8px", top: "50%", transform: "translateY(-50%)", color: "var(--muted)", pointerEvents: "none" }}>
-                <SearchIcon width={14} height={14} />
-              </span>
-            </div>
-
-            <div style={{ overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "6px" }}>
-              {filteredTrayRecipes.map((r: Recipe) => (
-                <div
-                  key={r.id}
-                  draggable={true}
-                  onDragStart={(e: DragEvent): void => handleDragStartRecipe(e, r.id)}
-                  style={{
-                    background: "var(--surface-alt)",
-                    border: "1px solid var(--border)",
-                    borderRadius: "var(--radius-sm)",
-                    padding: "8px 10px",
-                    cursor: "grab",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center"
-                  }}
-                  title="Drag onto calendar slot"
-                >
-                  <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, marginRight: "6px" }}>
-                    <div style={{ fontWeight: 600, fontSize: "0.85rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {r.title}
-                    </div>
-                    {r.courses[0] && (
-                      <span style={{ fontSize: "0.72rem", color: "var(--muted)" }}>
-                        {r.courses[0]}
-                      </span>
-                    )}
-                  </div>
-                  <span style={{ fontSize: "0.75rem", color: "var(--muted)", userSelect: "none" }}>
-                    :::
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontWeight: calDay.isToday ? 800 : 600, fontSize: "0.8125rem", color: calDay.isToday ? "var(--accent)" : "var(--text)" }}>
+                    {calDay.dayNumber}
+                  </span>
+                  <span style={{ fontSize: "0.6875rem", color: "var(--muted)" }}>
+                    {dayEntries.length > 0 ? `${dayEntries.length} meals` : ""}
                   </span>
                 </div>
-              ))}
 
-              {filteredTrayRecipes.length === 0 && (
-                <div style={{ padding: "var(--space-4) var(--space-2)", fontSize: "0.82rem", color: "var(--muted)", textAlign: "center" }}>
-                  No matching recipes.
+                <div style={{ display: "flex", flexDirection: "column", gap: 2, overflow: "hidden" }}>
+                  {dayEntries.slice(0, 3).map((entry: MealPlanEntry): ReactElement => {
+                    const recipe = entry.recipeId ? recipeMap.get(entry.recipeId) : undefined;
+                    const title = recipe ? recipe.title : entry.freeText || "Meal";
+                    return (
+                      <span key={entry.id} className={styles.monthMealDot}>
+                        {title}
+                      </span>
+                    );
+                  })}
+                  {dayEntries.length > 3 && (
+                    <span style={{ fontSize: "0.6875rem", color: "var(--muted)" }}>
+                      +{dayEntries.length - 3} more
+                    </span>
+                  )}
                 </div>
-              )}
-            </div>
-          </aside>
-        )}
-      </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
-      {/* Add Meal Modal */}
-      {modalDate && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 100
-          }}
+      {/* Add Meal Dialog */}
+      {showAddModal && (
+        <Dialog
+          isOpen
+          title={`Add Meal - ${modalDate}`}
+          onClose={(): void => setShowAddModal(false)}
+          maxWidth={500}
+          footer={
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, width: "100%" }}>
+              <Button
+                variant="secondary"
+                onClick={(): void => setShowAddModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleSaveAddModal}
+                disabled={!selectedRecipe && !customDishText.trim()}
+              >
+                Add to Plan
+              </Button>
+            </div>
+          }
         >
-          <div style={{ background: "var(--surface)", padding: "var(--space-6)", borderRadius: "var(--radius-md)", width: "90%", maxWidth: "450px" }}>
-            <h3 style={{ marginBottom: "var(--space-3)", fontFamily: "var(--font-serif)", fontSize: "1.3rem" }}>
-              Add Meal ({modalDate})
-            </h3>
-            <form onSubmit={handleSaveModalEntry} style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
               <div>
-                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "4px" }}>
-                  Meal Slot
+                <label style={{ display: "block", fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)", marginBottom: 4 }}>
+                  DATE
+                </label>
+                <input
+                  type="date"
+                  value={modalDate}
+                  onChange={(e: ChangeEvent<HTMLInputElement>): void => setModalDate(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "8px 12px",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--border)",
+                    background: "var(--surface)",
+                    color: "var(--text)"
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)", marginBottom: 4 }}>
+                  MEAL SLOT
                 </label>
                 <select
                   value={modalSlot}
-                  onChange={(e): void => setModalSlot(e.target.value)}
-                  style={{ width: "100%", padding: "8px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", background: "var(--surface)" }}
+                  onChange={(e: ChangeEvent<HTMLSelectElement>): void => setModalSlot(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "8px 12px",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--border)",
+                    background: "var(--surface)",
+                    color: "var(--text)"
+                  }}
                 >
-                  {slots.map((s) => (
+                  {slots.map((s: string): ReactElement => (
                     <option key={s} value={s}>
                       {s}
                     </option>
                   ))}
                 </select>
               </div>
-              {recipes.length > 0 && (
-                <div>
-                  <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "4px" }}>
-                    Select from Recipes
-                  </label>
-                  <select
-                    value={selectedRecipeId}
-                    onChange={(e) => {
-                      setSelectedRecipeId(e.target.value);
-                      if (e.target.value) setFreeTextMeal("");
-                    }}
-                    style={{ width: "100%", padding: "8px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", background: "var(--surface)" }}
-                  >
-                    <option value="">-- Or enter custom dish below --</option>
-                    {recipes.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.title}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div>
-                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "4px" }}>
-                  Custom Meal / Restaurant / Leftovers
-                </label>
-                <input
-                  type="text"
-                  value={freeTextMeal}
-                  onChange={(e) => {
-                    setFreeTextMeal(e.target.value);
-                    if (e.target.value) setSelectedRecipeId("");
-                  }}
-                  placeholder="e.g. Leftover Chili, Pizza Night..."
-                  style={{ width: "100%", padding: "8px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "4px" }}>
-                  Scale Multiplier
-                </label>
-                <input
-                  type="number"
-                  step="0.5"
-                  min="0.5"
-                  value={multiplier}
-                  onChange={(e) => setMultiplier(parseFloat(e.target.value) || 1)}
-                  style={{ width: "100%", padding: "8px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }}
-                />
-              </div>
-
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-2)", marginTop: "var(--space-2)" }}>
-                <button
-                  type="button"
-                  onClick={() => setModalDate(null)}
-                  style={{ background: "none", border: "1px solid var(--border)", padding: "8px 16px", borderRadius: "var(--radius-full)", cursor: "pointer" }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  style={{ background: "var(--accent)", color: "var(--accent-contrast)", border: "none", padding: "8px 18px", borderRadius: "var(--radius-full)", cursor: "pointer", fontWeight: 600 }}
-                >
-                  Save to Plan
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Save Menu Modal */}
-      {showSaveMenuModal && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0, 0, 0, 0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-            padding: "var(--space-4)"
-          }}
-        >
-          <div
-            style={{
-              background: "var(--surface)",
-              borderRadius: "var(--radius-md)",
-              padding: "var(--space-6)",
-              maxWidth: "420px",
-              width: "100%",
-              boxShadow: "var(--shadow-lg)"
-            }}
-          >
-            <h3 style={{ fontFamily: "var(--font-serif)", fontSize: "1.3rem", marginBottom: "var(--space-2)" }}>
-              Save Week as Reusable Menu
-            </h3>
-            <p style={{ fontSize: "0.88rem", color: "var(--muted)", marginBottom: "var(--space-4)" }}>
-              Save this week's {currentWeekEntries.length} meals as a template you can apply to future weeks.
-            </p>
-            <form onSubmit={handleSaveCurrentAsMenu}>
-              <div style={{ marginBottom: "var(--space-4)" }}>
-                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "4px" }}>
-                  Menu Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={menuNameInput}
-                  onChange={(e) => setMenuNameInput(e.target.value)}
-                  placeholder="e.g. Quick Weeknights"
-                  style={{ width: "100%", padding: "8px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }}
-                />
-              </div>
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-2)" }}>
-                <button
-                  type="button"
-                  onClick={() => setShowSaveMenuModal(false)}
-                  style={{ background: "none", border: "1px solid var(--border)", padding: "8px 16px", borderRadius: "var(--radius-full)", cursor: "pointer" }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  style={{ background: "var(--accent)", color: "var(--accent-contrast)", border: "none", padding: "8px 18px", borderRadius: "var(--radius-full)", cursor: "pointer", fontWeight: 600 }}
-                >
-                  Save Menu
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Menus List Modal */}
-      {showMenusModal && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0, 0, 0, 0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-            padding: "var(--space-4)"
-          }}
-        >
-          <div
-            style={{
-              background: "var(--surface)",
-              borderRadius: "var(--radius-md)",
-              padding: "var(--space-6)",
-              maxWidth: "500px",
-              width: "100%",
-              boxShadow: "var(--shadow-lg)",
-              maxHeight: "80vh",
-              display: "flex",
-              flexDirection: "column"
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-4)" }}>
-              <h3 style={{ fontFamily: "var(--font-serif)", fontSize: "1.3rem" }}>
-                Saved Menus ({savedMenus.length})
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowMenusModal(false)}
-                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)" }}
-                aria-label="Close"
-              >
-                <CloseIcon width={18} height={18} />
-              </button>
             </div>
 
-            <div style={{ overflowY: "auto", display: "flex", flexDirection: "column", gap: "var(--space-3)", flex: 1 }}>
-              {savedMenus.map((menu) => (
+            <div>
+              <label style={{ display: "block", fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)", marginBottom: 4 }}>
+                RECIPE OR DISH
+              </label>
+              {selectedRecipe ? (
                 <div
-                  key={menu.id}
                   style={{
-                    border: "1px solid var(--border)",
-                    borderRadius: "var(--radius-sm)",
-                    padding: "var(--space-3)",
                     display: "flex",
+                    alignItems: "center",
                     justifyContent: "space-between",
-                    alignItems: "center"
+                    padding: "8px 12px",
+                    borderRadius: "var(--radius-md)",
+                    background: "var(--surface-alt)",
+                    border: "1px solid var(--accent)"
                   }}
                 >
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>{menu.name}</div>
-                    <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
-                      {menu.items.length} planned meals
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <button
-                      type="button"
-                      onClick={() => handleApplyMenu(menu)}
-                      style={{
-                        background: "var(--accent)",
-                        color: "var(--accent-contrast)",
-                        border: "none",
-                        padding: "6px 14px",
-                        borderRadius: "var(--radius-full)",
-                        fontSize: "0.85rem",
-                        fontWeight: 600,
-                        cursor: "pointer"
-                      }}
-                    >
-                      Apply
-                    </button>
-                    {onDeleteMenu && (
-                      <button
-                        type="button"
-                        onClick={(): void => {
-                          if (window.confirm(`Delete saved menu "${menu.name}"?`)) onDeleteMenu(menu.id);
-                        }}
-                        style={{
-                          background: "none",
-                          border: "1px solid var(--border)",
-                          color: "var(--danger)",
-                          padding: "6px 10px",
-                          borderRadius: "var(--radius-full)",
-                          cursor: "pointer"
-                        }}
-                        title="Delete menu"
-                      >
-                        <TrashIcon width={14} height={14} />
-                      </button>
-                    )}
-                  </div>
+                  <span style={{ fontWeight: 600 }}>{selectedRecipe.title}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(): void => setSelectedRecipe(null)}
+                  >
+                    Change
+                  </Button>
                 </div>
-              ))}
+              ) : (
+                <RecipePicker
+                  recipes={recipes}
+                  placeholder="Search recipe or type custom meal..."
+                  onSelectRecipe={(r: Recipe): void => {
+                    setSelectedRecipe(r);
+                    setCustomDishText("");
+                  }}
+                  onSelectCustomMeal={(title: string): void => {
+                    setCustomDishText(title);
+                    setSelectedRecipe(null);
+                  }}
+                />
+              )}
+            </div>
+
+            {customDishText && !selectedRecipe && (
+              <div>
+                <label style={{ display: "block", fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)", marginBottom: 4 }}>
+                  CUSTOM MEAL NAME
+                </label>
+                <input
+                  type="text"
+                  value={customDishText}
+                  onChange={(e: ChangeEvent<HTMLInputElement>): void => setCustomDishText(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "8px 12px",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--border)",
+                    background: "var(--surface)",
+                    color: "var(--text)"
+                  }}
+                />
+              </div>
+            )}
+
+            <div>
+              <label style={{ display: "block", fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)", marginBottom: 4 }}>
+                SCALE MULTIPLIER
+              </label>
+              <input
+                type="number"
+                min="0.25"
+                step="0.25"
+                value={modalMultiplier}
+                onChange={(e: ChangeEvent<HTMLInputElement>): void => setModalMultiplier(parseFloat(e.target.value) || 1)}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--border)",
+                  background: "var(--surface)",
+                  color: "var(--text)"
+                }}
+              />
             </div>
           </div>
-        </div>
+        </Dialog>
       )}
 
-      {/* Custom Slots Modal */}
-      {showSlotsModal && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0, 0, 0, 0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-            padding: "var(--space-4)"
-          }}
-        >
-          <div
-            style={{
-              background: "var(--surface)",
-              borderRadius: "var(--radius-md)",
-              padding: "var(--space-6)",
-              maxWidth: "420px",
-              width: "100%",
-              boxShadow: "var(--shadow-lg)"
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-4)" }}>
-              <h3 style={{ fontFamily: "var(--font-serif)", fontSize: "1.3rem", margin: 0 }}>
-                Manage Meal Slots
-              </h3>
-              <button
-                type="button"
-                onClick={(): void => setShowSlotsModal(false)}
-                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)" }}
-                aria-label="Close"
+      {/* Meal Detail / Move Modal */}
+      {activeMealEntry && (
+        <Dialog
+          isOpen
+          title="Meal Options"
+          onClose={(): void => setActiveMealEntry(null)}
+          maxWidth={440}
+          footer={
+            <div style={{ display: "flex", justifyContent: "space-between", width: "100%", gap: 8 }}>
+              <Button
+                variant="danger"
+                icon={<TrashIcon width={16} height={16} />}
+                onClick={(): void => handleDeleteMeal(activeMealEntry)} // noqa: 81
               >
-                <CloseIcon width={18} height={18} />
-              </button>
+                Remove
+              </Button>
+              <div style={{ display: "flex", gap: 8 }}>
+                <Button
+                  variant="secondary"
+                  icon={<CopyIcon width={16} height={16} />}
+                  onClick={handleDuplicateMeal}
+                >
+                  Duplicate
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={handleMoveMeal}
+                >
+                  Move
+                </Button>
+              </div>
+            </div>
+          }
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+            <div style={{ fontWeight: 600, fontSize: "1rem" }}>
+              {activeMealEntry.recipeId
+                ? recipeMap.get(activeMealEntry.recipeId)?.title
+                : activeMealEntry.freeText || "Custom Meal"}
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", marginBottom: "var(--space-4)", maxHeight: "200px", overflowY: "auto" }}>
-              {slots.map((slotName) => (
+            <div>
+              <label style={{ display: "block", fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)", marginBottom: 4 }}>
+                TARGET DATE
+              </label>
+              <input
+                type="date"
+                value={moveDate}
+                onChange={(e: ChangeEvent<HTMLInputElement>): void => setMoveDate(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--border)",
+                  background: "var(--surface)",
+                  color: "var(--text)"
+                }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: "block", fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)", marginBottom: 4 }}>
+                TARGET SLOT
+              </label>
+              <select
+                value={moveSlot}
+                onChange={(e: ChangeEvent<HTMLSelectElement>): void => setMoveSlot(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--border)",
+                  background: "var(--surface)",
+                  color: "var(--text)"
+                }}
+              >
+                {slots.map((s: string): ReactElement => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </Dialog>
+      )}
+
+      {/* Slots Configuration Modal */}
+      {showSlotsModal && (
+        <Dialog
+          isOpen
+          title="Meal Slots Configuration"
+          onClose={(): void => setShowSlotsModal(false)}
+          maxWidth={420}
+          footer={
+            <div style={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
+              <Button
+                variant="ghost"
+                onClick={(): void => setSlots(DEFAULT_SLOTS)}
+              >
+                Reset Defaults
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={(): void => setShowSlotsModal(false)}
+              >
+                Done
+              </Button>
+            </div>
+          }
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+            <form onSubmit={handleAddSlot} style={{ display: "flex", gap: 8 }}>
+              <input
+                type="text"
+                placeholder="New slot name..."
+                value={newSlotInput}
+                onChange={(e: ChangeEvent<HTMLInputElement>): void => setNewSlotInput(e.target.value)}
+                style={{
+                  flex: 1,
+                  padding: "8px 12px",
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--border)",
+                  background: "var(--surface)",
+                  color: "var(--text)"
+                }}
+              />
+              <Button
+                variant="primary"
+                size="sm"
+                icon={<PlusIcon width={16} height={16} />}
+                disabled={!newSlotInput.trim() || slots.includes(newSlotInput.trim())}
+              >
+                Add
+              </Button>
+            </form>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 220, overflowY: "auto" }}>
+              {slots.map((slotName: string): ReactElement => (
                 <div
                   key={slotName}
                   style={{
@@ -1405,89 +873,153 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
                     alignItems: "center",
                     padding: "8px 12px",
                     background: "var(--surface-alt)",
-                    borderRadius: "var(--radius-sm)",
+                    borderRadius: "var(--radius-md)",
                     border: "1px solid var(--border)"
                   }}
                 >
-                  <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>{slotName}</span>
+                  <span style={{ fontWeight: 600 }}>{slotName}</span>
                   {slots.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={(): void => handleDeleteSlot(slotName)}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        color: "var(--danger)",
-                        cursor: "pointer",
-                        padding: "2px"
-                      }}
-                      title="Remove slot"
-                    >
-                      <TrashIcon width={14} height={14} />
-                    </button>
+                    <IconButton
+                      variant="ghost"
+                      size="sm"
+                      icon={<TrashIcon width={16} height={16} />}
+                      aria-label={`Delete ${slotName} slot`}
+                      onClick={(): void => setDeletingSlotName(slotName)}
+                    />
                   )}
                 </div>
               ))}
             </div>
+          </div>
+        </Dialog>
+      )}
 
-            <form onSubmit={handleAddSlot} style={{ display: "flex", gap: "var(--space-2)", marginBottom: "var(--space-4)" }}>
-              <input
-                type="text"
-                required
-                value={newSlotInput}
-                onChange={(e): void => setNewSlotInput(e.target.value)}
-                placeholder="New slot (e.g. Dessert, Supper)"
-                style={{ flex: 1, padding: "8px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }}
-              />
-              <button
-                type="submit"
-                style={{
-                  background: "var(--accent)",
-                  color: "var(--accent-contrast)",
-                  border: "none",
-                  padding: "8px 16px",
-                  borderRadius: "var(--radius-full)",
-                  fontWeight: 600,
-                  fontSize: "0.85rem",
-                  cursor: "pointer"
-                }}
-              >
-                + Add
-              </button>
-            </form>
+      {/* Delete Slot Confirmation */}
+      {deletingSlotName && (
+        <ConfirmDialog
+          isOpen
+          title="Delete Meal Slot"
+          message={`Are you sure you want to delete slot "${deletingSlotName}"? Meals in this slot will remain in history.`}
+          confirmLabel="Delete"
+          isDanger
+          onConfirm={handleConfirmDeleteSlot}
+          onCancel={(): void => setDeletingSlotName(null)}
+        />
+      )}
 
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <button
-                type="button"
-                onClick={handleResetSlots}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: "var(--muted)",
-                  fontSize: "0.8rem",
-                  cursor: "pointer",
-                  textDecoration: "underline"
-                }}
+      {/* Saved Menus Modal */}
+      {showMenusModal && (
+        <Dialog
+          isOpen
+          title="Saved Menus"
+          onClose={(): void => setShowMenusModal(false)}
+          maxWidth={500}
+          footer={
+            <div style={{ display: "flex", justifyContent: "flex-end", width: "100%" }}>
+              <Button
+                variant="secondary"
+                onClick={(): void => setShowMenusModal(false)}
               >
-                Reset to Defaults
-              </button>
-              <button
-                type="button"
-                onClick={(): void => setShowSlotsModal(false)}
-                style={{
-                  background: "var(--surface-alt)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "var(--radius-full)",
-                  padding: "6px 14px",
-                  fontSize: "0.85rem",
-                  cursor: "pointer"
-                }}
-              >
-                Done
-              </button>
+                Close
+              </Button>
+            </div>
+          }
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
+            {/* Save current week section */}
+            {currentWeekEntries.length > 0 && (
+              <form onSubmit={handleSaveWeekAsMenu} style={{ display: "flex", gap: 8 }}>
+                <input
+                  type="text"
+                  placeholder="Save this week as menu..."
+                  value={newMenuName}
+                  onChange={(e: ChangeEvent<HTMLInputElement>): void => setNewMenuName(e.target.value)}
+                  style={{
+                    flex: 1,
+                    padding: "8px 12px",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--border)",
+                    background: "var(--surface)",
+                    color: "var(--text)"
+                  }}
+                />
+                <Button
+                  variant="primary"
+                  size="sm"
+                  disabled={!newMenuName.trim()}
+                >
+                  Save Week
+                </Button>
+              </form>
+            )}
+
+            {/* List of menus */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 300, overflowY: "auto" }}>
+              {savedMenus.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "var(--space-4)", color: "var(--muted)" }}>
+                  No saved menus yet. Save a week plan to reuse it anytime!
+                </div>
+              ) : (
+                savedMenus.map((menu: SavedMenu): ReactElement => (
+                  <div
+                    key={menu.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "10px 14px",
+                      borderRadius: "var(--radius-md)",
+                      border: "1px solid var(--border)",
+                      background: "var(--surface-alt)"
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 600 }}>{menu.name}</div>
+                      <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+                        {menu.items.length} meals
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={(): void => handleApplyMenu(menu)}
+                      >
+                        Apply
+                      </Button>
+                      {onDeleteMenu && (
+                        <IconButton
+                          variant="ghost"
+                          size="sm"
+                          icon={<TrashIcon width={16} height={16} />}
+                          aria-label={`Delete ${menu.name}`}
+                          onClick={(): void => setDeletingMenu(menu)}
+                        />
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
-        </div>
+        </Dialog>
+      )}
+
+      {/* Delete Menu Confirmation */}
+      {deletingMenu && onDeleteMenu && (
+        <ConfirmDialog
+          isOpen
+          title="Delete Menu"
+          message={`Are you sure you want to delete saved menu "${deletingMenu.name}"?`}
+          confirmLabel="Delete"
+          isDanger
+          onConfirm={(): void => {
+            onDeleteMenu(deletingMenu.id);
+            setDeletingMenu(null);
+            showToast(`Deleted menu "${deletingMenu.name}"`);
+          }}
+          onCancel={(): void => setDeletingMenu(null)}
+        />
       )}
     </div>
   );

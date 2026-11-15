@@ -1,0 +1,213 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: var(--space-4);
+  box-sizing: border-box;
+  gap: var(--space-4);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.headerRowDesktop {
+  display: flex;
+  justifyContent: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.navGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.dateRangeText {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: 1.125rem;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.actionGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* Week grid styling */
+.weekGridWrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
+}
+
+.weekGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-2);
+  min-width: 100%;
+}
+
+@media (max-width: 899px) {
+  .weekGrid {
+    grid-template-columns: 80px repeat(7, minmax(148px, 1fr));
+    min-width: calc(80px + 7 * 148px);
+  }
+
+  .stickySlotColumn {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+  }
+}
+
+.dayColumn {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  min-height: 480px;
+  scroll-snap-align: start;
+}
+
+.dayHeader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-2);
+  background-color: var(--surface-alt);
+  border-bottom: 1px solid var(--border);
+}
+
+.dayName {
+  font-weight: 700;
+  font-size: 0.9375rem;
+  color: var(--text);
+}
+
+.dayDate {
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.todayHeader {
+  background-color: var(--accent-light, var(--surface-alt));
+  border-color: var(--accent);
+}
+
+.daySlots {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  flex: 1;
+}
+
+.slotBox {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.slotLabel {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.mealCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  gap: 6px;
+}
+
+.mealCard:hover {
+  border-color: var(--accent);
+}
+
+.addSlotBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.addSlotBtn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Month Grid */
+.monthGrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--space-2);
+}
+
+.monthCell {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  min-height: 100px;
+  padding: var(--space-2);
+  gap: 4px;
+  cursor: pointer;
+}
+
+.monthCell:hover {
+  border-color: var(--accent);
+}
+
+.monthCellToday {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent);
+}
+
+.monthMealDot {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: var(--radius-full);
+  background-color: var(--surface-alt);
+  font-size: 0.6875rem;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
