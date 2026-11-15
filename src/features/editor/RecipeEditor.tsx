@@ -1,12 +1,25 @@
-import { useState, useMemo, useRef, type FC, type ReactElement, type ChangeEvent } from "react";
-import type { Recipe, RecipeRating, DictionaryIngredient, Collection } from "../../domain/recipe/types";
+import { useState, useRef, useEffect, type FC, type ReactElement, type ChangeEvent, type FormEvent } from "react";
+import type {
+  Recipe,
+  RecipeRating,
+  DictionaryIngredient,
+  Collection,
+  Ingredient,
+  Step,
+  StepTimer,
+  IngredientGroup,
+  DirectionGroup
+} from "../../domain/recipe/types";
 import { normalizeRecipe } from "../../domain/recipe/normalize";
 import { parseIngredient } from "../../domain/scaling/parseIngredient";
-import { BUILT_IN_INGREDIENTS } from "../../data/defaultIngredients";
 import { importRecipesFromUrl } from "../../domain/import/nativeFetch";
 import { extractRecipesFromHtml } from "../../domain/import/jsonld";
 import { parsePlainTextRecipe } from "../../domain/import/textRecipeParser";
-import { LinkIcon, CameraIcon, FileTextIcon } from "../../ui/icons";
+import { LinkIcon, CameraIcon, FileTextIcon, PlusIcon, TrashIcon, ChevronUp, ChevronDown, CheckIcon } from "../../ui/icons";
+import { Button, IconButton } from "../../ui/Button";
+import { Dialog } from "../../ui/Dialog";
+import { ConfirmDialog } from "../../ui/ConfirmDialog";
+import styles from "./RecipeEditor.module.css";
 
 export interface RecipeEditorProps {
   initialRecipe?: Recipe;
@@ -16,13 +29,109 @@ export interface RecipeEditorProps {
   onCancel: () => void;
 }
 
+export interface IngredientRow {
+  id: string;
+  isHeading: boolean;
+  headingText?: string;
+  raw: string;
+  ingredientId?: string;
+  note?: string;
+  scalable?: boolean;
+}
+
+export interface DirectionRow {
+  id: string;
+  isHeading: boolean;
+  headingText?: string;
+  text: string;
+  note?: string;
+  showNote?: boolean;
+  timers?: StepTimer[];
+  photoId?: string;
+}
+
+interface DraftState {
+  savedAt: number;
+  title: string;
+  description: string;
+  servings: number;
+  prepMinutes?: number;
+  cookMinutes?: number;
+  course: string;
+  selectedCollectionIds: string[];
+  notes: string;
+  rating: RecipeRating;
+  sourceUrl: string;
+  sourceName: string;
+  ingredients: IngredientRow[];
+  directions: DirectionRow[];
+}
+
+const buildInitialIngredients = (recipe?: Recipe): IngredientRow[] => {
+  if (!recipe || !recipe.ingredientGroups || recipe.ingredientGroups.length === 0) {
+    return [{ id: "ing-1", isHeading: false, raw: "" }];
+  }
+  const rows: IngredientRow[] = [];
+  for (const group of recipe.ingredientGroups) {
+    if (group.heading) {
+      rows.push({
+        id: `hdr-ing-${Math.random().toString(36).slice(2, 8)}`,
+        isHeading: true,
+        headingText: group.heading,
+        raw: ""
+      });
+    }
+    for (const item of group.items) {
+      rows.push({
+        id: item.id || `ing-${Math.random().toString(36).slice(2, 8)}`,
+        isHeading: false,
+        raw: item.raw,
+        ingredientId: item.ingredientId,
+        note: item.note,
+        scalable: item.scalable
+      });
+    }
+  }
+  return rows.length > 0 ? rows : [{ id: "ing-1", isHeading: false, raw: "" }];
+};
+
+const buildInitialDirections = (recipe?: Recipe): DirectionRow[] => {
+  if (!recipe || !recipe.directionGroups || recipe.directionGroups.length === 0) {
+    return [{ id: "step-1", isHeading: false, text: "", showNote: false }];
+  }
+  const rows: DirectionRow[] = [];
+  for (const group of recipe.directionGroups) {
+    if (group.heading) {
+      rows.push({
+        id: `hdr-dir-${Math.random().toString(36).slice(2, 8)}`,
+        isHeading: true,
+        headingText: group.heading,
+        text: ""
+      });
+    }
+    for (const step of group.steps) {
+      rows.push({
+        id: step.id || `step-${Math.random().toString(36).slice(2, 8)}`,
+        isHeading: false,
+        text: step.text,
+        note: step.note,
+        showNote: Boolean(step.note),
+        timers: step.timers,
+        photoId: step.photoId
+      });
+    }
+  }
+  return rows.length > 0 ? rows : [{ id: "step-1", isHeading: false, text: "", showNote: false }];
+};
+
 export const RecipeEditor: FC<RecipeEditorProps> = ({
   initialRecipe,
   collections,
-  userIngredients,
   onSave,
   onCancel
 }): ReactElement => {
+  const draftKey = `openrecipebook_draft_${initialRecipe?.id || "new"}`;
+
   const [title, setTitle] = useState<string>(initialRecipe?.title || "");
   const [description, setDescription] = useState<string>(initialRecipe?.description || "");
   const [servings, setServings] = useState<number>(initialRecipe?.servings || 4);
@@ -35,151 +144,98 @@ export const RecipeEditor: FC<RecipeEditorProps> = ({
   const [sourceUrl, setSourceUrl] = useState<string>(initialRecipe?.sourceUrl || "");
   const [sourceName, setSourceName] = useState<string>(initialRecipe?.sourceName || "");
 
-  // Import shortcuts state
+  const [ingredients, setIngredients] = useState<IngredientRow[]>(() => buildInitialIngredients(initialRecipe));
+  const [directions, setDirections] = useState<DirectionRow[]>(() => buildInitialDirections(initialRecipe));
+
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState<boolean>(false);
+  const [hasRestoredDraft, setHasRestoredDraft] = useState<boolean>(false);
+
+  // Quick import state
   const [showUrlModal, setShowUrlModal] = useState<boolean>(false);
   const [importUrl, setImportUrl] = useState<string>("");
   const [isFetchingUrl, setIsFetchingUrl] = useState<boolean>(false);
   const [urlError, setUrlError] = useState<string | null>(null);
   const [corsBlocked, setCorsBlocked] = useState<boolean>(false);
   const [pastedHtmlSource, setPastedHtmlSource] = useState<string>("");
+
+  const [showPasteModal, setShowPasteModal] = useState<boolean>(false);
+  const [pastedBlob, setPastedBlob] = useState<string>("");
+
   const [ocrStatus, setOcrStatus] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
-  // Multi-line text inputs for frictionless editing
-  const [ingredientsText, setIngredientsText] = useState<string>(() => {
-    if (!initialRecipe) return "";
-    const lines: string[] = [];
-    for (const group of initialRecipe.ingredientGroups) {
-      if (group.heading) lines.push(`${group.heading}:`);
-      for (const item of group.items) lines.push(item.raw);
-    }
-    return lines.join("\n");
-  });
-
-  const [directionsText, setDirectionsText] = useState<string>(() => {
-    if (!initialRecipe) return "";
-    const lines: string[] = [];
-    for (const group of initialRecipe.directionGroups) {
-      if (group.heading) lines.push(`${group.heading}:`);
-      for (const step of group.steps) lines.push(step.text);
-    }
-    return lines.join("\n");
-  });
-
-  const [cursorLineIndex, setCursorLineIndex] = useState<number>(0);
-
-  const allIngredients = useMemo((): DictionaryIngredient[] => {
-    return [...BUILT_IN_INGREDIENTS, ...(userIngredients || [])];
-  }, [userIngredients]);
-
-  const ingLines = useMemo((): string[] => {
-    return ingredientsText.split(/\r?\n/);
-  }, [ingredientsText]);
-
-  const activeLine = ingLines[cursorLineIndex] ?? ingLines[ingLines.length - 1] ?? "";
-
-  const suggestions = useMemo((): DictionaryIngredient[] => {
-    if (!activeLine || activeLine.endsWith(":")) return [];
-    const parsed = parseIngredient(activeLine);
-    const searchTarget = (parsed.ingredient.name || activeLine).trim().toLowerCase();
-    if (searchTarget.length < 2) return [];
-
-    const matches: DictionaryIngredient[] = [];
-    for (const item of allIngredients) {
-      const matchName = item.name.toLowerCase().includes(searchTarget);
-      const matchAlias = item.aliases.some((a) => a.toLowerCase().includes(searchTarget));
-      if (matchName || matchAlias) {
-        matches.push(item);
-        if (matches.length >= 5) break;
+  // Draft restoration on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(draftKey);
+      if (!stored) return;
+      const parsed: DraftState = JSON.parse(stored);
+      const initialUpdatedAt = initialRecipe ? new Date(initialRecipe.updatedAt).getTime() : 0;
+      if (parsed.savedAt && parsed.savedAt > initialUpdatedAt) {
+        setTitle(parsed.title);
+        setDescription(parsed.description);
+        setServings(parsed.servings);
+        setPrepMinutes(parsed.prepMinutes);
+        setCookMinutes(parsed.cookMinutes);
+        setCourse(parsed.course);
+        setSelectedCollectionIds(parsed.selectedCollectionIds);
+        setNotes(parsed.notes);
+        setRating(parsed.rating);
+        setSourceUrl(parsed.sourceUrl);
+        setSourceName(parsed.sourceName);
+        if (parsed.ingredients && parsed.ingredients.length > 0) {
+          setIngredients(parsed.ingredients);
+        }
+        if (parsed.directions && parsed.directions.length > 0) {
+          setDirections(parsed.directions);
+        }
+        setHasRestoredDraft(true);
       }
+    } catch {
+      // Ignore invalid local draft
     }
-    return matches;
-  }, [activeLine, allIngredients]);
+  }, [draftKey, initialRecipe]);
 
-  const applySuggestion = (ingredientName: string): void => {
-    const lines = [...ingLines];
-    const targetIdx = cursorLineIndex < lines.length ? cursorLineIndex : lines.length - 1;
-    if (targetIdx < 0) return;
-
-    const line = lines[targetIdx];
-    const parsed = parseIngredient(line);
-    let newLine: string;
-    if (parsed.ingredient.quantity || parsed.ingredient.unit) {
-      const qty = parsed.ingredient.quantity
-        ? (parsed.ingredient.quantity.kind === "single"
-            ? String(parsed.ingredient.quantity.value)
-            : `${parsed.ingredient.quantity.min}-${parsed.ingredient.quantity.max}`)
-        : "";
-      const unit = parsed.ingredient.unit ? ` ${parsed.ingredient.unit}` : "";
-      newLine = `${qty}${unit} ${ingredientName}`.trim();
-    } else {
-      newLine = ingredientName;
+  // Draft autosave on change
+  useEffect(() => {
+    const draft: DraftState = {
+      savedAt: Date.now(),
+      title,
+      description,
+      servings,
+      prepMinutes,
+      cookMinutes,
+      course,
+      selectedCollectionIds,
+      notes,
+      rating,
+      sourceUrl,
+      sourceName,
+      ingredients,
+      directions
+    };
+    try {
+      localStorage.setItem(draftKey, JSON.stringify(draft));
+    } catch {
+      // LocalStorage full or blocked
     }
-    lines[targetIdx] = newLine;
-    setIngredientsText(lines.join("\n"));
-  };
-
-  const handleTextareaCursor = (e: React.SyntheticEvent<HTMLTextAreaElement>): void => {
-    const target = e.currentTarget;
-    const cursor = target.selectionStart || 0;
-    const textBefore = target.value.substring(0, cursor);
-    const lineIndex = textBefore.split(/\r?\n/).length - 1;
-    setCursorLineIndex(lineIndex);
-  };
-
-  // "Paste it all" quick import drawer
-  const [showPasteAll, setShowPasteAll] = useState<boolean>(false);
-  const [pastedBlob, setPastedBlob] = useState<string>("");
-
-  const handleApplyPasteAll = (): void => {
-    if (!pastedBlob.trim()) {
-      setShowPasteAll(false);
-      return;
-    }
-    const parsed = parsePlainTextRecipe(pastedBlob);
-    if (parsed.title && parsed.title !== "Untitled Recipe") {
-      setTitle(parsed.title);
-    }
-    if (parsed.description) {
-      setDescription(parsed.description);
-    }
-    if (parsed.servings) {
-      setServings(parsed.servings);
-    }
-    if (parsed.prepMinutes) {
-      setPrepMinutes(parsed.prepMinutes);
-    }
-    if (parsed.cookMinutes) {
-      setCookMinutes(parsed.cookMinutes);
-    }
-    if (parsed.sourceUrl) {
-      setSourceUrl(parsed.sourceUrl);
-    }
-    if (parsed.notes) {
-      setNotes(parsed.notes);
-    }
-
-    const linesIng: string[] = [];
-    for (const group of parsed.ingredientGroups) {
-      if (group.heading) linesIng.push(`${group.heading}:`);
-      for (const item of group.items) linesIng.push(item);
-    }
-    if (linesIng.length > 0) {
-      setIngredientsText(linesIng.join("\n"));
-    }
-
-    const linesDir: string[] = [];
-    for (const group of parsed.directionGroups) {
-      if (group.heading) linesDir.push(`${group.heading}:`);
-      for (const step of group.steps) linesDir.push(step);
-    }
-    if (linesDir.length > 0) {
-      setDirectionsText(linesDir.join("\n"));
-    }
-
-    setShowPasteAll(false);
-  };
+  }, [
+    draftKey,
+    title,
+    description,
+    servings,
+    prepMinutes,
+    cookMinutes,
+    course,
+    selectedCollectionIds,
+    notes,
+    rating,
+    sourceUrl,
+    sourceName,
+    ingredients,
+    directions
+  ]);
 
   const populateFromParsedRecipe = (recipe: Partial<Recipe>): void => {
     if (recipe.title) setTitle(recipe.title);
@@ -193,21 +249,54 @@ export const RecipeEditor: FC<RecipeEditorProps> = ({
     if (recipe.notes) setNotes(recipe.notes);
 
     if (recipe.ingredientGroups && recipe.ingredientGroups.length > 0) {
-      const lines: string[] = [];
+      const newIngs: IngredientRow[] = [];
       for (const group of recipe.ingredientGroups) {
-        if (group.heading) lines.push(`${group.heading}:`);
-        for (const item of group.items) lines.push(item.raw);
+        if (group.heading) {
+          newIngs.push({
+            id: `hdr-ing-${Math.random().toString(36).slice(2, 8)}`,
+            isHeading: true,
+            headingText: group.heading,
+            raw: ""
+          });
+        }
+        for (const item of group.items) {
+          newIngs.push({
+            id: item.id || `ing-${Math.random().toString(36).slice(2, 8)}`,
+            isHeading: false,
+            raw: item.raw,
+            ingredientId: item.ingredientId,
+            note: item.note,
+            scalable: item.scalable
+          });
+        }
       }
-      setIngredientsText(lines.join("\n"));
+      setIngredients(newIngs.length > 0 ? newIngs : [{ id: "ing-1", isHeading: false, raw: "" }]);
     }
 
     if (recipe.directionGroups && recipe.directionGroups.length > 0) {
-      const lines: string[] = [];
+      const newDirs: DirectionRow[] = [];
       for (const group of recipe.directionGroups) {
-        if (group.heading) lines.push(`${group.heading}:`);
-        for (const step of group.steps) lines.push(step.text);
+        if (group.heading) {
+          newDirs.push({
+            id: `hdr-dir-${Math.random().toString(36).slice(2, 8)}`,
+            isHeading: true,
+            headingText: group.heading,
+            text: ""
+          });
+        }
+        for (const step of group.steps) {
+          newDirs.push({
+            id: step.id || `step-${Math.random().toString(36).slice(2, 8)}`,
+            isHeading: false,
+            text: step.text,
+            note: step.note,
+            showNote: Boolean(step.note),
+            timers: step.timers,
+            photoId: step.photoId
+          });
+        }
       }
-      setDirectionsText(lines.join("\n"));
+      setDirections(newDirs.length > 0 ? newDirs : [{ id: "step-1", isHeading: false, text: "", showNote: false }]);
     }
   };
 
@@ -252,6 +341,41 @@ export const RecipeEditor: FC<RecipeEditorProps> = ({
     }
   };
 
+  const handleApplyPasteAll = (): void => {
+    if (!pastedBlob.trim()) {
+      setShowPasteModal(false);
+      return;
+    }
+    const parsed = parsePlainTextRecipe(pastedBlob);
+    populateFromParsedRecipe({
+      title: parsed.title && parsed.title !== "Untitled Recipe" ? parsed.title : undefined,
+      description: parsed.description,
+      servings: parsed.servings,
+      prepMinutes: parsed.prepMinutes,
+      cookMinutes: parsed.cookMinutes,
+      sourceUrl: parsed.sourceUrl,
+      notes: parsed.notes,
+      ingredientGroups: parsed.ingredientGroups.map((group) => ({
+        heading: group.heading,
+        items: group.items.map((itemRaw) => ({
+          id: `ing-${Math.random().toString(36).slice(2, 8)}`,
+          raw: itemRaw,
+          name: itemRaw,
+          scalable: true
+        }))
+      })),
+      directionGroups: parsed.directionGroups.map((group) => ({
+        heading: group.heading,
+        steps: group.steps.map((stepText) => ({
+          id: `step-${Math.random().toString(36).slice(2, 8)}`,
+          text: stepText
+        }))
+      }))
+    });
+    setShowPasteModal(false);
+    setPastedBlob("");
+  };
+
   const handleTextFileSelected = (e: ChangeEvent<HTMLInputElement>): void => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -260,27 +384,31 @@ export const RecipeEditor: FC<RecipeEditorProps> = ({
       const text = typeof event.target?.result === "string" ? event.target.result : "";
       if (text) {
         const parsed = parsePlainTextRecipe(text);
-        if (parsed.title && parsed.title !== "Untitled Recipe") setTitle(parsed.title);
-        if (parsed.description) setDescription(parsed.description);
-        if (parsed.servings) setServings(parsed.servings);
-        if (parsed.prepMinutes) setPrepMinutes(parsed.prepMinutes);
-        if (parsed.cookMinutes) setCookMinutes(parsed.cookMinutes);
-        if (parsed.sourceUrl) setSourceUrl(parsed.sourceUrl);
-        if (parsed.notes) setNotes(parsed.notes);
-
-        const linesIng: string[] = [];
-        for (const group of parsed.ingredientGroups) {
-          if (group.heading) linesIng.push(`${group.heading}:`);
-          for (const item of group.items) linesIng.push(item);
-        }
-        if (linesIng.length > 0) setIngredientsText(linesIng.join("\n"));
-
-        const linesDir: string[] = [];
-        for (const group of parsed.directionGroups) {
-          if (group.heading) linesDir.push(`${group.heading}:`);
-          for (const step of group.steps) linesDir.push(step);
-        }
-        if (linesDir.length > 0) setDirectionsText(linesDir.join("\n"));
+        populateFromParsedRecipe({
+          title: parsed.title && parsed.title !== "Untitled Recipe" ? parsed.title : undefined,
+          description: parsed.description,
+          servings: parsed.servings,
+          prepMinutes: parsed.prepMinutes,
+          cookMinutes: parsed.cookMinutes,
+          sourceUrl: parsed.sourceUrl,
+          notes: parsed.notes,
+          ingredientGroups: parsed.ingredientGroups.map((group) => ({
+            heading: group.heading,
+            items: group.items.map((itemRaw) => ({
+              id: `ing-${Math.random().toString(36).slice(2, 8)}`,
+              raw: itemRaw,
+              name: itemRaw,
+              scalable: true
+            }))
+          })),
+          directionGroups: parsed.directionGroups.map((group) => ({
+            heading: group.heading,
+            steps: group.steps.map((stepText) => ({
+              id: `step-${Math.random().toString(36).slice(2, 8)}`,
+              text: stepText
+            }))
+          }))
+        });
       }
     };
     reader.readAsText(file);
@@ -290,56 +418,146 @@ export const RecipeEditor: FC<RecipeEditorProps> = ({
   const handlePhotoFileSelected = (e: ChangeEvent<HTMLInputElement>): void => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setOcrStatus("Photo loaded. Open 'Paste it all' or edit directly to review parsed recipe details.");
+    setOcrStatus("Photo selected. Review and adjust parsed details.");
     setTimeout((): void => {
       setOcrStatus(null);
     }, 4000);
     e.target.value = "";
   };
 
-  const handleSubmit = (e: React.FormEvent): void => {
-    e.preventDefault();
+  // Ingredient actions
+  const addIngredientRow = (): void => {
+    setIngredients((prev) => [
+      ...prev,
+      { id: `ing-${Math.random().toString(36).slice(2, 8)}`, isHeading: false, raw: "" }
+    ]);
+  };
+
+  const addIngredientHeading = (): void => {
+    setIngredients((prev) => [
+      ...prev,
+      { id: `hdr-ing-${Math.random().toString(36).slice(2, 8)}`, isHeading: true, headingText: "", raw: "" }
+    ]);
+  };
+
+  const updateIngredientRow = (index: number, patch: Partial<IngredientRow>): void => {
+    setIngredients((prev) => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], ...patch };
+      return updated;
+    });
+  };
+
+  const deleteIngredientRow = (index: number): void => {
+    setIngredients((prev) => {
+      if (prev.length <= 1) return [{ id: "ing-1", isHeading: false, raw: "" }];
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  const moveIngredientRow = (from: number, to: number): void => {
+    setIngredients((prev) => {
+      if (to < 0 || to >= prev.length) return prev;
+      const updated = [...prev];
+      const [item] = updated.splice(from, 1);
+      updated.splice(to, 0, item);
+      return updated;
+    });
+  };
+
+  // Direction actions
+  const addDirectionRow = (): void => {
+    setDirections((prev) => [
+      ...prev,
+      { id: `step-${Math.random().toString(36).slice(2, 8)}`, isHeading: false, text: "", showNote: false }
+    ]);
+  };
+
+  const addDirectionHeading = (): void => {
+    setDirections((prev) => [
+      ...prev,
+      { id: `hdr-dir-${Math.random().toString(36).slice(2, 8)}`, isHeading: true, headingText: "", text: "" }
+    ]);
+  };
+
+  const updateDirectionRow = (index: number, patch: Partial<DirectionRow>): void => {
+    setDirections((prev) => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], ...patch };
+      return updated;
+    });
+  };
+
+  const deleteDirectionRow = (index: number): void => {
+    setDirections((prev) => {
+      if (prev.length <= 1) return [{ id: "step-1", isHeading: false, text: "", showNote: false }];
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  const moveDirectionRow = (from: number, to: number): void => {
+    setDirections((prev) => {
+      if (to < 0 || to >= prev.length) return prev;
+      const updated = [...prev];
+      const [item] = updated.splice(from, 1);
+      updated.splice(to, 0, item);
+      return updated;
+    });
+  };
+
+  const handleSubmit = (e?: FormEvent): void => {
+    if (e) e.preventDefault();
     if (!title.trim()) return;
 
-    // Parse ingredients text into groups
-    const rawIngLines = ingredientsText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-    const ingredientGroups = [];
+    const ingredientGroups: IngredientGroup[] = [];
     let currentGroupHeading: string | undefined = undefined;
-    let currentGroupItems = [];
+    let currentGroupItems: Ingredient[] = [];
 
-    for (const line of rawIngLines) {
-      if (line.endsWith(":")) {
+    for (const row of ingredients) {
+      if (row.isHeading) {
         if (currentGroupItems.length > 0) {
           ingredientGroups.push({ heading: currentGroupHeading, items: currentGroupItems });
           currentGroupItems = [];
         }
-        currentGroupHeading = line.replace(/:$/, "").trim();
+        currentGroupHeading = row.headingText?.trim() || undefined;
       } else {
-        const parsed = parseIngredient(line);
-        currentGroupItems.push(parsed.ingredient);
+        const trimmed = row.raw.trim();
+        if (!trimmed) continue;
+        const parsed = parseIngredient(trimmed);
+        currentGroupItems.push({
+          ...parsed.ingredient,
+          id: row.id,
+          raw: trimmed,
+          note: row.note ?? parsed.ingredient.note,
+          ingredientId: row.ingredientId ?? parsed.ingredient.ingredientId,
+          scalable: row.scalable ?? parsed.ingredient.scalable
+        });
       }
     }
     if (currentGroupItems.length > 0 || ingredientGroups.length === 0) {
       ingredientGroups.push({ heading: currentGroupHeading, items: currentGroupItems });
     }
 
-    // Parse directions text into groups
-    const rawDirLines = directionsText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-    const directionGroups = [];
+    const directionGroups: DirectionGroup[] = [];
     let currentDirHeading: string | undefined = undefined;
-    let currentDirSteps = [];
+    let currentDirSteps: Step[] = [];
 
-    for (const line of rawDirLines) {
-      if (line.endsWith(":")) {
+    for (const row of directions) {
+      if (row.isHeading) {
         if (currentDirSteps.length > 0) {
           directionGroups.push({ heading: currentDirHeading, steps: currentDirSteps });
           currentDirSteps = [];
         }
-        currentDirHeading = line.replace(/:$/, "").trim();
+        currentDirHeading = row.headingText?.trim() || undefined;
       } else {
+        const trimmed = row.text.trim();
+        if (!trimmed) continue;
         currentDirSteps.push({
-          id: `step-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-          text: line
+          id: row.id,
+          text: trimmed,
+          note: row.note?.trim() || undefined,
+          timers: row.timers,
+          photoId: row.photoId
         });
       }
     }
@@ -348,7 +566,7 @@ export const RecipeEditor: FC<RecipeEditorProps> = ({
     }
 
     const recipeToSave: Recipe = {
-      id: initialRecipe?.id || `recipe-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+      id: initialRecipe?.id || `recipe-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       title: title.trim(),
       description: description.trim() || undefined,
       sourceUrl: sourceUrl.trim() || undefined,
@@ -372,11 +590,47 @@ export const RecipeEditor: FC<RecipeEditorProps> = ({
       schemaVersion: 1
     };
 
+    try {
+      localStorage.removeItem(draftKey);
+    } catch {
+      // Ignore
+    }
+
     onSave(normalizeRecipe(recipeToSave));
   };
 
+  const handleCancelClick = (): void => {
+    const hasChanges = Boolean(
+      title.trim() ||
+      description.trim() ||
+      ingredients.some((i) => i.raw.trim() || i.headingText?.trim()) ||
+      directions.some((d) => d.text.trim() || d.headingText?.trim())
+    );
+
+    if (hasChanges) {
+      setShowDiscardConfirm(true);
+    } else {
+      try {
+        localStorage.removeItem(draftKey);
+      } catch {
+        // Ignore
+      }
+      onCancel();
+    }
+  };
+
+  const handleConfirmDiscard = (): void => {
+    try {
+      localStorage.removeItem(draftKey);
+    } catch {
+      // Ignore
+    }
+    setShowDiscardConfirm(false);
+    onCancel();
+  };
+
   return (
-    <div style={{ maxWidth: "800px", margin: "0 auto", padding: "var(--space-6)" }}>
+    <div className={styles.container}>
       <input
         ref={fileInputRef}
         type="file"
@@ -393,587 +647,589 @@ export const RecipeEditor: FC<RecipeEditorProps> = ({
         onChange={handlePhotoFileSelected}
       />
 
-      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: "var(--space-3)", marginBottom: "var(--space-6)" }}>
-        <h1 style={{ fontFamily: "var(--font-serif)", fontSize: "2rem", margin: 0 }}>
-          {initialRecipe ? "Edit Recipe" : "New Recipe"}
-        </h1>
-
-        {!initialRecipe && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
-            <button
-              type="button"
-              onClick={() => setShowPasteAll(!showPasteAll)}
-              style={{
-                background: showPasteAll ? "var(--surface-alt)" : "var(--surface)",
-                color: "var(--accent)",
-                border: "1px solid var(--border)",
-                padding: "8px 14px",
-                borderRadius: "var(--radius-full)",
-                cursor: "pointer",
-                fontWeight: 600,
-                fontSize: "0.85rem"
-              }}
-            >
-              {showPasteAll ? "Type It In" : "Paste It All"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowUrlModal(true)}
-              style={{
-                background: "var(--surface)",
-                color: "var(--text)",
-                border: "1px solid var(--border)",
-                padding: "8px 14px",
-                borderRadius: "var(--radius-full)",
-                cursor: "pointer",
-                fontWeight: 500,
-                fontSize: "0.85rem",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px"
-              }}
-            >
-              <LinkIcon width={14} height={14} /> Import Link
-            </button>
-            <button
-              type="button"
-              onClick={() => photoInputRef.current?.click()}
-              style={{
-                background: "var(--surface)",
-                color: "var(--text)",
-                border: "1px solid var(--border)",
-                padding: "8px 14px",
-                borderRadius: "var(--radius-full)",
-                cursor: "pointer",
-                fontWeight: 500,
-                fontSize: "0.85rem",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px"
-              }}
-            >
-              <CameraIcon width={14} height={14} /> Scan Photo
-            </button>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              style={{
-                background: "var(--surface)",
-                color: "var(--text)",
-                border: "1px solid var(--border)",
-                padding: "8px 14px",
-                borderRadius: "var(--radius-full)",
-                cursor: "pointer",
-                fontWeight: 500,
-                fontSize: "0.85rem",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px"
-              }}
-            >
-              <FileTextIcon width={14} height={14} /> Text File
-            </button>
-          </div>
+      {/* Import shortcuts toolbar */}
+      <div className={styles.importToolbar}>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={(): void => setShowUrlModal(true)}
+        >
+          <LinkIcon width={14} height={14} /> Import Link
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={(): void => setShowPasteModal(true)}
+        >
+          <FileTextIcon width={14} height={14} /> Paste Text
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={(): void => fileInputRef.current?.click()}
+        >
+          <FileTextIcon width={14} height={14} /> Text File
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={(): void => photoInputRef.current?.click()}
+        >
+          <CameraIcon width={14} height={14} /> Scan Photo
+        </Button>
+        {hasRestoredDraft && (
+          <span className={styles.draftBadge}>Restored unsaved draft</span>
         )}
       </div>
 
       {ocrStatus && (
-        <div style={{ background: "var(--surface-alt)", padding: "10px 16px", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-4)", fontSize: "0.9rem", color: "var(--text)" }}>
+        <div className={styles.draftBadge}>
           {ocrStatus}
         </div>
       )}
 
-      {showUrlModal && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: "var(--space-4)" }}>
-          <div style={{ background: "var(--surface)", borderRadius: "var(--radius-lg)", maxWidth: "520px", width: "100%", padding: "var(--space-6)", boxShadow: "var(--shadow-lg)" }}>
-            <h3 style={{ fontSize: "1.3rem", marginBottom: "var(--space-2)" }}>Import Recipe from Website</h3>
-            <p style={{ color: "var(--muted)", fontSize: "0.9rem", marginBottom: "var(--space-4)" }}>
-              Enter recipe URL to automatically load ingredients, directions, and timings.
-            </p>
+      {/* Recipe Title */}
+      <input
+        type="text"
+        className={styles.titleInput}
+        placeholder="Recipe title (required)"
+        value={title}
+        onChange={(e: ChangeEvent<HTMLInputElement>): void => setTitle(e.target.value)}
+        required
+      />
 
-            <div style={{ display: "flex", gap: "8px", marginBottom: "var(--space-3)" }}>
-              <input
-                type="url"
-                value={importUrl}
-                onChange={(e) => setImportUrl(e.target.value)}
-                placeholder="https://example.com/recipe"
-                disabled={isFetchingUrl}
-                style={{ flex: 1, padding: "10px 14px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }}
-              />
-              <button
-                type="button"
-                onClick={handleFetchUrl}
-                disabled={isFetchingUrl || !importUrl.trim()}
-                style={{
-                  background: "var(--accent)",
-                  color: "var(--accent-contrast)",
-                  border: "none",
-                  padding: "10px 18px",
-                  borderRadius: "var(--radius-full)",
-                  fontWeight: 600,
-                  cursor: isFetchingUrl || !importUrl.trim() ? "not-allowed" : "pointer"
-                }}
-              >
-                {isFetchingUrl ? "Fetching..." : "Fetch"}
-              </button>
+      {/* Meta Grid */}
+      <div className={styles.section}>
+        <div className={styles.metaGrid}>
+          <div className={styles.metaField}>
+            <label className={styles.label} htmlFor="recipe-servings">Servings</label>
+            <input
+              id="recipe-servings"
+              className={styles.input}
+              type="number"
+              min={1}
+              value={servings}
+              onChange={(e: ChangeEvent<HTMLInputElement>): void => setServings(parseInt(e.target.value, 10) || 1)}
+            />
+          </div>
+          <div className={styles.metaField}>
+            <label className={styles.label} htmlFor="recipe-prep-min">Prep (min)</label>
+            <input
+              id="recipe-prep-min"
+              className={styles.input}
+              type="number"
+              min={0}
+              value={prepMinutes ?? ""}
+              onChange={(e: ChangeEvent<HTMLInputElement>): void =>
+                setPrepMinutes(e.target.value ? parseInt(e.target.value, 10) : undefined)
+              }
+            />
+          </div>
+          <div className={styles.metaField}>
+            <label className={styles.label} htmlFor="recipe-cook-min">Cook (min)</label>
+            <input
+              id="recipe-cook-min"
+              className={styles.input}
+              type="number"
+              min={0}
+              value={cookMinutes ?? ""}
+              onChange={(e: ChangeEvent<HTMLInputElement>): void =>
+                setCookMinutes(e.target.value ? parseInt(e.target.value, 10) : undefined)
+              }
+            />
+          </div>
+          <div className={styles.metaField}>
+            <label className={styles.label} htmlFor="recipe-course">Course</label>
+            <select
+              id="recipe-course"
+              className={styles.input}
+              value={course}
+              onChange={(e: ChangeEvent<HTMLSelectElement>): void => setCourse(e.target.value)}
+            >
+              <option value="Breakfast">Breakfast</option>
+              <option value="Lunch">Lunch</option>
+              <option value="Dinner">Dinner</option>
+              <option value="Dessert">Dessert</option>
+              <option value="Snack">Snack</option>
+              <option value="Drink">Drink</option>
+            </select>
+          </div>
+          <div className={styles.metaField}>
+            <label className={styles.label} htmlFor="recipe-rating">Rating</label>
+            <select
+              id="recipe-rating"
+              className={styles.input}
+              value={rating}
+              onChange={(e: ChangeEvent<HTMLSelectElement>): void =>
+                setRating((parseInt(e.target.value, 10) || 0) as RecipeRating)
+              }
+            >
+              <option value={0}>No rating</option>
+              <option value={1}>1 star</option>
+              <option value={2}>2 stars</option>
+              <option value={3}>3 stars</option>
+              <option value={4}>4 stars</option>
+              <option value={5}>5 stars</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Collections */}
+        {collections && collections.length > 0 && (
+          <div className={styles.metaField}>
+            <span className={styles.label}>Collections</span>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+              {collections.map((col: Collection) => {
+                const isSelected = selectedCollectionIds.includes(col.id);
+                return (
+                  <Button
+                    key={col.id}
+                    type="button"
+                    variant={isSelected ? "primary" : "secondary"}
+                    size="sm"
+                    onClick={(): void => {
+                      if (isSelected) {
+                        setSelectedCollectionIds((prev) => prev.filter((id) => id !== col.id));
+                      } else {
+                        setSelectedCollectionIds((prev) => [...prev, col.id]);
+                      }
+                    }}
+                  >
+                    {isSelected && <CheckIcon width={12} height={12} />}
+                    {col.name}
+                  </Button>
+                );
+              })}
             </div>
+          </div>
+        )}
+      </div>
 
-            {urlError && (
-              <div style={{ background: "var(--surface-alt)", borderLeft: "3px solid var(--accent)", padding: "12px 14px", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-4)", fontSize: "0.88rem", color: "var(--text)" }}>
-                <p style={{ margin: "0 0 8px 0" }}>{urlError}</p>
-                {corsBlocked && (
-                  <div>
-                    <p style={{ fontSize: "0.85rem", color: "var(--muted)", marginBottom: "8px" }}>
-                      Direct fetch is blocked in web browsers by CORS. Alternatively, paste HTML source code below:
-                    </p>
-                    <textarea
-                      rows={4}
-                      value={pastedHtmlSource}
-                      onChange={(e) => setPastedHtmlSource(e.target.value)}
-                      placeholder="Paste page HTML source (Ctrl+U or right click -> View Page Source)..."
-                      style={{ width: "100%", padding: "8px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", fontFamily: "monospace", fontSize: "0.8rem", marginBottom: "8px" }}
-                    />
-                    <button
-                      type="button"
-                      onClick={handleParsePastedHtml}
-                      disabled={!pastedHtmlSource.trim()}
-                      style={{ background: "var(--surface)", border: "1px solid var(--border)", padding: "6px 14px", borderRadius: "var(--radius-full)", fontSize: "0.85rem", fontWeight: 600, cursor: "pointer" }}
-                    >
-                      Parse HTML Source
-                    </button>
+      {/* Ingredients Section */}
+      <div className={styles.section}>
+        <div className={styles.sectionHeader}>
+          <h2 className={styles.sectionTitle}>Ingredients</h2>
+        </div>
+
+        {ingredients.map((item, idx) => {
+          if (item.isHeading) {
+            return (
+              <div key={item.id} className={styles.headingRow}>
+                <input
+                  type="text"
+                  className={styles.headingInput}
+                  placeholder="Section heading (e.g. Marinade, Sauce)..."
+                  value={item.headingText || ""}
+                  onChange={(e: ChangeEvent<HTMLInputElement>): void =>
+                    updateIngredientRow(idx, { headingText: e.target.value })
+                  }
+                />
+                <div className={styles.rowActions}>
+                  <IconButton
+                    icon={<ChevronUp width={16} height={16} />}
+                    aria-label="Move section up"
+                    size="sm"
+                    disabled={idx === 0}
+                    onClick={(): void => moveIngredientRow(idx, idx - 1)}
+                  />
+                  <IconButton
+                    icon={<ChevronDown width={16} height={16} />}
+                    aria-label="Move section down"
+                    size="sm"
+                    disabled={idx === ingredients.length - 1}
+                    onClick={(): void => moveIngredientRow(idx, idx + 1)}
+                  />
+                  <IconButton
+                    icon={<TrashIcon width={16} height={16} />}
+                    aria-label="Delete section"
+                    size="sm"
+                    onClick={(): void => deleteIngredientRow(idx)}
+                  />
+                </div>
+              </div>
+            );
+          }
+
+          const parsed = item.raw.trim() ? parseIngredient(item.raw.trim()) : null;
+          const qtyStr = parsed?.ingredient.quantity
+            ? (parsed.ingredient.quantity.kind === "single"
+                ? String(parsed.ingredient.quantity.value)
+                : `${parsed.ingredient.quantity.min}-${parsed.ingredient.quantity.max}`)
+            : null;
+
+          return (
+            <div key={item.id} className={styles.rowItem}>
+              <div className={styles.rowContent}>
+                <input
+                  type="text"
+                  className={styles.rowInput}
+                  placeholder="e.g. 2 cups all-purpose flour, sifted"
+                  value={item.raw}
+                  onChange={(e: ChangeEvent<HTMLInputElement>): void =>
+                    updateIngredientRow(idx, { raw: e.target.value })
+                  }
+                />
+                {parsed && item.raw.trim() && (
+                  <div className={styles.parseChips}>
+                    {qtyStr && <span className={styles.parseChip}>Qty: {qtyStr}</span>}
+                    {parsed.ingredient.unit && (
+                      <span className={styles.parseChip}>Unit: {parsed.ingredient.unit}</span>
+                    )}
+                    {parsed.ingredient.name && (
+                      <span className={styles.parseChip}>Item: {parsed.ingredient.name}</span>
+                    )}
                   </div>
                 )}
               </div>
-            )}
-
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "var(--space-4)" }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowUrlModal(false);
-                  setUrlError(null);
-                  setCorsBlocked(false);
-                }}
-                style={{ background: "none", border: "1px solid var(--border)", padding: "8px 18px", borderRadius: "var(--radius-full)", cursor: "pointer" }}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showPasteAll ? (
-        <div style={{ background: "var(--surface)", padding: "var(--space-6)", borderRadius: "var(--radius-md)", border: "1px solid var(--border)" }}>
-          <h2 style={{ fontSize: "1.2rem", marginBottom: "var(--space-2)" }}>Paste Ingredients & Instructions</h2>
-          <p style={{ color: "var(--muted)", fontSize: "0.9rem", marginBottom: "var(--space-4)" }}>
-            Paste recipe text from a website, document, or email. The app will separate ingredients and directions automatically.
-          </p>
-          <textarea
-            rows={12}
-            value={pastedBlob}
-            onChange={(e) => setPastedBlob(e.target.value)}
-            placeholder={"Ingredients\n2 cups flour\n1 cup milk\n\nDirections\nMix and bake at 350F for 20 minutes."}
-            style={{ width: "100%", padding: "var(--space-3)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", fontFamily: "var(--font-sans)", marginBottom: "var(--space-4)" }}
-          />
-          <div style={{ display: "flex", gap: "var(--space-3)" }}>
-            <button
-              type="button"
-              onClick={handleApplyPasteAll}
-              style={{ background: "var(--accent)", color: "var(--accent-contrast)", border: "none", padding: "10px 20px", borderRadius: "var(--radius-full)", fontWeight: 600, cursor: "pointer" }}
-            >
-              Parse & Fill Form
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowPasteAll(false)}
-              style={{ background: "none", border: "1px solid var(--border)", padding: "10px 20px", borderRadius: "var(--radius-full)", cursor: "pointer" }}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      ) : (
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
-          {/* Title */}
-          <div>
-            <label style={{ display: "block", fontWeight: 600, marginBottom: "var(--space-2)" }}>
-              Recipe Title <span style={{ color: "var(--danger)" }}>*</span>
-            </label>
-            <input
-              type="text"
-              required
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Grandma's Apple Crisp"
-              style={{ width: "100%", padding: "12px", borderRadius: "var(--radius-md)", border: "1px solid var(--border)", fontSize: "1.1rem" }}
-            />
-          </div>
-
-          {/* Description */}
-          <div>
-            <label style={{ display: "block", fontWeight: 600, marginBottom: "var(--space-2)" }}>
-              Description
-            </label>
-            <textarea
-              rows={2}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Brief summary or story..."
-              style={{ width: "100%", padding: "10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }}
-            />
-          </div>
-
-          {/* Yield & Times */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "var(--space-4)" }}>
-            <div>
-              <label style={{ display: "block", fontSize: "0.9rem", fontWeight: 600, marginBottom: "var(--space-1)" }}>
-                Servings
-              </label>
-              <input
-                type="number"
-                min={1}
-                value={servings}
-                onChange={(e) => setServings(parseInt(e.target.value, 10) || 1)}
-                style={{ width: "100%", padding: "8px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }}
-              />
-            </div>
-            <div>
-              <label style={{ display: "block", fontSize: "0.9rem", fontWeight: 600, marginBottom: "var(--space-1)" }}>
-                Prep (min)
-              </label>
-              <input
-                type="number"
-                min={0}
-                value={prepMinutes || ""}
-                onChange={(e) => setPrepMinutes(e.target.value ? parseInt(e.target.value, 10) : undefined)}
-                style={{ width: "100%", padding: "8px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }}
-              />
-            </div>
-            <div>
-              <label style={{ display: "block", fontSize: "0.9rem", fontWeight: 600, marginBottom: "var(--space-1)" }}>
-                Cook (min)
-              </label>
-              <input
-                type="number"
-                min={0}
-                value={cookMinutes || ""}
-                onChange={(e) => setCookMinutes(e.target.value ? parseInt(e.target.value, 10) : undefined)}
-                style={{ width: "100%", padding: "8px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }}
-              />
-            </div>
-            <div>
-              <label style={{ display: "block", fontSize: "0.9rem", fontWeight: 600, marginBottom: "var(--space-1)" }}>
-                Course
-              </label>
-              <select
-                value={course}
-                onChange={(e) => setCourse(e.target.value)}
-                style={{ width: "100%", padding: "8px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", background: "var(--surface)" }}
-              >
-                <option value="Breakfast">Breakfast</option>
-                <option value="Lunch">Lunch</option>
-                <option value="Dinner">Dinner</option>
-                <option value="Dessert">Dessert</option>
-                <option value="Snack">Snack</option>
-                <option value="Drink">Drink</option>
-              </select>
-            </div>
-            <div>
-              <label style={{ display: "block", fontSize: "0.9rem", fontWeight: 600, marginBottom: "var(--space-1)" }}>
-                Rating
-              </label>
-              <select
-                value={rating}
-                onChange={(e) => setRating((parseInt(e.target.value, 10) || 0) as RecipeRating)}
-                style={{ width: "100%", padding: "8px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", background: "var(--surface)" }}
-              >
-                <option value={0}>No rating</option>
-                <option value={1}>1 star</option>
-                <option value={2}>2 stars</option>
-                <option value={3}>3 stars</option>
-                <option value={4}>4 stars</option>
-                <option value={5}>5 stars</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Collections Selector */}
-          {collections && collections.length > 0 && (
-            <div style={{ marginTop: "var(--space-1)" }}>
-              <label style={{ display: "block", fontSize: "0.9rem", fontWeight: 600, marginBottom: "var(--space-1)" }}>
-                Collections
-              </label>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                {collections.map((col: Collection) => {
-                  const isSelected = selectedCollectionIds.includes(col.id);
-                  return (
-                    <button
-                      key={col.id}
-                      type="button"
-                      onClick={(): void => {
-                        if (isSelected) {
-                          setSelectedCollectionIds(selectedCollectionIds.filter((id: string): boolean => id !== col.id));
-                        } else {
-                          setSelectedCollectionIds([...selectedCollectionIds, col.id]);
-                        }
-                      }}
-                      style={{
-                        background: isSelected ? "var(--accent)" : "var(--surface)",
-                        color: isSelected ? "var(--accent-contrast)" : "var(--text)",
-                        border: "1px solid " + (isSelected ? "var(--accent)" : "var(--border)"),
-                        padding: "4px 12px",
-                        borderRadius: "var(--radius-full)",
-                        fontSize: "0.85rem",
-                        fontWeight: isSelected ? 600 : 400,
-                        cursor: "pointer"
-                      }}
-                    >
-                      {isSelected ? "\u2713 " : "+ "}{col.name}
-                    </button>
-                  );
-                })}
+              <div className={styles.rowActions}>
+                <IconButton
+                  icon={<ChevronUp width={16} height={16} />}
+                  aria-label="Move ingredient up"
+                  size="sm"
+                  disabled={idx === 0}
+                  onClick={(): void => moveIngredientRow(idx, idx - 1)}
+                />
+                <IconButton
+                  icon={<ChevronDown width={16} height={16} />}
+                  aria-label="Move ingredient down"
+                  size="sm"
+                  disabled={idx === ingredients.length - 1}
+                  onClick={(): void => moveIngredientRow(idx, idx + 1)}
+                />
+                <IconButton
+                  icon={<TrashIcon width={16} height={16} />}
+                  aria-label="Delete ingredient"
+                  size="sm"
+                  onClick={(): void => deleteIngredientRow(idx)}
+                />
               </div>
+            </div>
+          );
+        })}
+
+        <div className={styles.sectionActions}>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={addIngredientRow}
+          >
+            <PlusIcon width={14} height={14} /> Add Ingredient
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={addIngredientHeading}
+          >
+            <PlusIcon width={14} height={14} /> Add Heading
+          </Button>
+        </div>
+      </div>
+
+      {/* Directions Section */}
+      <div className={styles.section}>
+        <div className={styles.sectionHeader}>
+          <h2 className={styles.sectionTitle}>Directions</h2>
+        </div>
+
+        {directions.map((step, idx) => {
+          if (step.isHeading) {
+            return (
+              <div key={step.id} className={styles.headingRow}>
+                <input
+                  type="text"
+                  className={styles.headingInput}
+                  placeholder="Section heading (e.g. Dough, Frosting)..."
+                  value={step.headingText || ""}
+                  onChange={(e: ChangeEvent<HTMLInputElement>): void =>
+                    updateDirectionRow(idx, { headingText: e.target.value })
+                  }
+                />
+                <div className={styles.rowActions}>
+                  <IconButton
+                    icon={<ChevronUp width={16} height={16} />}
+                    aria-label="Move section up"
+                    size="sm"
+                    disabled={idx === 0}
+                    onClick={(): void => moveDirectionRow(idx, idx - 1)}
+                  />
+                  <IconButton
+                    icon={<ChevronDown width={16} height={16} />}
+                    aria-label="Move section down"
+                    size="sm"
+                    disabled={idx === directions.length - 1}
+                    onClick={(): void => moveDirectionRow(idx, idx + 1)}
+                  />
+                  <IconButton
+                    icon={<TrashIcon width={16} height={16} />}
+                    aria-label="Delete section"
+                    size="sm"
+                    onClick={(): void => deleteDirectionRow(idx)}
+                  />
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <div key={step.id} className={styles.rowItem}>
+              <div className={styles.rowContent}>
+                <textarea
+                  className={styles.stepTextarea}
+                  placeholder={`Step ${idx + 1}...`}
+                  value={step.text}
+                  onChange={(e: ChangeEvent<HTMLTextAreaElement>): void =>
+                    updateDirectionRow(idx, { text: e.target.value })
+                  }
+                />
+                {step.showNote && (
+                  <div className={styles.noteRow}>
+                    <input
+                      type="text"
+                      className={styles.noteInput}
+                      placeholder="Step note or tip..."
+                      value={step.note || ""}
+                      onChange={(e: ChangeEvent<HTMLInputElement>): void =>
+                        updateDirectionRow(idx, { note: e.target.value })
+                      }
+                    />
+                  </div>
+                )}
+              </div>
+              <div className={styles.rowActions}>
+                <IconButton
+                  icon={<FileTextIcon width={16} height={16} />}
+                  aria-label="Toggle step note"
+                  size="sm"
+                  onClick={(): void => updateDirectionRow(idx, { showNote: !step.showNote })}
+                />
+                <IconButton
+                  icon={<ChevronUp width={16} height={16} />}
+                  aria-label="Move step up"
+                  size="sm"
+                  disabled={idx === 0}
+                  onClick={(): void => moveDirectionRow(idx, idx - 1)}
+                />
+                <IconButton
+                  icon={<ChevronDown width={16} height={16} />}
+                  aria-label="Move step down"
+                  size="sm"
+                  disabled={idx === directions.length - 1}
+                  onClick={(): void => moveDirectionRow(idx, idx + 1)}
+                />
+                <IconButton
+                  icon={<TrashIcon width={16} height={16} />}
+                  aria-label="Delete step"
+                  size="sm"
+                  onClick={(): void => deleteDirectionRow(idx)}
+                />
+              </div>
+            </div>
+          );
+        })}
+
+        <div className={styles.sectionActions}>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={addDirectionRow}
+          >
+            <PlusIcon width={14} height={14} /> Add Step
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={addDirectionHeading}
+          >
+            <PlusIcon width={14} height={14} /> Add Heading
+          </Button>
+        </div>
+      </div>
+
+      {/* Notes & Description */}
+      <div className={styles.section}>
+        <div className={styles.metaField}>
+          <label className={styles.label} htmlFor="recipe-description">Description</label>
+          <textarea
+            id="recipe-description"
+            className={styles.stepTextarea}
+            placeholder="Brief summary or background..."
+            value={description}
+            onChange={(e: ChangeEvent<HTMLTextAreaElement>): void => setDescription(e.target.value)}
+          />
+        </div>
+        <div className={styles.metaField}>
+          <label className={styles.label} htmlFor="recipe-notes">Cook's Notes</label>
+          <textarea
+            id="recipe-notes"
+            className={styles.stepTextarea}
+            placeholder="Serving suggestions, variations, or tips..."
+            value={notes}
+            onChange={(e: ChangeEvent<HTMLTextAreaElement>): void => setNotes(e.target.value)}
+          />
+        </div>
+        <div className={styles.metaGrid}>
+          <div className={styles.metaField}>
+            <label className={styles.label} htmlFor="recipe-source-url">Source URL</label>
+            <input
+              id="recipe-source-url"
+              type="url"
+              className={styles.input}
+              placeholder="https://..."
+              value={sourceUrl}
+              onChange={(e: ChangeEvent<HTMLInputElement>): void => setSourceUrl(e.target.value)}
+            />
+          </div>
+          <div className={styles.metaField}>
+            <label className={styles.label} htmlFor="recipe-source-name">Credit / Source Name</label>
+            <input
+              id="recipe-source-name"
+              type="text"
+              className={styles.input}
+              placeholder="e.g. Grandma, Food & Wine"
+              value={sourceName}
+              onChange={(e: ChangeEvent<HTMLInputElement>): void => setSourceName(e.target.value)}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Sticky Save / Cancel Footer */}
+      <div className={styles.stickyFooter}>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={handleCancelClick}
+        >
+          Cancel
+        </Button>
+        <Button
+          type="button"
+          variant="primary"
+          onClick={(): void => handleSubmit()}
+          disabled={!title.trim()}
+        >
+          Save Recipe
+        </Button>
+      </div>
+
+      {/* Discard Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={showDiscardConfirm}
+        title="Discard changes?"
+        message="You have unsaved changes. Leaving now will discard your edits."
+        confirmLabel="Discard"
+        cancelLabel="Keep Editing"
+        isDanger={true}
+        onConfirm={handleConfirmDiscard}
+        onCancel={(): void => setShowDiscardConfirm(false)}
+      />
+
+      {/* URL Import Dialog */}
+      <Dialog
+        isOpen={showUrlModal}
+        title="Import Recipe from URL"
+        onClose={(): void => {
+          setShowUrlModal(false);
+          setUrlError(null);
+          setCorsBlocked(false);
+        }}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+          <p style={{ margin: 0, color: "var(--muted)", fontSize: "0.875rem" }}>
+            Paste a recipe URL to extract ingredients and directions.
+          </p>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <input
+              type="url"
+              className={styles.input}
+              placeholder="https://example.com/recipe"
+              value={importUrl}
+              onChange={(e: ChangeEvent<HTMLInputElement>): void => setImportUrl(e.target.value)}
+              disabled={isFetchingUrl}
+              style={{ flex: 1 }}
+            />
+            <Button
+              type="button"
+              variant="primary"
+              onClick={handleFetchUrl}
+              disabled={isFetchingUrl || !importUrl.trim()}
+            >
+              {isFetchingUrl ? "Fetching..." : "Fetch"}
+            </Button>
+          </div>
+          {urlError && (
+            <div style={{ color: "var(--danger)", fontSize: "0.875rem" }}>
+              {urlError}
+              {corsBlocked && (
+                <div style={{ marginTop: "8px" }}>
+                  <textarea
+                    rows={4}
+                    className={styles.stepTextarea}
+                    placeholder="Paste page HTML source (Ctrl+U or right click -> View Page Source)..."
+                    value={pastedHtmlSource}
+                    onChange={(e: ChangeEvent<HTMLTextAreaElement>): void => setPastedHtmlSource(e.target.value)}
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleParsePastedHtml}
+                    disabled={!pastedHtmlSource.trim()}
+                    style={{ marginTop: "8px" }}
+                  >
+                    Parse HTML
+                  </Button>
+                </div>
+              )}
             </div>
           )}
+        </div>
+      </Dialog>
 
-          {/* Ingredients Input */}
-          <div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-2)" }}>
-              <label style={{ fontWeight: 600 }}>
-                Ingredients (one per line; end line with ":" for group headings)
-              </label>
-              <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
-                Autocomplete active
-              </span>
-            </div>
-
-            <textarea
-              rows={7}
-              value={ingredientsText}
-              onChange={(e) => {
-                setIngredientsText(e.target.value);
-                handleTextareaCursor(e);
-              }}
-              onKeyUp={handleTextareaCursor}
-              onClick={handleTextareaCursor}
-              onSelect={handleTextareaCursor}
-              placeholder={"Dry Ingredients:\n2 cups flour\n1 tsp baking soda\n\nWet Ingredients:\n1 cup milk\n2 eggs"}
-              style={{ width: "100%", padding: "10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", fontFamily: "var(--font-mono)", fontSize: "0.95rem" }}
-            />
-
-            {/* Suggestions pill strip */}
-            {suggestions.length > 0 && (
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: "6px",
-                  alignItems: "center",
-                  padding: "6px 10px",
-                  marginTop: "6px",
-                  background: "var(--surface-alt)",
-                  borderRadius: "var(--radius-sm)"
-                }}
-              >
-                <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>Suggested ingredients:</span>
-                {suggestions.map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => applySuggestion(s.name)}
-                    style={{
-                      background: "var(--surface)",
-                      color: "var(--accent)",
-                      border: "1px solid var(--border)",
-                      borderRadius: "var(--radius-full)",
-                      padding: "2px 8px",
-                      fontSize: "0.8rem",
-                      fontWeight: 500,
-                      cursor: "pointer"
-                    }}
-                  >
-                    + {s.name}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Live parsed breakdown preview */}
-            {ingLines.some((l) => l.trim().length > 0) && (
-              <div
-                style={{
-                  marginTop: "8px",
-                  border: "1px solid var(--border)",
-                  borderRadius: "var(--radius-sm)",
-                  padding: "8px 12px",
-                  background: "var(--surface)"
-                }}
-              >
-                <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--muted)", marginBottom: "6px" }}>
-                  Live Parsed Breakdown
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "150px", overflowY: "auto" }}>
-                  {ingLines.map((line, idx) => {
-                    const trimmed = line.trim();
-                    if (!trimmed) return null;
-                    if (trimmed.endsWith(":")) {
-                      return (
-                        <div key={idx} style={{ fontWeight: 600, fontSize: "0.85rem", color: "var(--accent)" }}>
-                          Group: {trimmed.replace(/:$/, "")}
-                        </div>
-                      );
-                    }
-                    const parsed = parseIngredient(trimmed);
-                    const qtyStr = parsed.ingredient.quantity
-                      ? (parsed.ingredient.quantity.kind === "single"
-                          ? String(parsed.ingredient.quantity.value)
-                          : `${parsed.ingredient.quantity.min}-${parsed.ingredient.quantity.max}`)
-                      : null;
-
-                    return (
-                      <div
-                        key={idx}
-                        style={{
-                          display: "flex",
-                          flexWrap: "wrap",
-                          alignItems: "center",
-                          gap: "6px",
-                          fontSize: "0.82rem",
-                          borderBottom: "1px solid var(--border-subtle)",
-                          paddingBottom: "3px"
-                        }}
-                      >
-                        {qtyStr ? (
-                          <span style={{ background: "var(--surface-alt)", padding: "1px 6px", borderRadius: "var(--radius-sm)", fontWeight: 600 }}>
-                            {qtyStr}
-                          </span>
-                        ) : (
-                          <span style={{ background: "var(--surface-alt)", padding: "1px 6px", borderRadius: "var(--radius-sm)", color: "var(--muted)" }}>
-                            No amount
-                          </span>
-                        )}
-
-                        {parsed.ingredient.unit && (
-                          <span style={{ background: "var(--surface-alt)", padding: "1px 6px", borderRadius: "var(--radius-sm)", color: "var(--muted)" }}>
-                            {parsed.ingredient.unit}
-                          </span>
-                        )}
-
-                        <span style={{ fontWeight: 500 }}>
-                          {parsed.ingredient.name || trimmed}
-                        </span>
-
-                        {!parsed.ingredient.scalable && (
-                          <span style={{ fontSize: "0.75rem", color: "var(--accent)", border: "1px solid var(--border)", padding: "1px 4px", borderRadius: "var(--radius-sm)" }}>
-                            Not scaled
-                          </span>
-                        )}
-
-                        {parsed.ingredient.note && (
-                          <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
-                            ({parsed.ingredient.note})
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Directions Input */}
-          <div>
-            <label style={{ display: "block", fontWeight: 600, marginBottom: "var(--space-2)" }}>
-              Directions (one step per line)
-            </label>
-            <textarea
-              rows={8}
-              value={directionsText}
-              onChange={(e) => setDirectionsText(e.target.value)}
-              placeholder={"Whisk dry ingredients together in large bowl.\nAdd milk and eggs, stirring until combined.\nBake at 350F for 20 minutes."}
-              style={{ width: "100%", padding: "10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", fontSize: "0.95rem" }}
-            />
-          </div>
-
-          {/* Notes */}
-          <div>
-            <label style={{ display: "block", fontWeight: 600, marginBottom: "var(--space-2)" }}>
-              Cook's Notes
-            </label>
-            <textarea
-              rows={3}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Tips, serving suggestions, or storage instructions..."
-              style={{ width: "100%", padding: "10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }}
-            />
-          </div>
-
-          {/* Source and Credit */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "var(--space-4)" }}>
-            <div>
-              <label style={{ display: "block", fontWeight: 600, marginBottom: "var(--space-2)" }}>
-                Source URL (optional)
-              </label>
-              <input
-                type="url"
-                value={sourceUrl}
-                onChange={(e) => setSourceUrl(e.target.value)}
-                placeholder="https://example.com/recipe"
-                style={{ width: "100%", padding: "10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }}
-              />
-            </div>
-            <div>
-              <label style={{ display: "block", fontWeight: 600, marginBottom: "var(--space-2)" }}>
-                Credit / Source Name (optional)
-              </label>
-              <input
-                type="text"
-                value={sourceName}
-                onChange={(e) => setSourceName(e.target.value)}
-                placeholder="Grandma, Food Blog, etc."
-                style={{ width: "100%", padding: "10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }}
-              />
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div style={{ display: "flex", gap: "var(--space-4)", marginTop: "var(--space-4)" }}>
-            <button
-              type="submit"
-              style={{
-                background: "var(--accent)",
-                color: "var(--accent-contrast)",
-                border: "none",
-                padding: "12px 28px",
-                borderRadius: "var(--radius-full)",
-                fontWeight: 600,
-                fontSize: "1rem",
-                cursor: "pointer"
-              }}
-            >
-              Save Recipe
-            </button>
-            <button
+      {/* Plain Text Paste Dialog */}
+      <Dialog
+        isOpen={showPasteModal}
+        title="Paste Recipe Text"
+        onClose={(): void => setShowPasteModal(false)}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+          <p style={{ margin: 0, color: "var(--muted)", fontSize: "0.875rem" }}>
+            Paste recipe text from a website, document, or email. Ingredients and directions will be separated automatically.
+          </p>
+          <textarea
+            rows={10}
+            className={styles.stepTextarea}
+            placeholder={"Ingredients:\n2 cups flour\n1 cup milk\n\nDirections:\nMix and bake at 350F for 20 minutes."}
+            value={pastedBlob}
+            onChange={(e: ChangeEvent<HTMLTextAreaElement>): void => setPastedBlob(e.target.value)}
+          />
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+            <Button
               type="button"
-              onClick={onCancel}
-              style={{
-                background: "var(--surface)",
-                color: "var(--text)",
-                border: "1px solid var(--border)",
-                padding: "12px 24px",
-                borderRadius: "var(--radius-full)",
-                fontWeight: 500,
-                cursor: "pointer"
-              }}
+              variant="secondary"
+              onClick={(): void => setShowPasteModal(false)}
             >
               Cancel
-            </button>
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              onClick={handleApplyPasteAll}
+              disabled={!pastedBlob.trim()}
+            >
+              Parse & Apply
+            </Button>
           </div>
-        </form>
-      )}
+        </div>
+      </Dialog>
     </div>
   );
 };
