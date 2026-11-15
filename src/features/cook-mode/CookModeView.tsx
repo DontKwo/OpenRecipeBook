@@ -1,8 +1,20 @@
-import { useState, useEffect, useMemo, type FC, type ReactElement, type FormEvent } from "react";
-import type { Recipe, Step } from "../../domain/recipe/types";
+import {
+  useState,
+  useEffect,
+  useMemo,
+  type FC,
+  type ReactElement,
+  type FormEvent,
+  type ChangeEvent
+} from "react";
+import type { Recipe, Step, Ingredient } from "../../domain/recipe/types";
 import { scaleIngredient } from "../../domain/scaling/scaleIngredient";
 import { detectTimersInText, formatTimerCountdown, type DetectedTimer } from "../../domain/recipe/timerDetector";
-import { ClockIcon, XIcon, CheckIcon, PlusIcon } from "../../ui/icons";
+import { ClockIcon, XIcon, CheckIcon, PlusIcon, BookOpenIcon, ListIcon } from "../../ui/icons";
+import { Button, IconButton } from "../../ui/Button";
+import { Dialog } from "../../ui/Dialog";
+import { RichText } from "../../ui/RichText";
+import styles from "./CookModeView.module.css";
 
 export interface CookModeViewProps {
   recipe: Recipe;
@@ -17,6 +29,8 @@ interface ActiveTimer {
   remainingSeconds: number;
 }
 
+type ActiveDrawer = "none" | "ingredients" | "steps" | "timers";
+
 export const CookModeView: FC<CookModeViewProps> = ({
   recipe,
   multiplier,
@@ -24,8 +38,7 @@ export const CookModeView: FC<CookModeViewProps> = ({
 }): ReactElement => {
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
   const [activeTimers, setActiveTimers] = useState<ActiveTimer[]>([]);
-  const [showIngredientsDrawer, setShowIngredientsDrawer] = useState<boolean>(false);
-  const [showStepDrawer, setShowStepDrawer] = useState<boolean>(false);
+  const [activeDrawer, setActiveDrawer] = useState<ActiveDrawer>("none");
   const [showCustomTimerModal, setShowCustomTimerModal] = useState<boolean>(false);
   const [customTimerMinutes, setCustomTimerMinutes] = useState<number>(5);
   const [customTimerSeconds, setCustomTimerSeconds] = useState<number>(0);
@@ -50,11 +63,14 @@ export const CookModeView: FC<CookModeViewProps> = ({
   useEffect(() => {
     let wakeLockSentinel: WakeLockSentinel | null = null;
     if ("wakeLock" in navigator) {
-      navigator.wakeLock.request("screen").then((sentinel: WakeLockSentinel): void => {
-        wakeLockSentinel = sentinel;
-      }).catch((): void => {
-        // WakeLock not granted or supported
-      });
+      navigator.wakeLock
+        .request("screen")
+        .then((sentinel: WakeLockSentinel): void => {
+          wakeLockSentinel = sentinel;
+        })
+        .catch((): void => {
+          // Wake lock not granted or supported
+        });
     }
 
     return () => {
@@ -71,7 +87,8 @@ export const CookModeView: FC<CookModeViewProps> = ({
         return prev.map((timer: ActiveTimer): ActiveTimer => {
           if (timer.remainingSeconds <= 1) {
             try {
-              const audioCtx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+              const audioCtx = new (window.AudioContext ||
+                (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
               const osc = audioCtx.createOscillator();
               osc.type = "sine";
               osc.frequency.setValueAtTime(880, audioCtx.currentTime);
@@ -108,7 +125,7 @@ export const CookModeView: FC<CookModeViewProps> = ({
 
   const handleStartCustomTimer = (e: FormEvent): void => {
     e.preventDefault();
-    const totalSecs = (customTimerMinutes * 60) + customTimerSeconds;
+    const totalSecs = customTimerMinutes * 60 + customTimerSeconds;
     if (totalSecs <= 0) return;
 
     const newTimer: ActiveTimer = {
@@ -122,7 +139,9 @@ export const CookModeView: FC<CookModeViewProps> = ({
   };
 
   const removeTimer = (id: string): void => {
-    setActiveTimers((prev: ActiveTimer[]): ActiveTimer[] => prev.filter((t: ActiveTimer): boolean => t.id !== id));
+    setActiveTimers((prev: ActiveTimer[]): ActiveTimer[] =>
+      prev.filter((t: ActiveTimer): boolean => t.id !== id)
+    );
   };
 
   const toggleStepCompleted = (index: number): void => {
@@ -135,9 +154,13 @@ export const CookModeView: FC<CookModeViewProps> = ({
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") {
+      if (e.key === "ArrowRight" || e.key === "PageDown") {
         e.preventDefault();
         if (currentStepIndex < allSteps.length - 1) {
+          setCompletedSteps((prev: Record<number, boolean>): Record<number, boolean> => ({
+            ...prev,
+            [currentStepIndex]: true
+          }));
           setCurrentStepIndex((prev: number): number => prev + 1);
         }
       } else if (e.key === "ArrowLeft" || e.key === "PageUp") {
@@ -146,618 +169,522 @@ export const CookModeView: FC<CookModeViewProps> = ({
           setCurrentStepIndex((prev: number): number => prev - 1);
         }
       } else if (e.key === "Escape") {
-        onClose();
+        if (activeDrawer !== "none") {
+          setActiveDrawer("none");
+        } else {
+          onClose();
+        }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [currentStepIndex, allSteps.length, onClose]);
+  }, [currentStepIndex, allSteps.length, activeDrawer, onClose]);
 
-  const progressPercent = allSteps.length > 0
-    ? Math.round(((currentStepIndex + 1) / allSteps.length) * 100)
-    : 0;
+  const progressPercent =
+    allSteps.length > 0 ? Math.round(((currentStepIndex + 1) / allSteps.length) * 100) : 0;
 
   const totalIngredientsCount = recipe.ingredientGroups.reduce(
     (acc: number, g): number => acc + g.items.length,
     0
   );
 
+  const toggleDrawer = (target: ActiveDrawer): void => {
+    setActiveDrawer((prev: ActiveDrawer): ActiveDrawer => (prev === target ? "none" : target));
+  };
+
+  const handleNextStep = (): void => {
+    setCompletedSteps((prev: Record<number, boolean>): Record<number, boolean> => ({
+      ...prev,
+      [currentStepIndex]: true
+    }));
+    if (currentStepIndex < allSteps.length - 1) {
+      setCurrentStepIndex((prev: number): number => prev + 1);
+    } else {
+      onClose();
+    }
+  };
+
+  const handlePrevStep = (): void => {
+    if (currentStepIndex > 0) {
+      setCurrentStepIndex((prev: number): number => prev - 1);
+    }
+  };
+
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "var(--bg)",
-        zIndex: 1000,
-        display: "flex",
-        flexDirection: "column",
-        color: "var(--text)",
-        overflow: "hidden"
-      }}
-    >
-      {/* Top progress bar */}
-      <div style={{ width: "100%", height: "4px", background: "var(--border)" }}>
+    <div className={styles.cookModeOverlay}>
+      {/* Top progress line */}
+      <div className={styles.progressBar}>
         <div
-          style={{
-            height: "100%",
-            width: `${progressPercent}%`,
-            background: "var(--accent)",
-            transition: "width 0.25s ease"
-          }}
+          className={styles.progressFill}
+          style={{ width: `${progressPercent}%` }}
         />
       </div>
 
-      {/* Top Bar */}
-      <div
-        style={{
-          padding: "var(--space-4) var(--space-6)",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          borderBottom: "1px solid var(--border)",
-          background: "var(--surface)"
-        }}
-      >
-        <div>
-          <span style={{ fontSize: "0.85rem", textTransform: "uppercase", color: "var(--accent)", fontWeight: 700, letterSpacing: "1px" }}>
-            Cook Mode · {multiplier}× Scale
+      {/* 56px Top Bar: [X exit] [title flex:1 ellipsis over "Step 3 of 11"] [timers] [ingredients] [steps] */}
+      <header className={styles.topBar}>
+        <IconButton
+          variant="ghost"
+          size="md"
+          icon={<XIcon width={20} height={20} />}
+          aria-label="Exit Cook Mode"
+          onClick={onClose}
+        />
+
+        <div className={styles.topBarTitleArea}>
+          <h2 className={styles.topBarTitle}>{recipe.title}</h2>
+          <span className={styles.topBarSubtitle}>
+            Step {currentStepIndex + 1} of {allSteps.length}
+            {multiplier !== 1 && ` · ${multiplier}x scale`}
           </span>
-          <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "1.25rem", margin: 0 }}>
-            {recipe.title}
-          </h2>
         </div>
 
-        <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
-          {/* Step overview drawer toggle */}
-          <button
-            type="button"
-            onClick={(): void => setShowStepDrawer(!showStepDrawer)}
-            style={{
-              background: showStepDrawer ? "var(--surface-alt)" : "var(--surface)",
-              color: showStepDrawer ? "var(--accent)" : "var(--text)",
-              border: "1px solid var(--border)",
-              padding: "8px 14px",
-              borderRadius: "var(--radius-full)",
-              cursor: "pointer",
-              fontWeight: 600,
-              fontSize: "0.85rem"
-            }}
+        <div className={styles.topBarActions}>
+          <Button
+            variant={activeDrawer === "timers" ? "primary" : "secondary"}
+            size="sm"
+            icon={<ClockIcon width={16} height={16} />}
+            aria-label="Timers"
+            onClick={(): void => toggleDrawer("timers")}
           >
-            Steps ({currentStepIndex + 1}/{allSteps.length})
-          </button>
+            {activeTimers.length > 0 ? (
+              <span>({activeTimers.length})</span>
+            ) : null}
+            <span className={styles.actionLabel}>Timers</span>
+          </Button>
 
-          {/* Add custom timer button */}
-          <button
-            type="button"
-            onClick={(): void => setShowCustomTimerModal(true)}
-            style={{
-              background: "var(--surface)",
-              color: "var(--text)",
-              border: "1px solid var(--border)",
-              padding: "8px 14px",
-              borderRadius: "var(--radius-full)",
-              cursor: "pointer",
-              fontWeight: 600,
-              fontSize: "0.85rem",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "4px"
-            }}
-            title="Create custom countdown timer"
+          <Button
+            variant={activeDrawer === "ingredients" ? "primary" : "secondary"}
+            size="sm"
+            icon={<BookOpenIcon width={16} height={16} />}
+            aria-label="Ingredients"
+            onClick={(): void => toggleDrawer("ingredients")}
           >
-            <ClockIcon width={14} height={14} /> + Timer
-          </button>
+            <span>({totalIngredientsCount})</span>
+            <span className={styles.actionLabel}>Ingredients</span>
+          </Button>
 
-          {/* Ingredients drawer toggle */}
-          <button
-            type="button"
-            onClick={(): void => setShowIngredientsDrawer(!showIngredientsDrawer)}
-            style={{
-              background: showIngredientsDrawer ? "var(--surface-alt)" : "var(--surface)",
-              color: showIngredientsDrawer ? "var(--accent)" : "var(--text)",
-              border: "1px solid var(--border)",
-              padding: "8px 14px",
-              borderRadius: "var(--radius-full)",
-              cursor: "pointer",
-              fontWeight: 600,
-              fontSize: "0.85rem"
-            }}
+          <Button
+            variant={activeDrawer === "steps" ? "primary" : "secondary"}
+            size="sm"
+            icon={<ListIcon width={16} height={16} />}
+            aria-label="Steps"
+            onClick={(): void => toggleDrawer("steps")}
           >
-            Ingredients ({totalIngredientsCount})
-          </button>
-
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              width: "36px",
-              height: "36px",
-              borderRadius: "var(--radius-full)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-              marginLeft: "var(--space-2)"
-            }}
-            aria-label="Exit Cook Mode"
-          >
-            <XIcon width={18} height={18} />
-          </button>
+            <span>({currentStepIndex + 1}/{allSteps.length})</span>
+            <span className={styles.actionLabel}>Steps</span>
+          </Button>
         </div>
-      </div>
+      </header>
 
-      {/* Main Content Area */}
-      <div style={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}>
-        {/* Step Display */}
-        <div style={{ flex: 1, padding: "var(--space-10) var(--space-8)", display: "flex", flexDirection: "column", justifyContent: "center", maxWidth: "900px", margin: "0 auto", overflowY: "auto" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-3)" }}>
-            <div style={{ fontSize: "1.1rem", textTransform: "uppercase", color: "var(--accent)", fontWeight: 700 }}>
-              Step {currentStepIndex + 1} of {allSteps.length}
+      {/* Main Area: Large Step Display */}
+      <main className={styles.mainArea}>
+        <div className={styles.stepContent}>
+          <div className={styles.stepNumber}>
+            Step {currentStepIndex + 1} of {allSteps.length}
+          </div>
+
+          {currentStep && (
+            <div className={styles.stepText}>
+              <RichText content={currentStep.text} />
             </div>
-
-            <button
-              type="button"
-              onClick={(): void => toggleStepCompleted(currentStepIndex)}
-              style={{
-                background: completedSteps[currentStepIndex] ? "var(--accent)" : "var(--surface)",
-                color: completedSteps[currentStepIndex] ? "var(--accent-contrast)" : "var(--muted)",
-                border: "1px solid " + (completedSteps[currentStepIndex] ? "var(--accent)" : "var(--border)"),
-                padding: "6px 14px",
-                borderRadius: "var(--radius-full)",
-                cursor: "pointer",
-                fontSize: "0.85rem",
-                fontWeight: 600,
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px"
-              }}
-            >
-              <CheckIcon width={14} height={14} /> {completedSteps[currentStepIndex] ? "Completed" : "Mark Done"}
-            </button>
-          </div>
-
-          <div
-            style={{
-              fontFamily: "var(--font-serif)",
-              fontSize: "clamp(1.5rem, 3.5vw, 2.5rem)",
-              lineHeight: 1.4,
-              marginBottom: currentStep?.note ? "var(--space-4)" : "var(--space-8)",
-              textDecoration: completedSteps[currentStepIndex] ? "line-through" : "none",
-              opacity: completedSteps[currentStepIndex] ? 0.7 : 1
-            }}
-          >
-            {currentStep?.text}
-          </div>
+          )}
 
           {currentStep?.note && (
-            <div
-              style={{
-                padding: "var(--space-3) var(--space-4)",
-                background: "var(--surface-alt)",
-                borderLeft: "4px solid var(--accent)",
-                borderRadius: "var(--radius-sm)",
-                fontSize: "1.1rem",
-                color: "var(--text)",
-                marginBottom: "var(--space-8)",
-                fontStyle: "italic"
-              }}
-            >
+            <div className={styles.stepNote}>
               Note: {currentStep.note}
             </div>
           )}
 
-          {/* Detected Timers for Step */}
+          {/* Inline detected timers */}
           {detectedTimers.length > 0 && (
-            <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap", marginBottom: "var(--space-6)" }}>
-              {detectedTimers.map((timer: DetectedTimer, index: number): ReactElement => (
-                <button
-                  key={index}
-                  type="button"
-                  onClick={(): void => startTimer(timer)}
-                  style={{
-                    background: "var(--accent)",
-                    color: "var(--accent-contrast)",
-                    border: "none",
-                    padding: "12px 24px",
-                    borderRadius: "var(--radius-full)",
-                    fontWeight: 600,
-                    fontSize: "1.05rem",
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    boxShadow: "var(--shadow-md)"
-                  }}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center", marginTop: "var(--space-4)" }}>
+              {detectedTimers.map((dt: DetectedTimer): ReactElement => (
+                <Button
+                  key={dt.label}
+                  variant="secondary"
+                  size="sm"
+                  icon={<ClockIcon width={15} height={15} />}
+                  onClick={(): void => startTimer(dt)}
                 >
-                  <ClockIcon width={20} height={20} /> Start {timer.label} Timer
-                </button>
+                  Start {dt.label} ({Math.round(dt.seconds / 60)}m)
+                </Button>
               ))}
             </div>
           )}
-
-          {/* Step Navigation Controls */}
-          <div style={{ display: "flex", gap: "var(--space-4)", marginTop: "auto" }}>
-            <button
-              type="button"
-              disabled={currentStepIndex === 0}
-              onClick={(): void => setCurrentStepIndex((prev: number): number => prev - 1)}
-              style={{
-                flex: 1,
-                padding: "16px",
-                borderRadius: "var(--radius-full)",
-                border: "1px solid var(--border)",
-                background: "var(--surface)",
-                fontSize: "1.1rem",
-                fontWeight: 600,
-                cursor: currentStepIndex === 0 ? "not-allowed" : "pointer",
-                opacity: currentStepIndex === 0 ? 0.5 : 1
-              }}
-            >
-              &larr; Previous Step
-            </button>
-
-            <button
-              type="button"
-              disabled={currentStepIndex >= allSteps.length - 1}
-              onClick={(): void => {
-                setCompletedSteps((prev: Record<number, boolean>): Record<number, boolean> => ({
-                  ...prev,
-                  [currentStepIndex]: true
-                }));
-                setCurrentStepIndex((prev: number): number => prev + 1);
-              }}
-              style={{
-                flex: 2,
-                padding: "16px",
-                borderRadius: "var(--radius-full)",
-                border: "none",
-                background: "var(--accent)",
-                color: "var(--accent-contrast)",
-                fontSize: "1.1rem",
-                fontWeight: 600,
-                cursor: currentStepIndex >= allSteps.length - 1 ? "not-allowed" : "pointer",
-                opacity: currentStepIndex >= allSteps.length - 1 ? 0.5 : 1
-              }}
-            >
-              {currentStepIndex >= allSteps.length - 1 ? "Finished Cooking!" : "Next Step"}
-            </button>
-          </div>
         </div>
+      </main>
 
-        {/* Slide-out Step Overview Drawer */}
-        {showStepDrawer && (
-          <div
-            style={{
-              width: "360px",
-              background: "var(--surface)",
-              borderLeft: "1px solid var(--border)",
-              padding: "var(--space-6)",
-              overflowY: "auto",
-              boxShadow: "var(--shadow-lg)",
-              display: "flex",
-              flexDirection: "column",
-              gap: "var(--space-3)"
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-2)" }}>
-              <h3 style={{ fontFamily: "var(--font-serif)", fontSize: "1.3rem", margin: 0 }}>
-                Steps Overview
-              </h3>
-              <button
-                type="button"
-                onClick={(): void => setShowStepDrawer(false)}
-                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)" }}
-                aria-label="Close steps overview"
-              >
-                <XIcon width={16} height={16} />
-              </button>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-              {allSteps.map((step: Step, idx: number) => {
-                const isCurrent = idx === currentStepIndex;
-                const isDone = completedSteps[idx];
-
-                return (
-                  <div
-                    key={step.id || idx}
-                    onClick={(): void => {
-                      setCurrentStepIndex(idx);
-                      setShowStepDrawer(false);
-                    }}
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: "var(--radius-md)",
-                      background: isCurrent ? "var(--surface-alt)" : "transparent",
-                      border: "1px solid " + (isCurrent ? "var(--accent)" : "var(--border)"),
-                      cursor: "pointer",
-                      display: "flex",
-                      gap: "10px",
-                      alignItems: "flex-start"
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={!!isDone}
-                      onClick={(e): void => e.stopPropagation()}
-                      onChange={(): void => toggleStepCompleted(idx)}
-                      style={{ marginTop: "3px", cursor: "pointer" }}
-                    />
-
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: "0.8rem", fontWeight: 700, color: isCurrent ? "var(--accent)" : "var(--muted)", textTransform: "uppercase" }}>
-                        Step {idx + 1}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: "0.88rem",
-                          lineHeight: 1.35,
-                          marginTop: "2px",
-                          textDecoration: isDone ? "line-through" : "none",
-                          color: isDone ? "var(--muted)" : "var(--text)",
-                          overflow: "hidden",
-                          display: "-webkit-box",
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: "vertical"
-                        }}
-                      >
-                        {step.text}
-                      </div>
-                      {step.note && (
-                        <div style={{ fontSize: "0.78rem", fontStyle: "italic", color: "var(--muted)", marginTop: "2px" }}>
-                          Note: {step.note}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Slide-out Ingredients Panel */}
-        {showIngredientsDrawer && (
-          <div
-            style={{
-              width: "350px",
-              background: "var(--surface)",
-              borderLeft: "1px solid var(--border)",
-              padding: "var(--space-6)",
-              overflowY: "auto",
-              boxShadow: "var(--shadow-lg)"
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-4)" }}>
-              <h3 style={{ fontFamily: "var(--font-serif)", fontSize: "1.3rem", margin: 0 }}>
-                Ingredients ({multiplier}×)
-              </h3>
-              <button
-                type="button"
-                onClick={(): void => setShowIngredientsDrawer(false)}
-                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)" }}
-                aria-label="Close ingredients"
-              >
-                <XIcon width={16} height={16} />
-              </button>
-            </div>
-
-            {recipe.ingredientGroups.map((group, groupIndex: number) => (
-              <div key={groupIndex} style={{ marginBottom: "var(--space-4)" }}>
-                {group.heading && (
-                  <h4 style={{ fontSize: "0.85rem", textTransform: "uppercase", color: "var(--muted)", marginBottom: "4px" }}>
-                    {group.heading}
-                  </h4>
-                )}
-                <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                  {group.items.map((item) => {
-                    const scaled = scaleIngredient(item, multiplier);
-                    const isChecked = !!checkedIngredients[item.id];
-                    return (
-                      <li
-                        key={item.id}
-                        onClick={(): void => setCheckedIngredients((p): Record<string, boolean> => ({ ...p, [item.id]: !p[item.id] }))}
-                        style={{
-                          padding: "6px 0",
-                          cursor: "pointer",
-                          textDecoration: isChecked ? "line-through" : "none",
-                          color: isChecked ? "var(--muted)" : "var(--text)",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "8px"
-                        }}
-                      >
-                        <input type="checkbox" checked={isChecked} onChange={(): void => {}} style={{ cursor: "pointer" }} />
-                        <span>{scaled.formattedText}</span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Floating Active Timers Bar */}
+      {/* Floating active timers strip */}
       {activeTimers.length > 0 && (
         <div
           style={{
             background: "var(--surface)",
             borderTop: "2px solid var(--accent)",
-            padding: "var(--space-3) var(--space-6)",
+            padding: "8px 16px",
             display: "flex",
-            gap: "var(--space-4)",
-            overflowX: "auto"
+            gap: 12,
+            overflowX: "auto",
+            alignItems: "center"
           }}
         >
-          {activeTimers.map((timer: ActiveTimer) => (
+          {activeTimers.map((timer: ActiveTimer): ReactElement => (
             <div
               key={timer.id}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
-                gap: "var(--space-3)",
+                gap: 8,
                 background: timer.remainingSeconds === 0 ? "var(--danger)" : "var(--surface-alt)",
                 color: timer.remainingSeconds === 0 ? "var(--accent-contrast)" : "var(--text)",
-                padding: "8px 16px",
+                padding: "4px 12px",
                 borderRadius: "var(--radius-full)",
+                fontSize: "0.875rem",
                 fontWeight: 600
               }}
             >
               <span>{timer.label}:</span>
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: "1.1rem" }}>
+              <span style={{ fontFamily: "var(--font-mono)" }}>
                 {formatTimerCountdown(timer.remainingSeconds)}
               </span>
-              <button
-                type="button"
+              <IconButton
+                variant="ghost"
+                size="sm"
+                icon={<XIcon width={12} height={12} />}
+                aria-label={`Close ${timer.label} timer`}
                 onClick={(): void => removeTimer(timer.id)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: "inherit",
-                  cursor: "pointer",
-                  marginLeft: "4px"
-                }}
-                aria-label="Remove timer"
-              >
-                &times;
-              </button>
+              />
             </div>
           ))}
         </div>
       )}
 
-      {/* Custom Timer Modal */}
-      {showCustomTimerModal && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0, 0, 0, 0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1100,
-            padding: "var(--space-4)"
-          }}
+      {/* 56px Bottom Bar: Previous / Next Step */}
+      <footer className={styles.bottomBar}>
+        <Button
+          variant="secondary"
+          size="lg"
+          onClick={handlePrevStep}
+          disabled={currentStepIndex === 0}
         >
-          <div
-            style={{
-              background: "var(--surface)",
-              borderRadius: "var(--radius-md)",
-              padding: "var(--space-6)",
-              maxWidth: "380px",
-              width: "100%",
-              boxShadow: "var(--shadow-lg)"
-            }}
-          >
-            <h3 style={{ fontFamily: "var(--font-serif)", fontSize: "1.25rem", margin: "0 0 var(--space-3) 0" }}>
-              Add Countdown Timer
+          Previous
+        </Button>
+
+        <Button
+          variant="primary"
+          size="lg"
+          onClick={handleNextStep}
+        >
+          {currentStepIndex >= allSteps.length - 1 ? (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <CheckIcon width={18} height={18} />
+              Complete Cook Session
+            </span>
+          ) : (
+            "Next Step"
+          )}
+        </Button>
+      </footer>
+
+      {/* Backdrop for open drawer */}
+      {activeDrawer !== "none" && (
+        <div
+          className={styles.drawerBackdrop}
+          onClick={(): void => setActiveDrawer("none")}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Ingredients Drawer */}
+      {activeDrawer === "ingredients" && (
+        <div className={styles.drawer}>
+          <div className={styles.drawerHeader}>
+            <h3 className={styles.drawerTitle}>
+              Ingredients ({multiplier}x Scale)
             </h3>
-            <form onSubmit={handleStartCustomTimer} style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+            <IconButton
+              variant="ghost"
+              size="sm"
+              icon={<XIcon width={18} height={18} />}
+              aria-label="Close ingredients"
+              onClick={(): void => setActiveDrawer("none")}
+            />
+          </div>
+
+          <div className={styles.drawerBody}>
+            {recipe.ingredientGroups.map((group, gIdx: number): ReactElement => (
+              <div key={gIdx} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {group.heading && (
+                  <span style={{ fontSize: "0.75rem", textTransform: "uppercase", fontWeight: 700, color: "var(--muted)" }}>
+                    {group.heading}
+                  </span>
+                )}
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {group.items.map((item: Ingredient): ReactElement => {
+                    const scaled = scaleIngredient(item, multiplier);
+                    const isChecked = Boolean(checkedIngredients[item.id]);
+
+                    return (
+                      <label
+                        key={item.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                          padding: "6px 8px",
+                          borderRadius: "var(--radius-sm)",
+                          background: isChecked ? "transparent" : "var(--surface-alt)",
+                          cursor: "pointer",
+                          textDecoration: isChecked ? "line-through" : "none",
+                          color: isChecked ? "var(--muted)" : "var(--text)",
+                          fontSize: "0.9375rem"
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(): void =>
+                            setCheckedIngredients((prev: Record<string, boolean>): Record<string, boolean> => ({
+                              ...prev,
+                              [item.id]: !prev[item.id]
+                            }))
+                          }
+                          style={{ width: 18, height: 18, cursor: "pointer" }}
+                        />
+                        <span>{scaled.formattedText}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Steps Overview Drawer */}
+      {activeDrawer === "steps" && (
+        <div className={styles.drawer}>
+          <div className={styles.drawerHeader}>
+            <h3 className={styles.drawerTitle}>
+              Steps Overview
+            </h3>
+            <IconButton
+              variant="ghost"
+              size="sm"
+              icon={<XIcon width={18} height={18} />}
+              aria-label="Close steps overview"
+              onClick={(): void => setActiveDrawer("none")}
+            />
+          </div>
+
+          <div className={styles.drawerBody}>
+            {allSteps.map((step: Step, idx: number): ReactElement => {
+              const isCurrent = idx === currentStepIndex;
+              const isDone = Boolean(completedSteps[idx]);
+
+              return (
+                <div
+                  key={step.id || idx}
+                  onClick={(): void => {
+                    setCurrentStepIndex(idx);
+                    setActiveDrawer("none");
+                  }}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: "var(--radius-md)",
+                    background: isCurrent ? "var(--surface-alt)" : "transparent",
+                    border: `1px solid ${isCurrent ? "var(--accent)" : "var(--border)"}`,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 10
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isDone}
+                    onClick={(e): void => e.stopPropagation()}
+                    onChange={(): void => toggleStepCompleted(idx)}
+                    style={{ marginTop: 3, cursor: "pointer" }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: "0.75rem", fontWeight: 700, color: isCurrent ? "var(--accent)" : "var(--muted)", textTransform: "uppercase" }}>
+                      Step {idx + 1}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "0.875rem",
+                        lineHeight: 1.4,
+                        textDecoration: isDone ? "line-through" : "none",
+                        color: isDone ? "var(--muted)" : "var(--text)"
+                      }}
+                    >
+                      {step.text}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Timers Drawer */}
+      {activeDrawer === "timers" && (
+        <div className={styles.drawer}>
+          <div className={styles.drawerHeader}>
+            <h3 className={styles.drawerTitle}>Active & Custom Timers</h3>
+            <IconButton
+              variant="ghost"
+              size="sm"
+              icon={<XIcon width={18} height={18} />}
+              aria-label="Close timers"
+              onClick={(): void => setActiveDrawer("none")}
+            />
+          </div>
+
+          <div className={styles.drawerBody}>
+            <Button
+              variant="primary"
+              icon={<PlusIcon width={16} height={16} />}
+              onClick={(): void => setShowCustomTimerModal(true)}
+            >
+              Add Countdown Timer
+            </Button>
+
+            {activeTimers.length === 0 ? (
+              <p style={{ color: "var(--muted)", fontSize: "0.875rem", textAlign: "center", padding: "var(--space-4)" }}>
+                No active countdown timers.
+              </p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {activeTimers.map((timer: ActiveTimer): ReactElement => (
+                  <div
+                    key={timer.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "8px 12px",
+                      borderRadius: "var(--radius-md)",
+                      background: timer.remainingSeconds === 0 ? "var(--danger)" : "var(--surface-alt)",
+                      color: timer.remainingSeconds === 0 ? "var(--accent-contrast)" : "var(--text)"
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 600 }}>{timer.label}</div>
+                      <div style={{ fontFamily: "var(--font-mono)", fontSize: "1.25rem" }}>
+                        {formatTimerCountdown(timer.remainingSeconds)}
+                      </div>
+                    </div>
+                    <IconButton
+                      variant="ghost"
+                      size="sm"
+                      icon={<XIcon width={16} height={16} />}
+                      aria-label={`Dismiss ${timer.label}`}
+                      onClick={(): void => removeTimer(timer.id)}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Custom Timer Dialog */}
+      {showCustomTimerModal && (
+        <Dialog
+          isOpen
+          title="New Countdown Timer"
+          onClose={(): void => setShowCustomTimerModal(false)}
+          maxWidth={380}
+          footer={
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, width: "100%" }}>
+              <Button
+                variant="secondary"
+                onClick={(): void => setShowCustomTimerModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleStartCustomTimer}
+              >
+                Start Timer
+              </Button>
+            </div>
+          }
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+            <div>
+              <label style={{ display: "block", fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)", marginBottom: 4 }}>
+                LABEL
+              </label>
+              <input
+                type="text"
+                value={customTimerLabel}
+                onChange={(e: ChangeEvent<HTMLInputElement>): void => setCustomTimerLabel(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--border)",
+                  background: "var(--surface)",
+                  color: "var(--text)"
+                }}
+              />
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
               <div>
-                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "4px" }}>
-                  Timer Label
+                <label style={{ display: "block", fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)", marginBottom: 4 }}>
+                  MINUTES
                 </label>
                 <input
-                  type="text"
-                  autoFocus
-                  required
-                  value={customTimerLabel}
-                  onChange={(e): void => setCustomTimerLabel(e.target.value)}
-                  placeholder="e.g. Rest meat, Simmer, Boil pasta"
-                  style={{ width: "100%", padding: "8px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", background: "var(--bg)" }}
+                  type="number"
+                  min="0"
+                  max="1440"
+                  value={customTimerMinutes}
+                  onChange={(e: ChangeEvent<HTMLInputElement>): void =>
+                    setCustomTimerMinutes(Math.max(0, parseInt(e.target.value, 10) || 0))
+                  }
+                  style={{
+                    width: "100%",
+                    padding: "8px 12px",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--border)",
+                    background: "var(--surface)",
+                    color: "var(--text)"
+                  }}
                 />
               </div>
 
-              <div style={{ display: "flex", gap: "var(--space-3)" }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "4px" }}>
-                    Minutes
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={1440}
-                    value={customTimerMinutes}
-                    onChange={(e): void => setCustomTimerMinutes(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                    style={{ width: "100%", padding: "8px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", background: "var(--bg)" }}
-                  />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "4px" }}>
-                    Seconds
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={59}
-                    value={customTimerSeconds}
-                    onChange={(e): void => setCustomTimerSeconds(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                    style={{ width: "100%", padding: "8px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", background: "var(--bg)" }}
-                  />
-                </div>
-              </div>
-
-              {/* Quick minute preset buttons */}
-              <div style={{ display: "flex", gap: "var(--space-2)" }}>
-                {[1, 3, 5, 10, 15, 30].map((mins: number) => (
-                  <button
-                    key={mins}
-                    type="button"
-                    onClick={(): void => {
-                      setCustomTimerMinutes(mins);
-                      setCustomTimerSeconds(0);
-                    }}
-                    style={{
-                      flex: 1,
-                      background: customTimerMinutes === mins && customTimerSeconds === 0 ? "var(--accent)" : "var(--surface-alt)",
-                      color: customTimerMinutes === mins && customTimerSeconds === 0 ? "var(--accent-contrast)" : "var(--text)",
-                      border: "1px solid var(--border)",
-                      padding: "4px 0",
-                      borderRadius: "var(--radius-sm)",
-                      fontSize: "0.78rem",
-                      cursor: "pointer",
-                      fontWeight: 600
-                    }}
-                  >
-                    {mins}m
-                  </button>
-                ))}
-              </div>
-
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-2)", marginTop: "var(--space-2)" }}>
-                <button
-                  type="button"
-                  onClick={(): void => setShowCustomTimerModal(false)}
-                  style={{ background: "none", border: "1px solid var(--border)", padding: "8px 16px", borderRadius: "var(--radius-full)", cursor: "pointer" }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
+              <div>
+                <label style={{ display: "block", fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)", marginBottom: 4 }}>
+                  SECONDS
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="59"
+                  value={customTimerSeconds}
+                  onChange={(e: ChangeEvent<HTMLInputElement>): void =>
+                    setCustomTimerSeconds(Math.max(0, parseInt(e.target.value, 10) || 0))
+                  }
                   style={{
-                    background: "var(--accent)",
-                    color: "var(--accent-contrast)",
-                    border: "none",
-                    padding: "8px 18px",
-                    borderRadius: "var(--radius-full)",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "6px"
+                    width: "100%",
+                    padding: "8px 12px",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--border)",
+                    background: "var(--surface)",
+                    color: "var(--text)"
                   }}
-                >
-                  <PlusIcon width={14} height={14} /> Start Timer
-                </button>
+                />
               </div>
-            </form>
+            </div>
           </div>
-        </div>
+        </Dialog>
       )}
     </div>
   );

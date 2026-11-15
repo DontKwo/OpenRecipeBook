@@ -42,16 +42,18 @@ export function renderInlineContent(text: string): ReactNode[] {
 
 export interface RichTextProps {
   text?: string;
+  content?: string;
   className?: string;
   style?: React.CSSProperties;
 }
 
-export function RichText({ text = "", className = "", style }: RichTextProps): JSX.Element {
-  if (!text.trim()) {
+export function RichText({ text, content, className = "", style }: RichTextProps): JSX.Element {
+  const rawText = content !== undefined ? content : text || "";
+  if (!rawText.trim()) {
     return <span className={className} style={style} />;
   }
 
-  const blocks = text.trim().split(/\n\s*\n/);
+  const blocks = rawText.trim().split(/\n\s*\n/);
 
   return (
     <div className={className} style={style}>
