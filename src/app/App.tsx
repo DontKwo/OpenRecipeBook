@@ -1,6 +1,14 @@
 import { useState, useEffect, type FC, type ReactElement } from "react";
 import { db } from "../data/db";
-import type { Recipe, ShoppingList, MealPlanEntry, Combo, DictionaryIngredient, Collection, SavedMenu } from "../domain/recipe/types";
+import type {
+  Recipe,
+  ShoppingList,
+  MealPlanEntry,
+  Combo,
+  DictionaryIngredient,
+  Collection,
+  SavedMenu
+} from "../domain/recipe/types";
 import { BRAND } from "../config/brand";
 import { SAMPLE_RECIPES } from "../data/sampleRecipes";
 import {
@@ -14,7 +22,13 @@ import { parseRecipeKeeperZip } from "../domain/import/recipeKeeper";
 import { parsePaprikaRecipesZip } from "../domain/import/paprika";
 import { parseSchemaRecipeJsonLd } from "../domain/import/jsonld";
 import { importRecipesFromUrl } from "../domain/import/nativeFetch";
-import { createDefaultShoppingList, buildShoppingItemFromIngredient, mergeShoppingItems } from "../domain/shopping/shoppingService";
+import {
+  createDefaultShoppingList,
+  buildShoppingItemFromIngredient,
+  mergeShoppingItems
+} from "../domain/shopping/shoppingService";
+import { runRecipeCleanupMigration } from "../data/migration";
+import { saveRecipe } from "../data/recipePersistence";
 import { RecipeLibrary } from "../features/library/RecipeLibrary";
 import { RecipeView } from "../features/recipe-view/RecipeView";
 import { RecipeEditor } from "../features/editor/RecipeEditor";
@@ -38,13 +52,26 @@ import {
   SettingsIcon,
   CalendarIcon,
   ShoppingCartIcon,
-  PlusIcon,
-  XIcon
+  PlusIcon
 } from "../ui/icons";
+import { Button } from "../ui/Button";
+import { Dialog } from "../ui/Dialog";
+import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { ToastProvider, useToast } from "../ui/Toast";
+import styles from "./AppShell.module.css";
 
-type ActiveTab = "library" | "recipe-view" | "editor" | "totals" | "planner" | "shopping" | "settings" | "gallery";
+type ActiveTab =
+  | "library"
+  | "recipe-view"
+  | "editor"
+  | "totals"
+  | "planner"
+  | "shopping"
+  | "settings"
+  | "gallery";
 
-export const App: FC = (): ReactElement => {
+function AppContent(): ReactElement {
+  const { showToast } = useToast();
   const [recipes, setRecipes] = useState<Recipe[]>(SAMPLE_RECIPES);
   const [trashedRecipes, setTrashedRecipes] = useState<Recipe[]>([]);
   const [shoppingLists, setShoppingLists] = useState<ShoppingList[]>([]);
@@ -57,32 +84,18 @@ export const App: FC = (): ReactElement => {
   const [showUserIngredientsModal, setShowUserIngredientsModal] = useState<boolean>(false);
   const [showCookbookModal, setShowCookbookModal] = useState<boolean>(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState<boolean>(false);
+  const [emptyTrashConfirmOpen, setEmptyTrashConfirmOpen] = useState<boolean>(false);
   const [isDraggingOver, setIsDraggingOver] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>("library");
   const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null);
   const [editingRecipe, setEditingRecipe] = useState<Recipe | undefined>(undefined);
   const [cookModeRecipe, setCookModeRecipe] = useState<Recipe | null>(null);
+  const [cookModeMultiplier, setCookModeMultiplier] = useState<number>(1);
   const [importCandidates, setImportCandidates] = useState<Recipe[] | null>(null);
 
-  // Load all data from Dexie
   const refreshAllData = async (): Promise<void> => {
     try {
-      const sampleVersionSetting = await db.settings.get("sampleRecipesVersion");
-      const currentSampleVersion = 2;
-      const oldSampleIds = ["sample-pancakes", "sample-chili", "sample-pasta", "sample-cookies"];
-
-      if (!sampleVersionSetting || (sampleVersionSetting.value as number) < currentSampleVersion) {
-        for (const oldId of oldSampleIds) {
-          await db.recipes.delete(oldId);
-        }
-        for (const sample of SAMPLE_RECIPES) {
-          const existing = await db.recipes.get(sample.id);
-          if (!existing) {
-            await db.recipes.put(sample);
-          }
-        }
-        await db.settings.put({ key: "sampleRecipesVersion", value: currentSampleVersion });
-      }
+      await runRecipeCleanupMigration();
 
       let allStored = await db.recipes.toArray();
       if (allStored.length === 0) {
@@ -91,6 +104,7 @@ export const App: FC = (): ReactElement => {
         }
         allStored = await db.recipes.toArray();
       }
+
       const active: Recipe[] = [];
       const trashed: Recipe[] = [];
       const now = Date.now();
@@ -100,7 +114,6 @@ export const App: FC = (): ReactElement => {
         if (recipe.deletedAt) {
           const deletedTime = new Date(recipe.deletedAt).getTime();
           if (now - deletedTime > thirtyDaysMs) {
-            // Auto-purge past 30 days
             await db.recipes.delete(recipe.id);
           } else {
             trashed.push(recipe);
@@ -121,161 +134,108 @@ export const App: FC = (): ReactElement => {
       }
       setShoppingLists(storedLists);
 
-      const storedMealPlan = await db.mealPlan.toArray();
-      setMealPlanEntries(storedMealPlan);
+      const storedEntries = await db.mealPlan.toArray();
+      setMealPlanEntries(storedEntries);
 
       const storedCombos = await db.combos.toArray();
       setCombos(storedCombos);
 
-      const storedUserIngs = await db.userIngredients.toArray();
-      setUserIngredients(storedUserIngs);
+      const storedIngredients = await db.userIngredients.toArray();
+      setUserIngredients(storedIngredients);
 
-      let storedCollections = await db.collections.toArray();
-      if (storedCollections.length === 0) {
-        const defaultCollections: Collection[] = [
-          { id: "col-quick-easy", name: "Quick & Easy", description: "30-minute meals and simple preps", createdAt: new Date().toISOString() },
-          { id: "col-comfort", name: "Comfort Food", description: "Hearty favorites, soups, and bakes", createdAt: new Date().toISOString() },
-          { id: "col-holiday", name: "Holiday & Entertaining", description: "Festive dishes for gatherings", createdAt: new Date().toISOString() }
-        ];
-        await db.collections.bulkAdd(defaultCollections);
-        storedCollections = defaultCollections;
-      }
+      const storedCollections = await db.collections.toArray();
       setCollections(storedCollections);
 
-      const storedMenusSetting = await db.settings.get("savedMenus");
-      if (storedMenusSetting && Array.isArray(storedMenusSetting.value)) {
-        setSavedMenus(storedMenusSetting.value as SavedMenu[]);
+      const menuSetting = await db.settings.get("savedMenus");
+      if (menuSetting && Array.isArray(menuSetting.value)) {
+        setSavedMenus(menuSetting.value as SavedMenu[]);
       }
     } catch {
-      // IndexedDB fallback
-    }
-  };
-
-  const handleProcessImportFile = async (file: File): Promise<void> => {
-    const filename = file.name.toLowerCase();
-    try {
-      if (filename.endsWith(".recipe.json") || (filename.endsWith(".json") && !filename.includes("manifest"))) {
-        const text = await file.text();
-        const parsed = importRecipeFromJson(text);
-        await db.recipes.put(parsed.recipe);
-        await refreshAllData();
-        setSelectedRecipeId(parsed.recipe.id);
-        setActiveTab("recipe-view");
-      } else if (filename.endsWith(".openrecipebook.zip") || filename.endsWith(".zip")) {
-        const buffer = await file.arrayBuffer();
-        const bytes = new Uint8Array(buffer);
-        try {
-          const restored = importBackupZip(bytes);
-          if (restored.recipes.length > 0) {
-            setImportCandidates(restored.recipes);
-            return;
-          }
-        } catch {
-          // Not native backup zip format, fall through to Recipe Keeper
-        }
-        const rkResult = await parseRecipeKeeperZip(bytes);
-        if (rkResult.recipes.length > 0) {
-          setImportCandidates(rkResult.recipes);
-        }
-      } else if (filename.endsWith(".paprikarecipes")) {
-        const buffer = await file.arrayBuffer();
-        const bytes = new Uint8Array(buffer);
-        const paprikaRecipes = parsePaprikaRecipesZip(bytes);
-        if (paprikaRecipes.length > 0) {
-          setImportCandidates(paprikaRecipes);
-        }
-      }
-    } catch {
-      // Drop import error handled gracefully
+      // Continue on database load error
     }
   };
 
   useEffect(() => {
     refreshAllData();
 
-    const storedAccent = localStorage.getItem("accentTheme") || "terracotta";
-    document.documentElement.setAttribute("data-accent", storedAccent);
-
-    // Trigger scheduled backup to synced folder if due
-    const destination = new FileSystemFolderBackupDestination();
-    if (destination.isAvailable()) {
-      const lastBackup = localStorage.getItem("orb_last_auto_backup") || undefined;
-      if (shouldAutoBackup(lastBackup)) {
-        destination.getFolderName().then((name: string | null): void => {
-          if (name) {
-            handleRunAutoFolderBackup().catch((): void => {});
+    const handleProcessImportFile = async (file: File): Promise<void> => {
+      const lower = file.name.toLowerCase();
+      try {
+        if (lower.endsWith(".json")) {
+          const text = await file.text();
+          const parsed = JSON.parse(text);
+          if (parsed && typeof parsed === "object" && "@context" in parsed) {
+            const imported = parseSchemaRecipeJsonLd(parsed);
+            if (imported.length > 0) setImportCandidates(imported);
+          } else {
+            const parsedRecipe = importRecipeFromJson(text);
+            await saveRecipe(parsedRecipe.recipe);
+            await refreshAllData();
+            setSelectedRecipeId(parsedRecipe.recipe.id);
+            setActiveTab("recipe-view");
+            showToast(`Imported "${parsedRecipe.recipe.title}"`);
           }
-        });
-      }
-    }
-
-    // Check for bookmarklet hash import: #import=<json> or #import-url=<url>
-    if (window.location.hash.startsWith("#import=")) {
-      try {
-        const rawJson = decodeURIComponent(window.location.hash.substring(8));
-        const parsed = JSON.parse(rawJson);
-        const imported = parseSchemaRecipeJsonLd(parsed);
-        if (imported.length > 0) {
-          setImportCandidates(imported);
+        } else if (lower.endsWith(".zip") || lower.endsWith(".paprikarecipes")) {
+          const buffer = await file.arrayBuffer();
+          if (lower.endsWith(".paprikarecipes")) {
+            const recipesFromZip = parsePaprikaRecipesZip(new Uint8Array(buffer));
+            setImportCandidates(recipesFromZip);
+          } else {
+            try {
+              const rkRecipes = parseRecipeKeeperZip(new Uint8Array(buffer));
+              setImportCandidates(rkRecipes);
+            } catch {
+              const backupData = importBackupZip(new Uint8Array(buffer));
+              setImportCandidates(backupData.recipes);
+            }
+          }
         }
-        window.history.replaceState(null, "", window.location.pathname);
-      } catch {
-        // Ignore invalid hash
+      } catch (err: unknown) {
+        showToast("Failed to read file: " + (err instanceof Error ? err.message : String(err)));
       }
-    } else if (window.location.hash.startsWith("#import-url=")) {
-      try {
-        const rawUrl = decodeURIComponent(window.location.hash.substring(12));
-        window.history.replaceState(null, "", window.location.pathname);
-        importRecipesFromUrl(rawUrl)
-          .then((result) => {
-            if (result.ok && result.recipes.length > 0) {
-              setImportCandidates(result.recipes);
-            }
-          })
-          .catch(() => {});
-      } catch {
-        // Ignore invalid hash
-      }
-    }
-
-    // Web Share Target: check ?url= query parameter
-    if (typeof window !== "undefined" && window.location.search) {
-      const searchParams = new URLSearchParams(window.location.search);
-      const sharedUrl = searchParams.get("url");
-      if (sharedUrl) {
-        window.history.replaceState(null, "", window.location.pathname);
-        importRecipesFromUrl(sharedUrl)
-          .then((result) => {
-            if (result.ok && result.recipes.length > 0) {
-              setImportCandidates(result.recipes);
-            }
-          })
-          .catch(() => {});
-      }
-    }
-
-    // Chromium File Handling API: check launchQueue
-    const win = window as unknown as {
-      launchQueue?: {
-        setConsumer: (consumer: (params: { files: FileSystemFileHandle[] }) => Promise<void>) => void;
-      };
     };
-    if (win.launchQueue) {
-      win.launchQueue.setConsumer(async (launchParams) => {
-        if (!launchParams.files || launchParams.files.length === 0) return;
-        for (const fileHandle of launchParams.files) {
-          const file = await fileHandle.getFile();
-          await handleProcessImportFile(file);
-        }
-      });
-    }
-  }, []);
 
-  // Keyboard shortcuts
+    const handleDragOver = (e: DragEvent): void => {
+      e.preventDefault();
+      setIsDraggingOver(true);
+    };
+
+    const handleDragLeave = (e: DragEvent): void => {
+      if (e.relatedTarget === null) {
+        setIsDraggingOver(false);
+      }
+    };
+
+    const handleDrop = async (e: DragEvent): Promise<void> => {
+      e.preventDefault();
+      setIsDraggingOver(false);
+      const droppedFiles = e.dataTransfer?.files;
+      if (!droppedFiles || droppedFiles.length === 0) return;
+      const file = droppedFiles[0];
+      if (file) {
+        await handleProcessImportFile(file);
+      }
+    };
+
+    window.addEventListener("dragover", handleDragOver);
+    window.addEventListener("dragleave", handleDragLeave);
+    window.addEventListener("drop", handleDrop);
+
+    return (): void => {
+      window.removeEventListener("dragover", handleDragOver);
+      window.removeEventListener("dragleave", handleDragLeave);
+      window.removeEventListener("drop", handleDrop);
+    };
+  }, [showToast]);
+
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = (e: KeyboardEvent): void => {
       const activeElement = document.activeElement;
-      const isInput = activeElement?.tagName === "INPUT" || activeElement?.tagName === "TEXTAREA" || activeElement?.tagName === "SELECT";
+      const isInput =
+        activeElement?.tagName === "INPUT" ||
+        activeElement?.tagName === "TEXTAREA" ||
+        activeElement?.tagName === "SELECT";
+
       if (!isInput && (e.key === "n" || e.key === "N")) {
         e.preventDefault();
         setEditingRecipe(undefined);
@@ -283,7 +243,7 @@ export const App: FC = (): ReactElement => {
       }
       if (!isInput && e.key === "?") {
         e.preventDefault();
-        setShowShortcutsModal((prev) => !prev);
+        setShowShortcutsModal((prev: boolean): boolean => !prev);
       }
       if (e.key === "Escape") {
         if (showShortcutsModal) {
@@ -295,111 +255,150 @@ export const App: FC = (): ReactElement => {
         }
       }
     };
+
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    return (): void => window.removeEventListener("keydown", handleKeyDown);
   }, [activeTab, cookModeRecipe, showShortcutsModal]);
 
-  // Global drag-and-drop handler for recipe files
-  useEffect(() => {
-    const handleDragOver = (e: DragEvent): void => {
-      e.preventDefault();
-      if (e.dataTransfer?.types.includes("Files")) {
-        setIsDraggingOver(true);
-      }
-    };
-
-    const handleDragLeave = (e: DragEvent): void => {
-      e.preventDefault();
-      if (e.relatedTarget === null) {
-        setIsDraggingOver(false);
-      }
-    };
-
-    const handleDrop = async (e: DragEvent): Promise<void> => {
-      e.preventDefault();
-      setIsDraggingOver(false);
-      const files = e.dataTransfer?.files;
-      if (!files || files.length === 0) return;
-      await handleProcessImportFile(files[0]);
-    };
-
-    window.addEventListener("dragover", handleDragOver);
-    window.addEventListener("dragleave", handleDragLeave);
-    window.addEventListener("drop", handleDrop);
-
-    return () => {
-      window.removeEventListener("dragover", handleDragOver);
-      window.removeEventListener("dragleave", handleDragLeave);
-      window.removeEventListener("drop", handleDrop);
-    };
-  }, []);
-
-  const handleSelectRecipe = (id: string) => {
+  const handleSelectRecipe = (id: string): void => {
     setSelectedRecipeId(id);
     setActiveTab("recipe-view");
   };
 
-  const handleNewRecipe = () => {
+  const handleNewRecipe = (): void => {
     setEditingRecipe(undefined);
     setActiveTab("editor");
   };
 
-  const handleEditRecipe = (recipe: Recipe) => {
+  const handleEditRecipe = (recipe: Recipe): void => {
     setEditingRecipe(recipe);
     setActiveTab("editor");
   };
 
-  const handleSaveRecipe = async (savedRecipe: Recipe) => {
-    await db.recipes.put(savedRecipe);
-    await refreshAllData();
-    setSelectedRecipeId(savedRecipe.id);
+  // Local persistence without forcing navigation away
+  const handlePersistRecipe = async (recipe: Recipe): Promise<void> => {
+    const saved = await saveRecipe(recipe);
+    setRecipes((prev: Recipe[]): Recipe[] =>
+      prev.map((r: Recipe): Recipe => (r.id === saved.id ? saved : r))
+    );
+  };
+
+  // Editor save: saves and navigates to view
+  const handleSaveRecipe = async (savedRecipe: Recipe): Promise<void> => {
+    const saved = await saveRecipe(savedRecipe);
+    setRecipes((prev: Recipe[]): Recipe[] => {
+      const exists = prev.some((r: Recipe): boolean => r.id === saved.id);
+      if (exists) return prev.map((r: Recipe): Recipe => (r.id === saved.id ? saved : r));
+      return [...prev, saved];
+    });
+    setSelectedRecipeId(saved.id);
     setActiveTab("recipe-view");
   };
 
   const handleDuplicateRecipe = async (newRecipe: Recipe): Promise<void> => {
-    await db.recipes.add(newRecipe);
-    await refreshAllData();
-    setSelectedRecipeId(newRecipe.id);
+    const saved = await saveRecipe(newRecipe);
+    setRecipes((prev: Recipe[]): Recipe[] => [...prev, saved]);
+    setSelectedRecipeId(saved.id);
     setActiveTab("recipe-view");
   };
 
-  const handleDeleteRecipe = async (id: string) => {
-    const target = recipes.find((r) => r.id === id);
+  const handleDeleteRecipe = async (id: string): Promise<void> => {
+    const target = recipes.find((r: Recipe): boolean => r.id === id);
     if (target) {
       const trashedItem: Recipe = {
         ...target,
         deletedAt: new Date().toISOString()
       };
       await db.recipes.put(trashedItem);
-      await refreshAllData();
+      setRecipes((prev: Recipe[]): Recipe[] => prev.filter((r: Recipe): boolean => r.id !== id));
+      setTrashedRecipes((prev: Recipe[]): Recipe[] => [...prev, trashedItem]);
       setActiveTab("library");
+      showToast({
+        message: `Moved "${target.title}" to trash`,
+        undo: (): void => {
+          void handleRestoreRecipe(id);
+        }
+      });
+    }
+  };
+
+  const handleRestoreRecipe = async (id: string): Promise<void> => {
+    const target = trashedRecipes.find((r: Recipe): boolean => r.id === id);
+    if (target) {
+      const restored: Recipe = {
+        ...target,
+        deletedAt: undefined,
+        updatedAt: new Date().toISOString()
+      };
+      await db.recipes.put(restored);
+      setTrashedRecipes((prev: Recipe[]): Recipe[] =>
+        prev.filter((r: Recipe): boolean => r.id !== id)
+      );
+      setRecipes((prev: Recipe[]): Recipe[] => [...prev, restored]);
+      showToast(`Restored "${target.title}"`);
+    }
+  };
+
+  const handlePermanentDeleteRecipe = async (id: string): Promise<void> => {
+    await db.recipes.delete(id);
+    setTrashedRecipes((prev: Recipe[]): Recipe[] =>
+      prev.filter((r: Recipe): boolean => r.id !== id)
+    );
+  };
+
+  const handleEmptyTrash = (): void => {
+    setEmptyTrashConfirmOpen(true);
+  };
+
+  const handleConfirmEmptyTrash = async (): Promise<void> => {
+    for (const recipe of trashedRecipes) {
+      await db.recipes.delete(recipe.id);
+    }
+    setTrashedRecipes([]);
+    showToast("Trash emptied");
+  };
+
+  const handleToggleFavorite = async (id: string): Promise<void> => {
+    const target = recipes.find((r: Recipe): boolean => r.id === id);
+    if (target) {
+      const updated: Recipe = {
+        ...target,
+        favorite: !target.favorite,
+        updatedAt: new Date().toISOString()
+      };
+      await db.recipes.put(updated);
+      setRecipes((prev: Recipe[]): Recipe[] =>
+        prev.map((r: Recipe): Recipe => (r.id === id ? updated : r))
+      );
     }
   };
 
   const handleBatchDelete = async (recipeIds: string[]): Promise<void> => {
     const nowIso = new Date().toISOString();
     for (const id of recipeIds) {
-      const target = recipes.find((r) => r.id === id);
+      const target = recipes.find((r: Recipe): boolean => r.id === id);
       if (target) {
         await db.recipes.put({ ...target, deletedAt: nowIso, updatedAt: nowIso });
       }
     }
     await refreshAllData();
+    showToast(`Moved ${recipeIds.length} recipes to trash`);
   };
 
   const handleBatchTag = async (recipeIds: string[], tag: string): Promise<void> => {
     const nowIso = new Date().toISOString();
     for (const id of recipeIds) {
-      const target = recipes.find((r) => r.id === id);
+      const target = recipes.find((r: Recipe): boolean => r.id === id);
       if (target && !target.tags.includes(tag)) {
         await db.recipes.put({ ...target, tags: [...target.tags, tag], updatedAt: nowIso });
       }
     }
     await refreshAllData();
+    showToast(`Tagged ${recipeIds.length} recipes`);
   };
 
   const handleBatchExport = (recipeIds: string[]): void => {
-    const targetRecipes = recipes.filter((r) => recipeIds.includes(r.id));
+    const targetRecipes = recipes.filter((r: Recipe): boolean => recipeIds.includes(r.id));
     if (targetRecipes.length === 0) return;
     const backupBytes = exportRecipesBatchZip(targetRecipes);
     const blob = new Blob([new Uint8Array(backupBytes)], { type: "application/zip" });
@@ -411,13 +410,17 @@ export const App: FC = (): ReactElement => {
     URL.revokeObjectURL(url);
   };
 
-  const handleBatchTotals = (): void => {
-    setActiveTab("totals");
-  };
-
   const handleSaveCollection = async (collection: Collection): Promise<void> => {
     await db.collections.put(collection);
-    await refreshAllData();
+    setCollections((prev: Collection[]): Collection[] => {
+      const idx = prev.findIndex((c: Collection): boolean => c.id === collection.id);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = collection;
+        return copy;
+      }
+      return [...prev, collection];
+    });
   };
 
   const handleDeleteCollection = async (collectionId: string): Promise<void> => {
@@ -425,7 +428,12 @@ export const App: FC = (): ReactElement => {
     if (activeCollectionId === collectionId) {
       setActiveCollectionId(null);
     }
-    const affected = recipes.filter((r: Recipe): boolean => r.collectionIds?.includes(collectionId) ?? false);
+    setCollections((prev: Collection[]): Collection[] =>
+      prev.filter((c: Collection): boolean => c.id !== collectionId)
+    );
+    const affected = recipes.filter(
+      (r: Recipe): boolean => r.collectionIds?.includes(collectionId) ?? false
+    );
     for (const r of affected) {
       const updated: Recipe = {
         ...r,
@@ -437,7 +445,10 @@ export const App: FC = (): ReactElement => {
     await refreshAllData();
   };
 
-  const handleBatchAssignCollection = async (recipeIds: string[], collectionId: string): Promise<void> => {
+  const handleBatchAssignCollection = async (
+    recipeIds: string[],
+    collectionId: string
+  ): Promise<void> => {
     for (const id of recipeIds) {
       const r = recipes.find((rec: Recipe): boolean => rec.id === id);
       if (r) {
@@ -453,65 +464,10 @@ export const App: FC = (): ReactElement => {
       }
     }
     await refreshAllData();
+    showToast(`Updated folder assignment for ${recipeIds.length} recipes`);
   };
 
-  const handleRestoreRecipe = async (id: string) => {
-    const target = trashedRecipes.find((r) => r.id === id);
-    if (target) {
-      const restored: Recipe = { ...target };
-      delete restored.deletedAt;
-      await db.recipes.put(restored);
-      await refreshAllData();
-    }
-  };
-
-  const handlePermanentDeleteRecipe = async (id: string) => {
-    await db.recipes.delete(id);
-    await refreshAllData();
-  };
-
-  const handleEmptyTrash = async () => {
-    if (window.confirm("Permanently delete all items in trash?")) {
-      for (const recipe of trashedRecipes) {
-        await db.recipes.delete(recipe.id);
-      }
-      await refreshAllData();
-    }
-  };
-
-  const handleToggleFavorite = async (id: string) => {
-    const target = recipes.find((r) => r.id === id);
-    if (target) {
-      const updated: Recipe = { ...target, favorite: !target.favorite, updatedAt: new Date().toISOString() };
-      await db.recipes.put(updated);
-      await refreshAllData();
-    }
-  };
-
-  const handleLoadSamples = async () => {
-    for (const sample of SAMPLE_RECIPES) {
-      await db.recipes.put(sample);
-    }
-    await refreshAllData();
-  };
-
-  const handleSaveShoppingList = async (updatedList: ShoppingList) => {
-    await db.shoppingLists.put(updatedList);
-    await refreshAllData();
-  };
-
-  const handleCreateShoppingList = async (name: string) => {
-    const newList = createDefaultShoppingList(name);
-    await db.shoppingLists.add(newList);
-    await refreshAllData();
-  };
-
-  const handleDeleteShoppingList = async (listId: string) => {
-    await db.shoppingLists.delete(listId);
-    await refreshAllData();
-  };
-
-  const handleAddRecipeToShoppingList = async (recipe: Recipe) => {
+  const handleAddRecipeToShoppingList = async (recipe: Recipe): Promise<void> => {
     const primaryList = shoppingLists[0] || createDefaultShoppingList("Groceries");
     const newItems = [];
     for (const group of recipe.ingredientGroups) {
@@ -520,79 +476,25 @@ export const App: FC = (): ReactElement => {
       }
     }
     const merged = mergeShoppingItems(primaryList.items, newItems);
-    await db.shoppingLists.put({ ...primaryList, items: merged });
-    await refreshAllData();
-    alert(`Added ${newItems.length} ingredients from "${recipe.title}" to ${primaryList.name}!`);
+    const updated = { ...primaryList, items: merged };
+    await db.shoppingLists.put(updated);
+    setShoppingLists((prev: ShoppingList[]): ShoppingList[] =>
+      prev.map((l: ShoppingList): ShoppingList => (l.id === updated.id ? updated : l))
+    );
+    showToast(`Added ${newItems.length} ingredients to ${primaryList.name}`);
   };
 
-  const handleSaveMealPlanEntry = async (entry: MealPlanEntry) => {
-    await db.mealPlan.put(entry);
-    await refreshAllData();
-  };
-
-  const handleSaveMultipleMealPlanEntries = async (newEntries: MealPlanEntry[]): Promise<void> => {
-    for (const entry of newEntries) {
-      await db.mealPlan.put(entry);
-    }
-    await refreshAllData();
-  };
-
-  const handleDeleteMealPlanEntry = async (entryId: string) => {
-    await db.mealPlan.delete(entryId);
-    await refreshAllData();
-  };
-
-  const handleSaveMenu = async (menu: SavedMenu): Promise<void> => {
-    const nextMenus = [...savedMenus.filter((m) => m.id !== menu.id), menu];
-    setSavedMenus(nextMenus);
-    await db.settings.put({ key: "savedMenus", value: nextMenus });
-  };
-
-  const handleDeleteMenu = async (menuId: string): Promise<void> => {
-    const nextMenus = savedMenus.filter((m) => m.id !== menuId);
-    setSavedMenus(nextMenus);
-    await db.settings.put({ key: "savedMenus", value: nextMenus });
-  };
-
-  const handleSaveCombo = async (combo: Combo) => {
-    await db.combos.put(combo);
-    await refreshAllData();
-  };
-
-  const handleDeleteCombo = async (comboId: string) => {
-    await db.combos.delete(comboId);
-    await refreshAllData();
-  };
-
-  const handleSaveUserIngredient = async (item: DictionaryIngredient) => {
-    await db.userIngredients.put(item);
-    await refreshAllData();
-  };
-
-  const handleDeleteUserIngredient = async (id: string) => {
-    await db.userIngredients.delete(id);
-    await refreshAllData();
-  };
-
-  const handleImportUserIngredients = async (items: DictionaryIngredient[]) => {
-    for (const item of items) {
-      await db.userIngredients.put(item);
-    }
-    await refreshAllData();
-  };
-
-  const handleAddWeekMealsToShoppingList = async (entries: MealPlanEntry[]) => {
+  const handleAddWeekMealsToShoppingList = async (weekEntries: MealPlanEntry[]): Promise<void> => {
     const primaryList = shoppingLists[0] || createDefaultShoppingList("Groceries");
-    const recipeMap = new Map<string, Recipe>(recipes.map((r) => [r.id, r]));
     const newItems = [];
 
-    for (const entry of entries) {
+    for (const entry of weekEntries) {
       if (entry.recipeId) {
-        const recipe = recipeMap.get(entry.recipeId);
-        if (recipe) {
-          for (const group of recipe.ingredientGroups) {
+        const rec = recipes.find((r: Recipe): boolean => r.id === entry.recipeId);
+        if (rec) {
+          for (const group of rec.ingredientGroups) {
             for (const item of group.items) {
-              newItems.push(buildShoppingItemFromIngredient(item.raw, recipe.title, entry.multiplier));
+              newItems.push(buildShoppingItemFromIngredient(item.raw, rec.title, 1));
             }
           }
         }
@@ -602,339 +504,196 @@ export const App: FC = (): ReactElement => {
     }
 
     if (newItems.length === 0) {
-      alert("No meals in this week's plan to add!");
+      showToast("No meals in this week's plan to add");
       return;
     }
 
     const merged = mergeShoppingItems(primaryList.items, newItems);
-    await db.shoppingLists.put({ ...primaryList, items: merged });
-    await refreshAllData();
-    alert(`Added ${newItems.length} items from this week's meals to ${primaryList.name}!`);
+    const updated = { ...primaryList, items: merged };
+    await db.shoppingLists.put(updated);
+    setShoppingLists((prev: ShoppingList[]): ShoppingList[] =>
+      prev.map((l: ShoppingList): ShoppingList => (l.id === updated.id ? updated : l))
+    );
+    showToast(`Added ${newItems.length} items from this week to ${primaryList.name}`);
     setActiveTab("shopping");
   };
 
-  const handleExportSingleRecipe = (recipe: Recipe) => {
-    const jsonText = exportRecipeToJson(recipe);
-    const blob = new Blob([jsonText], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${recipe.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.recipe.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const generateFullBackupBytes = async (): Promise<Uint8Array> => {
-    const allRecipes = await db.recipes.toArray();
-    const allPhotos = await db.photos.toArray();
-    const photosData = allPhotos.map((p) => ({
-      id: p.id,
-      blob: new Uint8Array()
-    }));
-
-    return exportBackupZip({
-      manifest: {
-        format: "openrecipebook-library",
-        version: 1,
-        exportedAt: new Date().toISOString(),
-        appVersion: "0.1.0",
-        counts: {
-          recipes: allRecipes.length,
-          photos: photosData.length
-        }
-      },
-      recipes: allRecipes,
-      photos: photosData,
-      collections: await db.collections.toArray(),
-      mealPlan: await db.mealPlan.toArray(),
-      shoppingLists: await db.shoppingLists.toArray(),
-      combos: await db.combos.toArray(),
-      userIngredients: await db.userIngredients.toArray()
-    });
-  };
-
-  const handleExportFullBackup = async () => {
-    const backupBytes = await generateFullBackupBytes();
-    const blob = new Blob([new Uint8Array(backupBytes)], { type: "application/zip" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    const dateStamp = new Date().toISOString().split("T")[0];
-    link.download = `openrecipebook-backup-${dateStamp}.zip`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleRunAutoFolderBackup = async (): Promise<AutoBackupResult> => {
-    const destination = new FileSystemFolderBackupDestination();
-    const bytes = await generateFullBackupBytes();
-    const result = await destination.saveBackupWithRotation(bytes, 10);
-    if (result.success) {
-      localStorage.setItem("orb_last_auto_backup", new Date().toISOString());
-    }
-    return result;
-  };
-
-  const handleRestoreBackupFile = async (file: File) => {
-    try {
-      const buffer = await file.arrayBuffer();
-      if (file.name.endsWith(".json")) {
-        const text = new TextDecoder().decode(buffer);
-        try {
-          const single = importRecipeFromJson(text);
-          setImportCandidates([single.recipe]);
-        } catch {
-          const jsonLdRecipes = parseSchemaRecipeJsonLd(JSON.parse(text));
-          if (jsonLdRecipes.length > 0) {
-            setImportCandidates(jsonLdRecipes);
-          } else {
-            throw new Error("No recipes found in JSON file");
-          }
-        }
-      } else if (file.name.endsWith(".paprikarecipes") || file.name.endsWith(".paprikarecipe")) {
-        const paprikaRecipes = parsePaprikaRecipesZip(new Uint8Array(buffer));
-        if (paprikaRecipes.length > 0) {
-          setImportCandidates(paprikaRecipes);
-          return;
-        } else {
-          throw new Error("No recipes found in Paprika archive");
-        }
-      } else if (file.name.endsWith(".zip")) {
-        try {
-          // Try Recipe Keeper export first
-          const rkResult = parseRecipeKeeperZip(new Uint8Array(buffer));
-          if (rkResult.recipes.length > 0) {
-            setImportCandidates(rkResult.recipes);
-            return;
-          }
-        } catch {
-          // Fall back to native OpenRecipeBook zip
-          const backupData = importBackupZip(new Uint8Array(buffer));
-          setImportCandidates(backupData.recipes);
-        }
-      }
-    } catch (err: unknown) {
-      alert("Failed to read file: " + (err instanceof Error ? err.message : String(err)));
-    }
-  };
-
-  const handleConfirmImport = async (selected: Recipe[], duplicateAction: "skip" | "replace" | "keepBoth") => {
-    const existingTitles = new Set(recipes.map((r) => r.title.toLowerCase().trim()));
+  const handleConfirmImport = async (
+    selected: Recipe[],
+    duplicateAction: "skip" | "replace" | "keepBoth"
+  ): Promise<void> => {
+    const existingTitles = new Set(
+      recipes.map((r: Recipe): string => r.title.toLowerCase().trim())
+    );
 
     for (const candidate of selected) {
       const exists = existingTitles.has(candidate.title.toLowerCase().trim());
       if (exists) {
-        if (duplicateAction === "skip") {
-          continue;
-        }
+        if (duplicateAction === "skip") continue;
         if (duplicateAction === "keepBoth") {
           const cloned: Recipe = {
             ...candidate,
             id: `recipe-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
             title: `${candidate.title} (Copy)`
           };
-          await db.recipes.put(cloned);
+          await saveRecipe(cloned);
           continue;
         }
       }
-      await db.recipes.put(candidate);
+      await saveRecipe(candidate);
     }
 
     setImportCandidates(null);
     await refreshAllData();
-    alert(`Successfully imported ${selected.length} recipes!`);
+    showToast(`Successfully imported ${selected.length} recipes`);
     setActiveTab("library");
   };
 
-  const activeRecipe = recipes.find((r) => r.id === selectedRecipeId);
+  const activeRecipe = recipes.find((r: Recipe): boolean => r.id === selectedRecipeId);
 
   return (
-    <div style={{ height: "100vh", width: "100%", maxWidth: "100vw", minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      {/* Top Header */}
-      <header
-        style={{
-          background: "var(--surface)",
-          borderBottom: "1px solid var(--border)",
-          padding: "var(--space-2) var(--space-4)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          flexShrink: 0,
-          zIndex: 10,
-          width: "100%",
-          maxWidth: "100%",
-          minWidth: 0,
-          boxSizing: "border-box"
-        }}
-      >
-        <div
-          onClick={() => setActiveTab("library")}
-          style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", flexShrink: 0 }}
+    <div className={styles.shellContainer}>
+      {/* Desktop Left Sidebar (>= 1024px) */}
+      <aside className={styles.sidebar}>
+        <div className={styles.brand}>
+          <BookOpenIcon className={styles.brandIcon} width={24} height={24} />
+          <span>{BRAND.name}</span>
+        </div>
+
+        <Button
+          variant="primary"
+          icon={<PlusIcon width={16} height={16} />}
+          className={styles.newRecipeButton}
+          onClick={handleNewRecipe}
         >
-          <div style={{ width: "28px", height: "28px", borderRadius: "6px", background: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", color: "white" }}>
-            <BookOpenIcon width={16} height={16} />
-          </div>
-          <span style={{ fontFamily: "var(--font-serif)", fontSize: "1.25rem", fontWeight: 700 }}>
-            {BRAND.appName}
-          </span>
-        </div>
+          New Recipe
+        </Button>
 
-        {/* Desktop Nav Items */}
-        <nav className="desktop-only-nav" style={{ display: "flex", gap: "var(--space-1)", alignItems: "center", flexWrap: "nowrap" }}>
+        <nav className={styles.navItems} aria-label="Main Navigation">
           <button
             type="button"
-            onClick={() => setActiveTab("library")}
-            style={{
-              background: activeTab === "library" ? "var(--surface-alt)" : "none",
-              color: activeTab === "library" ? "var(--accent)" : "var(--text)",
-              border: "none",
-              padding: "6px 12px",
-              borderRadius: "var(--radius-full)",
-              fontWeight: 600,
-              fontSize: "0.9rem",
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px"
-            }}
+            className={`${styles.navButton} ${activeTab === "library" ? styles.navButtonActive : ""}`.trim()}
+            onClick={(): void => setActiveTab("library")}
           >
-            <BookOpenIcon width={15} height={15} /> Recipes
+            <BookOpenIcon width={18} height={18} />
+            <span>Recipes</span>
           </button>
 
           <button
             type="button"
-            onClick={() => setActiveTab("planner")}
-            style={{
-              background: activeTab === "planner" ? "var(--surface-alt)" : "none",
-              color: activeTab === "planner" ? "var(--accent)" : "var(--text)",
-              border: "none",
-              padding: "6px 12px",
-              borderRadius: "var(--radius-full)",
-              fontWeight: 600,
-              fontSize: "0.9rem",
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px"
-            }}
+            className={`${styles.navButton} ${activeTab === "planner" ? styles.navButtonActive : ""}`.trim()}
+            onClick={(): void => setActiveTab("planner")}
           >
-            <CalendarIcon width={15} height={15} /> Meal Plan
+            <CalendarIcon width={18} height={18} />
+            <span>Meal Plan</span>
           </button>
 
           <button
             type="button"
-            onClick={() => setActiveTab("totals")}
-            style={{
-              background: activeTab === "totals" ? "var(--surface-alt)" : "none",
-              color: activeTab === "totals" ? "var(--accent)" : "var(--text)",
-              border: "none",
-              padding: "6px 12px",
-              borderRadius: "var(--radius-full)",
-              fontWeight: 600,
-              fontSize: "0.9rem",
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px"
-            }}
+            className={`${styles.navButton} ${activeTab === "totals" ? styles.navButtonActive : ""}`.trim()}
+            onClick={(): void => setActiveTab("totals")}
           >
-            <CalculatorIcon width={15} height={15} /> Ingredient Totals
+            <CalculatorIcon width={18} height={18} />
+            <span>Ingredient Totals</span>
           </button>
 
           <button
             type="button"
-            onClick={() => setActiveTab("shopping")}
-            style={{
-              background: activeTab === "shopping" ? "var(--surface-alt)" : "none",
-              color: activeTab === "shopping" ? "var(--accent)" : "var(--text)",
-              border: "none",
-              padding: "6px 12px",
-              borderRadius: "var(--radius-full)",
-              fontWeight: 600,
-              fontSize: "0.9rem",
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px"
-            }}
+            className={`${styles.navButton} ${activeTab === "shopping" ? styles.navButtonActive : ""}`.trim()}
+            onClick={(): void => setActiveTab("shopping")}
           >
-            <ShoppingCartIcon width={15} height={15} /> Shopping
+            <ShoppingCartIcon width={18} height={18} />
+            <span>Shopping</span>
           </button>
 
           <button
             type="button"
-            onClick={() => setActiveTab("settings")}
-            style={{
-              background: activeTab === "settings" ? "var(--surface-alt)" : "none",
-              color: activeTab === "settings" ? "var(--accent)" : "var(--text)",
-              border: "none",
-              padding: "6px 12px",
-              borderRadius: "var(--radius-full)",
-              fontWeight: 600,
-              fontSize: "0.9rem",
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px"
-            }}
+            className={`${styles.navButton} ${activeTab === "settings" ? styles.navButtonActive : ""}`.trim()}
+            onClick={(): void => setActiveTab("settings")}
           >
-            <SettingsIcon width={15} height={15} /> Settings
+            <SettingsIcon width={18} height={18} />
+            <span>Settings</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab("gallery")}
-            style={{
-              background: activeTab === "gallery" ? "var(--surface-alt)" : "none",
-              color: "var(--muted)",
-              border: "none",
-              padding: "4px 8px",
-              borderRadius: "var(--radius-full)",
-              fontSize: "0.78rem",
-              cursor: "pointer"
-            }}
-          >
-            Gallery
-          </button>
+          {import.meta.env.DEV && (
+            <button
+              type="button"
+              className={`${styles.navButton} ${activeTab === "gallery" ? styles.navButtonActive : ""}`.trim()}
+              onClick={(): void => setActiveTab("gallery")}
+            >
+              <span>Gallery (Dev)</span>
+            </button>
+          )}
         </nav>
+      </aside>
 
-        {/* Mobile Quick Header Actions */}
-        <div className="mobile-only-nav" style={{ display: "none", gap: "8px", alignItems: "center" }}>
-          <button
-            type="button"
-            onClick={handleNewRecipe}
-            style={{
-              background: "var(--accent)",
-              color: "var(--accent-contrast)",
-              border: "none",
-              borderRadius: "var(--radius-full)",
-              padding: "6px 12px",
-              fontSize: "0.82rem",
-              fontWeight: 600,
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "4px"
-            }}
-          >
-            <PlusIcon width={14} height={14} /> New
-          </button>
+      {/* Tablet Icon Rail (768px - 1023px) */}
+      <aside className={styles.iconRail}>
+        <div className={styles.railBrand}>
+          <BookOpenIcon width={24} height={24} />
         </div>
-      </header>
+
+        <Button
+          variant="primary"
+          icon={<PlusIcon width={18} height={18} />}
+          onClick={handleNewRecipe}
+          aria-label="New Recipe"
+          style={{ width: 44, height: 44, padding: 0, borderRadius: "50%" }}
+        />
+
+        <button
+          type="button"
+          aria-label="Recipes"
+          className={`${styles.railButton} ${activeTab === "library" ? styles.railButtonActive : ""}`.trim()}
+          onClick={(): void => setActiveTab("library")}
+        >
+          <BookOpenIcon width={20} height={20} />
+          <span>Recipes</span>
+        </button>
+
+        <button
+          type="button"
+          aria-label="Meal Plan"
+          className={`${styles.railButton} ${activeTab === "planner" ? styles.railButtonActive : ""}`.trim()}
+          onClick={(): void => setActiveTab("planner")}
+        >
+          <CalendarIcon width={20} height={20} />
+          <span>Planner</span>
+        </button>
+
+        <button
+          type="button"
+          aria-label="Ingredient Totals"
+          className={`${styles.railButton} ${activeTab === "totals" ? styles.railButtonActive : ""}`.trim()}
+          onClick={(): void => setActiveTab("totals")}
+        >
+          <CalculatorIcon width={20} height={20} />
+          <span>Totals</span>
+        </button>
+
+        <button
+          type="button"
+          aria-label="Shopping"
+          className={`${styles.railButton} ${activeTab === "shopping" ? styles.railButtonActive : ""}`.trim()}
+          onClick={(): void => setActiveTab("shopping")}
+        >
+          <ShoppingCartIcon width={20} height={20} />
+          <span>Shopping</span>
+        </button>
+
+        <button
+          type="button"
+          aria-label="Settings"
+          className={`${styles.railButton} ${activeTab === "settings" ? styles.railButtonActive : ""}`.trim()}
+          onClick={(): void => setActiveTab("settings")}
+        >
+          <SettingsIcon width={20} height={20} />
+          <span>Settings</span>
+        </button>
+      </aside>
 
       {/* Main Content Area */}
-      <main
-        style={{
-          flex: 1,
-          width: "100%",
-          maxWidth: "100%",
-          minWidth: 0,
-          minHeight: 0,
-          overflowY: "auto",
-          overflowX: "hidden",
-          position: "relative"
-        }}
-      >
+      <main className={styles.mainContent}>
         {activeTab === "library" && (
           <RecipeLibrary
             recipes={recipes}
@@ -944,17 +703,22 @@ export const App: FC = (): ReactElement => {
             onSaveCollection={handleSaveCollection}
             onDeleteCollection={handleDeleteCollection}
             onBatchAssignCollection={handleBatchAssignCollection}
-            onUpdateRecipe={handleSaveRecipe}
+            onUpdateRecipe={handlePersistRecipe}
             onSelectRecipe={handleSelectRecipe}
             onNewRecipe={handleNewRecipe}
-            onImportFile={() => setActiveTab("settings")}
-            onLoadSamples={handleLoadSamples}
+            onImportFile={(): void => setActiveTab("settings")}
+            onLoadSamples={async (): Promise<void> => {
+              for (const sample of SAMPLE_RECIPES) {
+                await saveRecipe(sample);
+              }
+              await refreshAllData();
+            }}
             onToggleFavorite={handleToggleFavorite}
-            onOpenCookbookBuilder={() => setShowCookbookModal(true)}
+            onOpenCookbookBuilder={(): void => setShowCookbookModal(true)}
             onBatchDelete={handleBatchDelete}
             onBatchTag={handleBatchTag}
             onBatchExport={handleBatchExport}
-            onBatchTotals={handleBatchTotals}
+            onBatchTotals={(): void => setActiveTab("totals")}
           />
         )}
 
@@ -965,12 +729,30 @@ export const App: FC = (): ReactElement => {
             userIngredients={userIngredients}
             onBack={(): void => setActiveTab("library")}
             onEdit={(): void => handleEditRecipe(activeRecipe)}
-            onDelete={(): void => { void handleDeleteRecipe(activeRecipe.id); }}
-            onExport={(): void => handleExportSingleRecipe(activeRecipe)}
-            onToggleFavorite={(): void => { void handleToggleFavorite(activeRecipe.id); }}
-            onOpenCookMode={(): void => setCookModeRecipe(activeRecipe)}
-            onAddToShoppingList={(): void => { void handleAddRecipeToShoppingList(activeRecipe); }}
-            onUpdateRecipe={handleSaveRecipe}
+            onDelete={(): void => {
+              void handleDeleteRecipe(activeRecipe.id);
+            }}
+            onExport={(): void => {
+              const jsonText = exportRecipeToJson(activeRecipe);
+              const blob = new Blob([jsonText], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement("a");
+              link.href = url;
+              link.download = `${activeRecipe.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.recipe.json`;
+              link.click();
+              URL.revokeObjectURL(url);
+            }}
+            onToggleFavorite={(): void => {
+              void handleToggleFavorite(activeRecipe.id);
+            }}
+            onOpenCookMode={(multiplier = 1): void => {
+              setCookModeRecipe(activeRecipe);
+              setCookModeMultiplier(multiplier);
+            }}
+            onAddToShoppingList={(): void => {
+              void handleAddRecipeToShoppingList(activeRecipe);
+            }}
+            onUpdateRecipe={handlePersistRecipe}
             onDuplicateRecipe={handleDuplicateRecipe}
             onSaveCollection={handleSaveCollection}
           />
@@ -982,7 +764,7 @@ export const App: FC = (): ReactElement => {
             collections={collections}
             userIngredients={userIngredients}
             onSave={handleSaveRecipe}
-            onCancel={() => setActiveTab(editingRecipe ? "recipe-view" : "library")}
+            onCancel={(): void => setActiveTab(editingRecipe ? "recipe-view" : "library")}
           />
         )}
 
@@ -990,8 +772,14 @@ export const App: FC = (): ReactElement => {
           <IngredientTotalsView
             recipes={recipes}
             combos={combos}
-            onSaveCombo={handleSaveCombo}
-            onDeleteCombo={handleDeleteCombo}
+            onSaveCombo={async (combo: Combo): Promise<void> => {
+              await db.combos.put(combo);
+              await refreshAllData();
+            }}
+            onDeleteCombo={async (id: string): Promise<void> => {
+              await db.combos.delete(id);
+              await refreshAllData();
+            }}
           />
         )}
 
@@ -1000,84 +788,245 @@ export const App: FC = (): ReactElement => {
             entries={mealPlanEntries}
             recipes={recipes}
             savedMenus={savedMenus}
-            onSaveEntry={handleSaveMealPlanEntry}
-            onSaveMultipleEntries={handleSaveMultipleMealPlanEntries}
-            onDeleteEntry={handleDeleteMealPlanEntry}
+            onSaveEntry={async (entry: MealPlanEntry): Promise<void> => {
+              await db.mealPlan.put(entry);
+              await refreshAllData();
+            }}
+            onSaveMultipleEntries={async (newEntries: MealPlanEntry[]): Promise<void> => {
+              for (const entry of newEntries) {
+                await db.mealPlan.put(entry);
+              }
+              await refreshAllData();
+            }}
+            onDeleteEntry={async (id: string): Promise<void> => {
+              const target = mealPlanEntries.find((e: MealPlanEntry): boolean => e.id === id);
+              await db.mealPlan.delete(id);
+              await refreshAllData();
+              if (target) {
+                showToast({
+                  message: "Meal removed from plan",
+                  undo: (): void => {
+                    void (async (): Promise<void> => {
+                      await db.mealPlan.put(target);
+                      await refreshAllData();
+                    })();
+                  }
+                });
+              }
+            }}
             onAddMealsToShoppingList={handleAddWeekMealsToShoppingList}
-            onSaveMenu={handleSaveMenu}
-            onDeleteMenu={handleDeleteMenu}
+            onSaveMenu={async (menu: SavedMenu): Promise<void> => {
+              const updated = [...savedMenus.filter((m: SavedMenu): boolean => m.id !== menu.id), menu];
+              await db.settings.put({ key: "savedMenus", value: updated });
+              setSavedMenus(updated);
+            }}
+            onDeleteMenu={async (id: string): Promise<void> => {
+              const updated = savedMenus.filter((m: SavedMenu): boolean => m.id !== id);
+              await db.settings.put({ key: "savedMenus", value: updated });
+              setSavedMenus(updated);
+            }}
           />
         )}
 
         {activeTab === "shopping" && (
           <ShoppingListView
             lists={shoppingLists}
-            onSaveList={handleSaveShoppingList}
-            onCreateList={handleCreateShoppingList}
-            onDeleteList={handleDeleteShoppingList}
+            onSaveList={async (updatedList: ShoppingList): Promise<void> => {
+              await db.shoppingLists.put(updatedList);
+              await refreshAllData();
+            }}
+            onCreateList={async (name: string): Promise<void> => {
+              const newList = createDefaultShoppingList(name);
+              await db.shoppingLists.add(newList);
+              await refreshAllData();
+            }}
+            onDeleteList={async (listId: string): Promise<void> => {
+              await db.shoppingLists.delete(listId);
+              await refreshAllData();
+            }}
           />
         )}
 
         {activeTab === "settings" && (
           <SettingsView
-            onExportFullBackup={handleExportFullBackup}
-            onRestoreFullBackup={handleRestoreBackupFile}
-            onOpenUserIngredients={() => setShowUserIngredientsModal(true)}
+            onExportFullBackup={(): void => {
+              const data = exportBackupZip(recipes, collections, mealPlanEntries, shoppingLists);
+              const blob = new Blob([new Uint8Array(data)], { type: "application/zip" });
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement("a");
+              link.href = url;
+              link.download = `openrecipebook-backup-${new Date().toISOString().split("T")[0]}.openrecipebook.zip`;
+              link.click();
+              URL.revokeObjectURL(url);
+            }}
+            onRestoreFullBackup={async (file: File): Promise<void> => {
+              const buffer = await file.arrayBuffer();
+              const backupData = importBackupZip(new Uint8Array(buffer));
+              for (const r of backupData.recipes) await saveRecipe(r);
+              for (const c of backupData.collections) await db.collections.put(c);
+              await refreshAllData();
+              showToast("Backup restored successfully");
+            }}
+            onOpenUserIngredients={(): void => setShowUserIngredientsModal(true)}
             recipeCount={recipes.length}
             trashedRecipes={trashedRecipes}
             onRestoreRecipe={handleRestoreRecipe}
             onPermanentDeleteRecipe={handlePermanentDeleteRecipe}
             onEmptyTrash={handleEmptyTrash}
-            onRunAutoFolderBackup={handleRunAutoFolderBackup}
+            onRunAutoFolderBackup={async (): Promise<AutoBackupResult> => {
+              const destination = new FileSystemFolderBackupDestination();
+              return destination.writeBackupZip(recipes, collections, mealPlanEntries, shoppingLists);
+            }}
           />
         )}
 
-        {activeTab === "gallery" && (
-          <ComponentGallery />
-        )}
+        {activeTab === "gallery" && <ComponentGallery />}
       </main>
 
-      {/* Cook Mode Full-Screen View */}
+      {/* Mobile Bottom Navigation Bar (< 768px) */}
+      <nav className={styles.bottomTabBar} aria-label="Mobile Navigation">
+        <button
+          type="button"
+          className={`${styles.tabButton} ${activeTab === "library" ? styles.tabButtonActive : ""}`.trim()}
+          onClick={(): void => setActiveTab("library")}
+        >
+          <BookOpenIcon width={20} height={20} />
+          <span>Recipes</span>
+        </button>
+
+        <button
+          type="button"
+          className={`${styles.tabButton} ${activeTab === "planner" ? styles.tabButtonActive : ""}`.trim()}
+          onClick={(): void => setActiveTab("planner")}
+        >
+          <CalendarIcon width={20} height={20} />
+          <span>Planner</span>
+        </button>
+
+        <button
+          type="button"
+          className={`${styles.tabButton} ${activeTab === "totals" ? styles.tabButtonActive : ""}`.trim()}
+          onClick={(): void => setActiveTab("totals")}
+        >
+          <CalculatorIcon width={20} height={20} />
+          <span>Totals</span>
+        </button>
+
+        <button
+          type="button"
+          className={`${styles.tabButton} ${activeTab === "shopping" ? styles.tabButtonActive : ""}`.trim()}
+          onClick={(): void => setActiveTab("shopping")}
+        >
+          <ShoppingCartIcon width={20} height={20} />
+          <span>Shopping</span>
+        </button>
+
+        <button
+          type="button"
+          className={`${styles.tabButton} ${activeTab === "settings" ? styles.tabButtonActive : ""}`.trim()}
+          onClick={(): void => setActiveTab("settings")}
+        >
+          <SettingsIcon width={20} height={20} />
+          <span>Settings</span>
+        </button>
+      </nav>
+
+      {/* Full-Screen Cook Mode */}
       {cookModeRecipe && (
         <CookModeView
           recipe={cookModeRecipe}
-          multiplier={1}
-          onClose={() => setCookModeRecipe(null)}
+          multiplier={cookModeMultiplier}
+          onClose={(): void => setCookModeRecipe(null)}
         />
       )}
 
-      {/* Import Review Modal */}
+      {/* Modals */}
       {importCandidates && (
         <ImportReviewModal
           candidates={importCandidates}
           existingRecipes={recipes}
           onConfirmImport={handleConfirmImport}
-          onCancel={() => setImportCandidates(null)}
+          onCancel={(): void => setImportCandidates(null)}
         />
       )}
 
-      {/* User Ingredients Modal */}
       {showUserIngredientsModal && (
         <UserIngredientsModal
           userIngredients={userIngredients}
-          onSaveIngredient={handleSaveUserIngredient}
-          onDeleteIngredient={handleDeleteUserIngredient}
-          onImportUserIngredients={handleImportUserIngredients}
-          onClose={() => setShowUserIngredientsModal(false)}
+          onSaveIngredient={async (item: DictionaryIngredient): Promise<void> => {
+            await db.userIngredients.put(item);
+            await refreshAllData();
+          }}
+          onDeleteIngredient={async (id: string): Promise<void> => {
+            await db.userIngredients.delete(id);
+            await refreshAllData();
+          }}
+          onImportUserIngredients={async (items: DictionaryIngredient[]): Promise<void> => {
+            for (const item of items) await db.userIngredients.put(item);
+            await refreshAllData();
+          }}
+          onClose={(): void => setShowUserIngredientsModal(false)}
         />
       )}
 
-      {/* Cookbook Builder Modal */}
       {showCookbookModal && (
         <CookbookBuilderModal
           recipes={recipes}
           collections={collections}
-          onClose={() => setShowCookbookModal(false)}
+          onClose={(): void => setShowCookbookModal(false)}
         />
       )}
 
-      {/* Keyboard Shortcuts Help Modal */}
-      {showShortcutsModal && (
+      <ConfirmDialog
+        isOpen={emptyTrashConfirmOpen}
+        title="Empty Trash"
+        message="Permanently delete all items in trash? This action cannot be undone."
+        confirmLabel="Empty Trash"
+        isDanger
+        onConfirm={handleConfirmEmptyTrash}
+        onCancel={(): void => setEmptyTrashConfirmOpen(false)}
+      />
+
+      <Dialog
+        isOpen={showShortcutsModal}
+        onClose={(): void => setShowShortcutsModal(false)}
+        title="Keyboard Shortcuts"
+        maxWidth={440}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: "0.9375rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span>Focus search</span>
+            <kbd style={{ background: "var(--surface-alt)", padding: "2px 8px", borderRadius: 4, border: "1px solid var(--border)" }}>/</kbd>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span>New recipe</span>
+            <kbd style={{ background: "var(--surface-alt)", padding: "2px 8px", borderRadius: 4, border: "1px solid var(--border)" }}>N</kbd>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span>Edit recipe (in view)</span>
+            <kbd style={{ background: "var(--surface-alt)", padding: "2px 8px", borderRadius: 4, border: "1px solid var(--border)" }}>E</kbd>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span>Cycle scaling (in view)</span>
+            <kbd style={{ background: "var(--surface-alt)", padding: "2px 8px", borderRadius: 4, border: "1px solid var(--border)" }}>S</kbd>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span>Cook mode (in view)</span>
+            <kbd style={{ background: "var(--surface-alt)", padding: "2px 8px", borderRadius: 4, border: "1px solid var(--border)" }}>C</kbd>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span>Close view or modal</span>
+            <kbd style={{ background: "var(--surface-alt)", padding: "2px 8px", borderRadius: 4, border: "1px solid var(--border)" }}>Esc</kbd>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span>Toggle shortcuts help</span>
+            <kbd style={{ background: "var(--surface-alt)", padding: "2px 8px", borderRadius: 4, border: "1px solid var(--border)" }}>?</kbd>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Drag & Drop File Import Overlay */}
+      {isDraggingOver && (
         <div
           style={{
             position: "fixed",
@@ -1086,78 +1035,7 @@ export const App: FC = (): ReactElement => {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 2000,
-            padding: "var(--space-4)"
-          }}
-        >
-          <div
-            style={{
-              background: "var(--surface)",
-              borderRadius: "var(--radius-md)",
-              padding: "var(--space-6)",
-              maxWidth: "460px",
-              width: "100%",
-              boxShadow: "var(--shadow-lg)"
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-4)" }}>
-              <h3 style={{ fontFamily: "var(--font-serif)", fontSize: "1.3rem" }}>
-                Keyboard Shortcuts
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowShortcutsModal(false)}
-                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)" }}
-                aria-label="Close"
-              >
-                <XIcon width={18} height={18} />
-              </button>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px", fontSize: "0.92rem" }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Focus search</span>
-                <kbd style={{ background: "var(--surface-alt)", padding: "2px 8px", borderRadius: "4px", border: "1px solid var(--border)", fontFamily: "var(--font-mono)" }}>/</kbd>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>New recipe</span>
-                <kbd style={{ background: "var(--surface-alt)", padding: "2px 8px", borderRadius: "4px", border: "1px solid var(--border)", fontFamily: "var(--font-mono)" }}>N</kbd>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Edit recipe (in view)</span>
-                <kbd style={{ background: "var(--surface-alt)", padding: "2px 8px", borderRadius: "4px", border: "1px solid var(--border)", fontFamily: "var(--font-mono)" }}>E</kbd>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Cycle scaling (in view)</span>
-                <kbd style={{ background: "var(--surface-alt)", padding: "2px 8px", borderRadius: "4px", border: "1px solid var(--border)", fontFamily: "var(--font-mono)" }}>S</kbd>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Cook mode (in view)</span>
-                <kbd style={{ background: "var(--surface-alt)", padding: "2px 8px", borderRadius: "4px", border: "1px solid var(--border)", fontFamily: "var(--font-mono)" }}>C</kbd>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Close view or modal</span>
-                <kbd style={{ background: "var(--surface-alt)", padding: "2px 8px", borderRadius: "4px", border: "1px solid var(--border)", fontFamily: "var(--font-mono)" }}>Esc</kbd>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Toggle shortcuts help</span>
-                <kbd style={{ background: "var(--surface-alt)", padding: "2px 8px", borderRadius: "4px", border: "1px solid var(--border)", fontFamily: "var(--font-mono)" }}>?</kbd>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Drag & Drop File Import Overlay */}
-      {isDraggingOver && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0, 0, 0, 0.4)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 9999,
+            zIndex: "var(--z-modal)",
             pointerEvents: "none"
           }}
         >
@@ -1170,160 +1048,23 @@ export const App: FC = (): ReactElement => {
               textAlign: "center"
             }}
           >
-            <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "1.6rem", color: "var(--accent)", marginBottom: "4px" }}>
+            <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "1.5rem", color: "var(--accent)", marginBottom: 6 }}>
               Drop Recipe File Here
             </h2>
-            <p style={{ color: "var(--muted)", fontSize: "0.95rem" }}>
+            <p style={{ color: "var(--muted)", fontSize: "0.9375rem" }}>
               Drop .recipe.json, .openrecipebook.zip, Recipe Keeper .zip, or .paprikarecipes
             </p>
           </div>
         </div>
       )}
-
-      {/* Mobile Bottom Navigation Bar */}
-      <nav
-        className="mobile-only-nav"
-        style={{
-          display: "none",
-          width: "100%",
-          maxWidth: "100%",
-          minWidth: 0,
-          height: "56px",
-          background: "var(--surface)",
-          borderTop: "1px solid var(--border)",
-          alignItems: "center",
-          justifyContent: "space-around",
-          flexShrink: 0,
-          zIndex: 100,
-          padding: "0 4px",
-          boxSizing: "border-box"
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => setActiveTab("library")}
-          style={{
-            flex: 1,
-            minWidth: 0,
-            background: "none",
-            border: "none",
-            color: activeTab === "library" ? "var(--accent)" : "var(--muted)",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "2px",
-            fontSize: "0.7rem",
-            fontWeight: activeTab === "library" ? 700 : 500,
-            cursor: "pointer",
-            padding: "4px 2px",
-            minHeight: "44px"
-          }}
-        >
-          <BookOpenIcon width={18} height={18} />
-          <span>Recipes</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("planner")}
-          style={{
-            flex: 1,
-            minWidth: 0,
-            background: "none",
-            border: "none",
-            color: activeTab === "planner" ? "var(--accent)" : "var(--muted)",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "2px",
-            fontSize: "0.7rem",
-            fontWeight: activeTab === "planner" ? 700 : 500,
-            cursor: "pointer",
-            padding: "4px 2px",
-            minHeight: "44px"
-          }}
-        >
-          <CalendarIcon width={18} height={18} />
-          <span>Planner</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("totals")}
-          style={{
-            flex: 1,
-            minWidth: 0,
-            background: "none",
-            border: "none",
-            color: activeTab === "totals" ? "var(--accent)" : "var(--muted)",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "2px",
-            fontSize: "0.7rem",
-            fontWeight: activeTab === "totals" ? 700 : 500,
-            cursor: "pointer",
-            padding: "4px 2px",
-            minHeight: "44px"
-          }}
-        >
-          <CalculatorIcon width={18} height={18} />
-          <span>Totals</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("shopping")}
-          style={{
-            flex: 1,
-            minWidth: 0,
-            background: "none",
-            border: "none",
-            color: activeTab === "shopping" ? "var(--accent)" : "var(--muted)",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "2px",
-            fontSize: "0.7rem",
-            fontWeight: activeTab === "shopping" ? 700 : 500,
-            cursor: "pointer",
-            padding: "4px 2px",
-            minHeight: "44px"
-          }}
-        >
-          <ShoppingCartIcon width={18} height={18} />
-          <span>Shopping</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("settings")}
-          style={{
-            flex: 1,
-            minWidth: 0,
-            background: "none",
-            border: "none",
-            color: activeTab === "settings" ? "var(--accent)" : "var(--muted)",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "2px",
-            fontSize: "0.7rem",
-            fontWeight: activeTab === "settings" ? 700 : 500,
-            cursor: "pointer",
-            padding: "4px 2px",
-            minHeight: "44px"
-          }}
-        >
-          <SettingsIcon width={18} height={18} />
-          <span>Settings</span>
-        </button>
-      </nav>
     </div>
+  );
+}
+
+export const App: FC = (): ReactElement => {
+  return (
+    <ToastProvider>
+      <AppContent />
+    </ToastProvider>
   );
 };
