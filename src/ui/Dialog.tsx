@@ -1,4 +1,4 @@
-import React, {
+import {
   useEffect,
   useRef,
   useState,
@@ -99,18 +99,16 @@ export function Dialog({
       style={!isMobile && maxWidth ? { maxWidth } : undefined}
     >
       {isMobile && <div className={styles.sheetHandle} />}
-      {(title || onClose) && (
-        <div className={styles.header}>
-          <div className={styles.title}>{title}</div>
-          <IconButton
-            size="sm"
-            variant="ghost"
-            icon={<CloseIcon />}
-            aria-label="Close dialog"
-            onClick={onClose}
-          />
-        </div>
-      )}
+      <div className={styles.header}>
+        <div className={styles.title}>{title}</div>
+        <IconButton
+          size="sm"
+          variant="ghost"
+          icon={<CloseIcon />}
+          aria-label="Close dialog"
+          onClick={onClose}
+        />
+      </div>
       <div className={styles.content}>{children}</div>
       {footer && <div className={styles.footer}>{footer}</div>}
     </div>

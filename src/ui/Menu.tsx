@@ -1,11 +1,15 @@
-import React, {
+import {
   useState,
   useRef,
   useEffect,
+  cloneElement,
+  Fragment,
   type ReactNode,
   type ReactElement,
   type MouseEvent,
-  type KeyboardEvent
+  type CSSProperties,
+  type Ref,
+  type MutableRefObject
 } from "react";
 import { createPortal } from "react-dom";
 import styles from "./Menu.module.css";
@@ -35,7 +39,7 @@ export function Menu({
 }: MenuProps): JSX.Element {
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth < 640);
-  const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
+  const [menuStyle, setMenuStyle] = useState<CSSProperties>({});
   const triggerRef = useRef<HTMLElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -116,13 +120,13 @@ export function Menu({
     }
   }, [isOpen]);
 
-  const clonedTrigger = React.cloneElement(trigger, {
+  const clonedTrigger = cloneElement(trigger, {
     ref: (el: HTMLElement | null): void => {
       triggerRef.current = el;
-      const originalRef = (trigger as { ref?: React.Ref<HTMLElement> }).ref;
+      const originalRef = (trigger as { ref?: Ref<HTMLElement> }).ref;
       if (typeof originalRef === "function") originalRef(el);
       else if (originalRef && typeof originalRef === "object") {
-        (originalRef as React.MutableRefObject<HTMLElement | null>).current = el;
+        (originalRef as MutableRefObject<HTMLElement | null>).current = el;
       }
     },
     onClick: (e: MouseEvent<HTMLElement>): void => {
@@ -154,7 +158,7 @@ export function Menu({
             >
               {isMobile && <div className={styles.sheetHandle} />}
               {items.map((item: MenuItem): JSX.Element => (
-                <React.Fragment key={item.id}>
+                <Fragment key={item.id}>
                   {item.dividerBefore && <div className={styles.divider} />}
                   <button
                     type="button"
@@ -169,7 +173,7 @@ export function Menu({
                     {item.icon}
                     <span>{item.label}</span>
                   </button>
-                </React.Fragment>
+                </Fragment>
               ))}
             </div>
           </>,

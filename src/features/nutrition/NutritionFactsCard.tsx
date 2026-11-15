@@ -114,17 +114,6 @@ export const NutritionFactsCard: FC<NutritionFactsCardProps> = ({
           </button>
         </div>
       </div>
-              padding: "4px 12px",
-              fontSize: "0.8rem",
-              fontWeight: 600,
-              cursor: "pointer",
-              boxShadow: viewMode === "batch" ? "var(--shadow-sm)" : "none"
-            }}
-          >
-            Entire Batch
-          </button>
-        </div>
-      </div>
 
       {/* Servings display */}
       <div style={{ fontSize: "0.85rem", color: "var(--muted)", marginBottom: "var(--space-3)" }}>

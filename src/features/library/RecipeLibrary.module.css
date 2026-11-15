@@ -1,0 +1,287 @@
+.libraryContainer {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 100%;
+  padding-bottom: var(--space-8);
+  box-sizing: border-box;
+}
+
+.controlsHeader {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background-color: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: var(--z-header);
+}
+
+/* Row 1: Search + Filters + Segmented control + Kebab menu - NEVER WRAPS AT 360px */
+.row1 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.searchBox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+  background-color: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: 0 var(--space-3);
+  height: 40px;
+}
+
+.searchBox:focus-within {
+  border-color: var(--accent);
+  background-color: var(--surface);
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.9375rem;
+  outline: none;
+}
+
+/* Row 2: Horizontally scrollable chip row */
+.row2 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0 4px 0;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
+}
+
+.row2::-webkit-scrollbar {
+  display: none;
+}
+
+/* Recipe layouts */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-4);
+  padding: var(--space-4);
+}
+
+.compactGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+
+/* Card Styling */
+.card {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  position: relative;
+  user-select: none;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--accent);
+}
+
+.cardSelected {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent);
+}
+
+.cardThumbnail {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+  background: linear-gradient(135deg, #7c2d12 0%, #b84c2a 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+}
+
+.compactThumbnail {
+  width: 100%;
+  height: 110px;
+  object-fit: cover;
+  background: linear-gradient(135deg, #7c2d12 0%, #b84c2a 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+}
+
+.cardBody {
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.cardTitle {
+  font-family: var(--font-serif);
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+
+.cardMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.cardFolders {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.cardFolderBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.6875rem;
+  background-color: var(--surface-alt);
+  color: var(--muted);
+  padding: 2px 6px;
+  border-radius: var(--radius-full);
+}
+
+/* Floating Action Button (FAB) on mobile */
+.mobileFab {
+  display: flex;
+  position: fixed;
+  bottom: calc(56px + var(--safe-bottom) + 16px);
+  right: 16px;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-full);
+  background-color: var(--accent);
+  color: var(--accent-contrast);
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-lg);
+  border: none;
+  cursor: pointer;
+  z-index: var(--z-sticky);
+}
+
+@media (min-width: 768px) {
+  .mobileFab {
+    display: none;
+  }
+}
+
+/* Multi-select bottom bar */
+.multiSelectBar {
+  position: fixed;
+  bottom: calc(56px + var(--safe-bottom));
+  left: 0;
+  right: 0;
+  background-color: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: var(--z-sticky);
+  box-shadow: var(--shadow-lg);
+  gap: var(--space-2);
+}
+
+.listItem {
+  display: flex;
+  align-items: center;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  gap: var(--space-3);
+  cursor: pointer;
+  user-select: none;
+}
+
+.listItem:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+
+.listThumbnail {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #7c2d12 0%, #b84c2a 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+}
+
+.listBody {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+}
+
+@media (min-width: 768px) {
+  .multiSelectBar {
+    bottom: 0;
+    left: 72px;
+  }
+}
+
+@media (min-width: 768px) {
+  .multiSelectBar {
+    bottom: 0;
+    left: 72px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .multiSelectBar {
+    left: 240px;
+  }
+}

@@ -119,9 +119,9 @@ export function RecipePicker({
               onMouseEnter={(): void => setSelectedIndex(idx)}
             >
               <div className={styles.thumbnail}>
-                {recipe.heroPhotoId ? (
+                {recipe.photoIds?.[0] ? (
                   <img
-                    src={`/api/photos/${recipe.heroPhotoId}`}
+                    src={`/api/photos/${recipe.photoIds[0]}`}
                     alt=""
                     style={{ width: "100%", height: "100%", objectFit: "cover" }}
                     onError={(e: React.SyntheticEvent<HTMLImageElement>): void => {

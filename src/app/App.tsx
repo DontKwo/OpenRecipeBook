@@ -21,7 +21,6 @@ import {
 import { parseRecipeKeeperZip } from "../domain/import/recipeKeeper";
 import { parsePaprikaRecipesZip } from "../domain/import/paprika";
 import { parseSchemaRecipeJsonLd } from "../domain/import/jsonld";
-import { importRecipesFromUrl } from "../domain/import/nativeFetch";
 import {
   createDefaultShoppingList,
   buildShoppingItemFromIngredient,
@@ -43,7 +42,6 @@ import { ImportReviewModal } from "../features/import/ImportReviewModal";
 import { CookbookBuilderModal } from "../features/cookbook/CookbookBuilderModal";
 import {
   FileSystemFolderBackupDestination,
-  shouldAutoBackup,
   type AutoBackupResult
 } from "../domain/backup/backupFolder";
 import {
@@ -183,7 +181,7 @@ function AppContent(): ReactElement {
           } else {
             try {
               const rkRecipes = parseRecipeKeeperZip(new Uint8Array(buffer));
-              setImportCandidates(rkRecipes);
+              setImportCandidates(rkRecipes.recipes);
             } catch {
               const backupData = importBackupZip(new Uint8Array(buffer));
               setImportCandidates(backupData.recipes);
@@ -557,7 +555,7 @@ function AppContent(): ReactElement {
       <aside className={styles.sidebar}>
         <div className={styles.brand}>
           <BookOpenIcon className={styles.brandIcon} width={24} height={24} />
-          <span>{BRAND.name}</span>
+          <span>{BRAND.appName}</span>
         </div>
 
         <Button
@@ -850,7 +848,22 @@ function AppContent(): ReactElement {
         {activeTab === "settings" && (
           <SettingsView
             onExportFullBackup={(): void => {
-              const data = exportBackupZip(recipes, collections, mealPlanEntries, shoppingLists);
+              const data = exportBackupZip({
+                manifest: {
+                  format: "openrecipebook-library",
+                  version: 1,
+                  exportedAt: new Date().toISOString(),
+                  appVersion: "0.1.3",
+                  counts: { recipes: recipes.length, photos: 0 }
+                },
+                recipes,
+                photos: [],
+                collections,
+                mealPlan: mealPlanEntries,
+                shoppingLists,
+                combos: [],
+                userIngredients: []
+              });
               const blob = new Blob([new Uint8Array(data)], { type: "application/zip" });
               const url = URL.createObjectURL(blob);
               const link = document.createElement("a");
@@ -875,7 +888,23 @@ function AppContent(): ReactElement {
             onEmptyTrash={handleEmptyTrash}
             onRunAutoFolderBackup={async (): Promise<AutoBackupResult> => {
               const destination = new FileSystemFolderBackupDestination();
-              return destination.writeBackupZip(recipes, collections, mealPlanEntries, shoppingLists);
+              const zipBytes = exportBackupZip({
+                manifest: {
+                  format: "openrecipebook-library",
+                  version: 1,
+                  exportedAt: new Date().toISOString(),
+                  appVersion: "0.1.3",
+                  counts: { recipes: recipes.length, photos: 0 }
+                },
+                recipes,
+                photos: [],
+                collections,
+                mealPlan: mealPlanEntries,
+                shoppingLists,
+                combos: [],
+                userIngredients: []
+              });
+              return destination.saveBackupWithRotation(zipBytes);
             }}
           />
         )}

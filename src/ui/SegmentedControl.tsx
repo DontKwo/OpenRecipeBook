@@ -1,9 +1,9 @@
-import React, { type ReactNode } from "react";
+import { type ReactNode } from "react";
 import styles from "./SegmentedControl.module.css";
 
 export interface SegmentedOption<T extends string | number> {
   value: T;
-  label: ReactNode;
+  label?: ReactNode;
   icon?: ReactNode;
   ariaLabel?: string;
 }
@@ -14,6 +14,7 @@ export interface SegmentedControlProps<T extends string | number> {
   onChange: (value: T) => void;
   className?: string;
   name?: string;
+  size?: "sm" | "md";
 }
 
 export function SegmentedControl<T extends string | number>({
@@ -42,7 +43,7 @@ export function SegmentedControl<T extends string | number>({
             onClick={(): void => onChange(opt.value)}
           >
             {opt.icon}
-            {opt.label}
+            {opt.label !== undefined && <span>{opt.label}</span>}
           </button>
         );
       })}
