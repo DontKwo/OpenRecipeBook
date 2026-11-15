@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { SAMPLE_RECIPES } from "../src/data/sampleRecipes";
 import { normalizeRecipe, cleanStepText } from "../src/domain/recipe/normalize";
 import { sanitizeText, sanitizeHeading } from "../src/domain/recipe/sanitizeText";
-import type { Recipe, Step, Ingredient } from "../src/domain/recipe/types";
+import type { Recipe } from "../src/domain/recipe/types";
 
 describe("Sample Recipes Hygiene & Sanitization", () => {
   it("verifies all 20 sample recipes have no backticks, leading #, deg, unformatted temp, or stray symbols", () => {
@@ -132,6 +132,9 @@ describe("Sample Recipes Hygiene & Sanitization", () => {
       id: "fixture-old-recipe",
       title: "Dirty Recipe",
       servings: 4,
+      rating: 0,
+      favorite: false,
+      photoIds: [],
       ingredientGroups: [
         {
           heading: "Main Ingredients:",

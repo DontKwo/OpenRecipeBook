@@ -25,7 +25,6 @@ import {
   HeartIcon,
   MoreIcon,
   ChefHatIcon,
-  PlusIcon,
   ClockIcon,
   StarIcon,
   FolderIcon,
@@ -318,9 +317,9 @@ export const RecipeView: FC<RecipeViewProps> = ({
 
       {/* Hero Section */}
       <section className={styles.hero}>
-        {recipe.heroPhotoId ? (
+        {recipe.photoIds?.[0] ? (
           <img
-            src={`/api/photos/${recipe.heroPhotoId}`}
+            src={`/api/photos/${recipe.photoIds[0]}`}
             alt={recipe.title}
             className={styles.heroImage}
             onError={(e): void => {
@@ -832,7 +831,6 @@ export const RecipeView: FC<RecipeViewProps> = ({
         <ConfirmDialog
           isOpen
           title="Log Cooking Session"
-          message=""
           confirmLabel="Save Log"
           onConfirm={(): void => {
             void handleAddCookLog();

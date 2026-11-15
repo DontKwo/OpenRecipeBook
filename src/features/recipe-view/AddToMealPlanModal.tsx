@@ -1,5 +1,6 @@
 import { useState, type FC, type ReactElement, type ChangeEvent } from "react";
-import type { Recipe, MealPlanEntry, MealSlot } from "../../domain/recipe/types";
+import type { Recipe, MealPlanEntry } from "../../domain/recipe/types";
+import { createMealPlanEntry } from "../../domain/planner/plannerService";
 import { db } from "../../data/db";
 import { CalendarIcon, CheckIcon } from "../../ui/icons";
 import { Dialog } from "../../ui/Dialog";
@@ -18,20 +19,16 @@ export const AddToMealPlanModal: FC<AddToMealPlanModalProps> = ({
 }): ReactElement => {
   const todayIso = new Date().toISOString().split("T")[0];
   const [date, setDate] = useState<string>(todayIso);
-  const [slot, setSlot] = useState<MealSlot>("dinner");
-  const [servings, setServings] = useState<number>(recipe.servings || 4);
+  const [slot, setSlot] = useState<string>("dinner");
+  const baseServings = recipe.servings || 4;
+  const [servings, setServings] = useState<number>(baseServings);
   const [saving, setSaving] = useState<boolean>(false);
 
   const handleSave = async (): Promise<void> => {
     setSaving(true);
     try {
-      const entry: MealPlanEntry = {
-        id: `mp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-        date,
-        slot,
-        recipeId: recipe.id,
-        servings: Number(servings) || 4
-      };
+      const multiplier = (Number(servings) || baseServings) / baseServings;
+      const entry: MealPlanEntry = createMealPlanEntry(date, slot, recipe.id, undefined, multiplier);
       await db.mealPlan.put(entry);
       onSuccess();
       onClose();
@@ -97,7 +94,7 @@ export const AddToMealPlanModal: FC<AddToMealPlanModalProps> = ({
           </label>
           <select
             value={slot}
-            onChange={(e: ChangeEvent<HTMLSelectElement>): void => setSlot(e.target.value as MealSlot)}
+            onChange={(e: ChangeEvent<HTMLSelectElement>): void => setSlot(e.target.value)}
             style={{
               width: "100%",
               padding: "8px 12px",

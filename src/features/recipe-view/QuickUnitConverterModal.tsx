@@ -51,17 +51,27 @@ export const QuickUnitConverterModal: FC<QuickUnitConverterModalProps> = ({
       fromUnit,
       toUnit,
       ingredientQuery,
+      undefined,
       userIngredients
     );
   }, [inputValue, fromUnit, toUnit, ingredientQuery, userIngredients]);
 
   const allAlternatives = useMemo(() => {
-    return getAllUnitConversions(inputValue, fromUnit, ingredientQuery, userIngredients);
+    return getAllUnitConversions(inputValue, fromUnit, ingredientQuery, undefined, userIngredients);
   }, [inputValue, fromUnit, ingredientQuery, userIngredients]);
 
   const detectedDensity = useMemo(() => {
     return findIngredientDensity(ingredientQuery, userIngredients);
   }, [ingredientQuery, userIngredients]);
+
+  const alternativeList = useMemo((): { unit: string; formatted: string }[] => {
+    if (!allAlternatives) return [];
+    const all = [...allAlternatives.volumeConversions, ...allAlternatives.weightConversions];
+    return all.filter((item) => !item.isOriginal).map((item) => ({
+      unit: item.unit,
+      formatted: item.formattedAmount
+    }));
+  }, [allAlternatives]);
 
   return (
     <Dialog
@@ -88,8 +98,8 @@ export const QuickUnitConverterModal: FC<QuickUnitConverterModalProps> = ({
               disabled={!conversion.success}
               icon={<CheckIcon width={16} height={16} />}
               onClick={(): void => {
-                if (conversion.success && conversion.formatted) {
-                  onApplyConversion(conversion.formatted, toUnit);
+                if (conversion.success && conversion.formattedAmount) {
+                  onApplyConversion(conversion.formattedAmount, toUnit);
                   onClose();
                 }
               }}
@@ -251,10 +261,10 @@ export const QuickUnitConverterModal: FC<QuickUnitConverterModalProps> = ({
           <div>
             <div style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>Converted result</div>
             <div style={{ fontSize: "1.25rem", fontWeight: 700, color: conversion.success ? "var(--accent)" : "var(--danger)" }}>
-              {conversion.success ? conversion.formatted : "Conversion unavailable"}
+              {conversion.success ? conversion.formattedText : (conversion.error || "Conversion unavailable")}
             </div>
           </div>
-          {conversion.requiresDensity && (
+          {conversion.crossFamily && (
             <span style={{ fontSize: "0.75rem", background: "var(--surface)", border: "1px solid var(--border)", padding: "2px 8px", borderRadius: "var(--radius-full)" }}>
               Volume/Weight
             </span>
@@ -262,15 +272,15 @@ export const QuickUnitConverterModal: FC<QuickUnitConverterModalProps> = ({
         </div>
 
         {/* Quick alternative conversions */}
-        {allAlternatives.length > 0 && (
+        {alternativeList.length > 0 && (
           <div>
             <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)", marginBottom: 6 }}>
               QUICK CONVERSIONS
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 6 }}>
-              {allAlternatives.slice(0, 8).map((alt) => (
+              {alternativeList.slice(0, 8).map((alt) => (
                 <div
-                  key={alt.targetUnit}
+                  key={alt.unit}
                   style={{
                     padding: "6px 8px",
                     background: "var(--surface-alt)",
@@ -281,7 +291,7 @@ export const QuickUnitConverterModal: FC<QuickUnitConverterModalProps> = ({
                     justifyContent: "space-between"
                   }}
                 >
-                  <span style={{ color: "var(--muted)" }}>{alt.targetUnit}</span>
+                  <span style={{ color: "var(--muted)" }}>{alt.unit}</span>
                   <span style={{ fontWeight: 600 }}>{alt.formatted}</span>
                 </div>
               ))}

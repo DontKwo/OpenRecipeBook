@@ -1,15 +1,17 @@
+import { type ReactNode } from "react";
 import { Dialog } from "./Dialog";
 import { Button } from "./Button";
 
 export interface ConfirmDialogProps {
   isOpen: boolean;
   title: string;
-  message: string;
+  message?: string;
   confirmLabel?: string;
   cancelLabel?: string;
   isDanger?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
+  children?: ReactNode;
 }
 
 export function ConfirmDialog({
@@ -20,7 +22,8 @@ export function ConfirmDialog({
   cancelLabel = "Cancel",
   isDanger = false,
   onConfirm,
-  onCancel
+  onCancel,
+  children
 }: ConfirmDialogProps): JSX.Element | null {
   return (
     <Dialog
@@ -48,9 +51,12 @@ export function ConfirmDialog({
         </>
       }
     >
-      <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.5 }}>
-        {message}
-      </p>
+      {message ? (
+        <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.5 }}>
+          {message}
+        </p>
+      ) : null}
+      {children}
     </Dialog>
   );
 }
