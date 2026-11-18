@@ -90,7 +90,7 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
   const [onlyHasPhoto, setOnlyHasPhoto] = useState<boolean>(false);
   const [sortBy, setSortBy] = useState<SortField>("recentAdded");
   const [viewMode, setViewMode] = useState<"list" | "expanded" | "grid">(
-    () => (localStorage.getItem("orb_library_view") as "list" | "expanded" | "grid") || "list"
+    () => (localStorage.getItem("orb_library_view") as "list" | "expanded" | "grid") || "grid"
   );
 
   // Modal states

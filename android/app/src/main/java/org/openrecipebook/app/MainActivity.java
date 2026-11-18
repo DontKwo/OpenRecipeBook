@@ -471,6 +471,18 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @JavascriptInterface
+        public void setStatusBarColor(String hexColor) {
+            if (hexColor == null || hexColor.isEmpty()) return;
+            runOnUiThread(() -> {
+                try {
+                    int color = android.graphics.Color.parseColor(hexColor);
+                    getWindow().setStatusBarColor(color);
+                } catch (Exception ignored) {
+                }
+            });
+        }
+
+        @JavascriptInterface
         public String fetchUrl(String targetUrl) {
             try {
                 URL url = new URL(targetUrl);

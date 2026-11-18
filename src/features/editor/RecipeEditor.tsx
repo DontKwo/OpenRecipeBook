@@ -585,6 +585,7 @@ export const RecipeEditor: FC<RecipeEditorProps> = ({
       rating,
       favorite: initialRecipe?.favorite || false,
       photoIds: initialRecipe?.photoIds || [],
+      disallowedSubstitutions: initialRecipe?.disallowedSubstitutions || {},
       createdAt: initialRecipe?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       schemaVersion: 1

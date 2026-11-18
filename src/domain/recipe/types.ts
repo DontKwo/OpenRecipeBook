@@ -69,6 +69,7 @@ export interface Recipe {
   rating: RecipeRating;
   favorite: boolean;
   photoIds: string[];
+  disallowedSubstitutions?: Record<string, string[]>;
   createdAt: string;
   updatedAt: string;
   deletedAt?: string;

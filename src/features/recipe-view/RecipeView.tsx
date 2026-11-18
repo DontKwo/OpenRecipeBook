@@ -121,6 +121,32 @@ export const RecipeView: FC<RecipeViewProps> = ({
       setOpenUnitSelectorKey(null);
     }
   };
+
+  const handleRejectSubstitution = (ingKey: string, ingRaw: string, subName: string): void => {
+    const currentDisallowed = { ...(recipe.disallowedSubstitutions || {}) };
+    const existing = currentDisallowed[ingKey] || currentDisallowed[ingRaw.toLowerCase()] || [];
+    if (!existing.includes(subName)) {
+      currentDisallowed[ingKey] = [...existing, subName];
+      const updatedRecipe: Recipe = {
+        ...recipe,
+        disallowedSubstitutions: currentDisallowed
+      };
+      onUpdateRecipe?.(updatedRecipe);
+      showToast(`Disallowed "${subName}" for this recipe`);
+    }
+  };
+
+  const handleRestoreSubstitutions = (ingKey: string, ingRaw: string): void => {
+    const currentDisallowed = { ...(recipe.disallowedSubstitutions || {}) };
+    delete currentDisallowed[ingKey];
+    delete currentDisallowed[ingRaw.toLowerCase()];
+    const updatedRecipe: Recipe = {
+      ...recipe,
+      disallowedSubstitutions: currentDisallowed
+    };
+    onUpdateRecipe?.(updatedRecipe);
+    showToast(`Restored substitutions for "${ingRaw}"`);
+  };
   const [newNoteInput, setNewNoteInput] = useState<string>("");
   const [showLogModal, setShowLogModal] = useState<boolean>(false);
   const [logNotes, setLogNotes] = useState<string>("");
@@ -528,11 +554,16 @@ export const RecipeView: FC<RecipeViewProps> = ({
                       const parsed = parseIngredient(baseLine).ingredient;
                       const canConvert = Boolean(parsed && parsed.quantity && parsed.unit);
                       const convertedResult = inlineConvertedUnits[ingKey];
-                      const substitutions = getSubstitutionsForIngredient(ing.raw, {
+                      const rawSubstitutions = getSubstitutionsForIngredient(ing.raw, {
                         courses: recipe.courses,
                         tags: recipe.tags,
                         title: recipe.title
                       });
+                      const disallowedMap = recipe.disallowedSubstitutions || {};
+                      const rejectedSubs = disallowedMap[ingKey] || disallowedMap[ing.raw.toLowerCase()] || [];
+                      const substitutions = rawSubstitutions.filter(
+                        (sub) => !rejectedSubs.includes(sub.substituteIngredient)
+                      );
 
                       return (
                         <div key={ingKey} style={{ display: "flex", flexDirection: "column" }}>
@@ -639,7 +670,7 @@ export const RecipeView: FC<RecipeViewProps> = ({
                                 </button>
                               ))}
 
-                            {substitutions.length > 0 && (
+                            {(substitutions.length > 0 || rejectedSubs.length > 0) && (
                               <button
                                 type="button"
                                 className={styles.inlineConvertTrigger}
@@ -647,13 +678,15 @@ export const RecipeView: FC<RecipeViewProps> = ({
                                   setOpenSubstitutionsKey(openSubstitutionsKey === ingKey ? null : ingKey)
                                 }
                               >
-                                {substitutions.length} Substitute{substitutions.length > 1 ? "s" : ""}
+                                {substitutions.length > 0
+                                  ? `${substitutions.length} Substitute${substitutions.length > 1 ? "s" : ""}`
+                                  : `${rejectedSubs.length} Disallowed`}
                               </button>
                             )}
                           </div>
 
                           {/* Inline Substitutions Panel */}
-                          {openSubstitutionsKey === ingKey && substitutions.length > 0 && (
+                          {openSubstitutionsKey === ingKey && (substitutions.length > 0 || rejectedSubs.length > 0) && (
                             <div className={styles.subCard}>
                               <div
                                 style={{
@@ -675,7 +708,7 @@ export const RecipeView: FC<RecipeViewProps> = ({
                                   }}
                                   onClick={(): void => setOpenSubstitutionsKey(null)}
                                 >
-                                  ×
+                                  x
                                 </button>
                               </div>
 
@@ -716,20 +749,32 @@ export const RecipeView: FC<RecipeViewProps> = ({
                                         </span>
                                         <strong>{sub.substituteIngredient}</strong>
                                       </div>
-                                      <Button
-                                        type="button"
-                                        variant="secondary"
-                                        size="sm"
-                                        onClick={(): void => {
-                                          setAppliedSubstitutions((prev) => ({
-                                            ...prev,
-                                            [ingKey]: `${sub.substituteIngredient} (substitute for ${ing.raw})`
-                                          }));
-                                          setOpenSubstitutionsKey(null);
-                                        }}
-                                      >
-                                        Use Sub
-                                      </Button>
+                                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                        <Button
+                                          type="button"
+                                          variant="secondary"
+                                          size="sm"
+                                          onClick={(): void => {
+                                            setAppliedSubstitutions((prev) => ({
+                                              ...prev,
+                                              [ingKey]: `${sub.substituteIngredient} (substitute for ${ing.raw})`
+                                            }));
+                                            setOpenSubstitutionsKey(null);
+                                          }}
+                                        >
+                                          Use Sub
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={(): void =>
+                                            handleRejectSubstitution(ingKey, ing.raw, sub.substituteIngredient)
+                                          }
+                                        >
+                                          Disallow
+                                        </Button>
+                                      </div>
                                     </div>
 
                                     {sub.amountNote && (
@@ -741,11 +786,45 @@ export const RecipeView: FC<RecipeViewProps> = ({
                                       <strong>Why:</strong> {sub.why}
                                     </div>
                                     <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
-                                      <strong>When:</strong> {sub.when} · <strong>How:</strong> {sub.how}
+                                      <strong>When:</strong> {sub.when} | <strong>How:</strong> {sub.how}
                                     </div>
                                   </div>
                                 );
                               })}
+
+                              {rejectedSubs.length > 0 && (
+                                <div
+                                  style={{
+                                    marginTop: 4,
+                                    padding: "6px 8px",
+                                    borderRadius: "var(--radius-sm)",
+                                    border: "1px dashed var(--border)",
+                                    background: "var(--surface-alt)",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    fontSize: "0.75rem",
+                                    gap: 8
+                                  }}
+                                >
+                                  <span>Disallowed for this recipe: <strong>{rejectedSubs.join(", ")}</strong></span>
+                                  <button
+                                    type="button"
+                                    onClick={(): void => handleRestoreSubstitutions(ingKey, ing.raw)}
+                                    style={{
+                                      background: "none",
+                                      border: "none",
+                                      color: "var(--accent)",
+                                      cursor: "pointer",
+                                      fontWeight: 600,
+                                      fontSize: "0.75rem",
+                                      textDecoration: "underline"
+                                    }}
+                                  >
+                                    Restore
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>

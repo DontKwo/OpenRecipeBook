@@ -22,7 +22,8 @@
   height: 56px;
   padding: 0 var(--space-4);
   background-color: var(--surface);
-  border-bottom: 2px solid var(--accent);
+  border-top: 3px solid var(--accent);
+  border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
   z-index: var(--z-header);

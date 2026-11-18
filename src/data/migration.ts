@@ -4,7 +4,7 @@ import { normalizeRecipe } from "../domain/recipe/normalize";
 import { saveRecipeVersion } from "../domain/recipe/versionHistory";
 import type { Recipe } from "../domain/recipe/types";
 
-export const CURRENT_SAMPLE_RECIPES_VERSION = 4;
+export const CURRENT_SAMPLE_RECIPES_VERSION = 5;
 
 export async function runRecipeCleanupMigration(): Promise<void> {
   const sampleVersionSetting = await db.settings.get("sampleRecipesVersion");

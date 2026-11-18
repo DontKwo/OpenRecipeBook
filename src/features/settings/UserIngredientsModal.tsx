@@ -1,6 +1,7 @@
 import { useState, useMemo, type FC, type ReactElement, type ChangeEvent, type FormEvent } from "react";
-import type { DictionaryIngredient, UnitFamily } from "../../domain/recipe/types";
+import type { DictionaryIngredient, UnitFamily, IngredientSubstitution } from "../../domain/recipe/types";
 import { BUILT_IN_INGREDIENTS } from "../../data/defaultIngredients";
+import { getSubstitutionsForIngredient } from "../../domain/ingredients/substitutions";
 import { PlusIcon, TrashIcon, DownloadIcon, UploadIcon } from "../../ui/icons";
 import { Button, IconButton } from "../../ui/Button";
 import { Dialog } from "../../ui/Dialog";
@@ -25,6 +26,8 @@ export const UserIngredientsModal: FC<UserIngredientsModalProps> = ({
 
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [showAddForm, setShowAddForm] = useState<boolean>(false);
+  const [expandedSubId, setExpandedSubId] = useState<string | null>(null);
+  const [onlyWithSubs, setOnlyWithSubs] = useState<boolean>(false);
 
   // New ingredient form state
   const [name, setName] = useState<string>("");
@@ -39,13 +42,27 @@ export const UserIngredientsModal: FC<UserIngredientsModalProps> = ({
 
   const filtered = useMemo((): DictionaryIngredient[] => {
     const q = searchQuery.toLowerCase().trim();
-    if (!q) return allIngredients;
     return allIngredients.filter((item: DictionaryIngredient): boolean => {
+      const subs = item.substitutions && item.substitutions.length > 0
+        ? item.substitutions
+        : getSubstitutionsForIngredient(item.name);
+
+      if (onlyWithSubs && subs.length === 0) {
+        return false;
+      }
+
+      if (!q) return true;
+
       const matchName = item.name.toLowerCase().includes(q);
       const matchAlias = item.aliases.some((a: string): boolean => a.toLowerCase().includes(q));
-      return matchName || matchAlias;
+      const matchSub = subs.some((s) =>
+        s.substituteIngredient.toLowerCase().includes(q) ||
+        s.why.toLowerCase().includes(q) ||
+        s.when.toLowerCase().includes(q)
+      );
+      return matchName || matchAlias || matchSub;
     });
-  }, [allIngredients, searchQuery]);
+  }, [allIngredients, searchQuery, onlyWithSubs]);
 
   const handleCreate = (e: FormEvent): void => {
     e.preventDefault();
@@ -114,7 +131,7 @@ export const UserIngredientsModal: FC<UserIngredientsModalProps> = ({
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
         <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
-          {userIngredients.length} custom entries · {BUILT_IN_INGREDIENTS.length} built-in
+          {userIngredients.length} custom entries | {BUILT_IN_INGREDIENTS.length} built-in
         </div>
 
         {/* Action bar: Search, Add, Import/Export */}
@@ -141,6 +158,15 @@ export const UserIngredientsModal: FC<UserIngredientsModalProps> = ({
             onClick={(): void => setShowAddForm(!showAddForm)}
           >
             <PlusIcon width={14} height={14} /> Add Ingredient
+          </Button>
+
+          <Button
+            type="button"
+            variant={onlyWithSubs ? "primary" : "secondary"}
+            size="sm"
+            onClick={(): void => setOnlyWithSubs(!onlyWithSubs)}
+          >
+            {onlyWithSubs ? "All Ingredients" : "Has Substitutions"}
           </Button>
 
           <IconButton
@@ -308,52 +334,138 @@ export const UserIngredientsModal: FC<UserIngredientsModalProps> = ({
         )}
 
         {/* List of Ingredients */}
-        <div style={{ maxHeight: "320px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "4px" }}>
-          {filtered.map((item: DictionaryIngredient) => (
-            <div
-              key={item.id}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "8px 12px",
-                borderBottom: "1px solid var(--border)",
-                fontSize: "0.875rem"
-              }}
-            >
-              <div>
-                <div style={{ fontWeight: 600 }}>
-                  {item.name}{" "}
-                  {item.user && (
-                    <span
-                      style={{
-                        fontSize: "0.75rem",
-                        background: "var(--accent)",
-                        color: "var(--accent-contrast)",
-                        padding: "1px 6px",
-                        borderRadius: "var(--radius-full)"
-                      }}
-                    >
-                      Custom
-                    </span>
-                  )}
-                </div>
-                <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
-                  Aisle: {item.aisle} · Family: {item.unitFamily}
-                  {item.aliases.length > 0 && ` · Aliases: ${item.aliases.join(", ")}`}
-                </div>
-              </div>
+        <div style={{ maxHeight: "360px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "6px" }}>
+          {filtered.map((item: DictionaryIngredient): ReactElement => {
+            const subs = item.substitutions && item.substitutions.length > 0
+              ? item.substitutions
+              : getSubstitutionsForIngredient(item.name);
+            const isExpanded = expandedSubId === item.id;
 
-              {item.user && (
-                <IconButton
-                  icon={<TrashIcon width={16} height={16} />}
-                  aria-label={`Delete custom ingredient ${item.name}`}
-                  size="sm"
-                  onClick={(): void => onDeleteIngredient(item.id)}
-                />
-              )}
-            </div>
-          ))}
+            return (
+              <div
+                key={item.id}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  padding: "8px 12px",
+                  borderRadius: "var(--radius-sm)",
+                  border: "1px solid var(--border)",
+                  background: isExpanded ? "var(--surface-alt)" : "var(--surface)",
+                  fontSize: "0.875rem"
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontWeight: 600 }}>
+                      {item.name}{" "}
+                      {item.user && (
+                        <span
+                          style={{
+                            fontSize: "0.75rem",
+                            background: "var(--accent)",
+                            color: "var(--accent-contrast)",
+                            padding: "1px 6px",
+                            borderRadius: "var(--radius-full)"
+                          }}
+                        >
+                          Custom
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+                      Aisle: {item.aisle} | Family: {item.unitFamily}
+                      {item.aliases.length > 0 && ` | Aliases: ${item.aliases.join(", ")}`}
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                    {subs.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={(): void => setExpandedSubId(isExpanded ? null : item.id)}
+                        style={{
+                          background: "var(--surface)",
+                          border: "1px solid var(--border)",
+                          borderRadius: "var(--radius-full)",
+                          padding: "3px 10px",
+                          fontSize: "0.75rem",
+                          cursor: "pointer",
+                          color: "var(--accent)",
+                          fontWeight: 600
+                        }}
+                      >
+                        {subs.length} Substitute{subs.length > 1 ? "s" : ""} ({isExpanded ? "Hide" : "View"})
+                      </button>
+                    )}
+
+                    {item.user && (
+                      <IconButton
+                        icon={<TrashIcon width={16} height={16} />}
+                        aria-label={`Delete custom ingredient ${item.name}`}
+                        size="sm"
+                        onClick={(): void => onDeleteIngredient(item.id)}
+                      />
+                    )}
+                  </div>
+                </div>
+
+                {isExpanded && subs.length > 0 && (
+                  <div
+                    style={{
+                      marginTop: 8,
+                      padding: 8,
+                      background: "var(--surface)",
+                      borderRadius: "var(--radius-sm)",
+                      border: "1px solid var(--border)",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 6
+                    }}
+                  >
+                    <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--accent)" }}>
+                      Culinary Substitutions for {item.name}:
+                    </div>
+                    {subs.map((s: IngredientSubstitution, idx: number): ReactElement => (
+                      <div
+                        key={idx}
+                        style={{
+                          padding: "6px 8px",
+                          background: "var(--surface-alt)",
+                          borderRadius: "var(--radius-sm)",
+                          border: "1px solid var(--border)",
+                          fontSize: "0.75rem",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 3
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 4 }}>
+                          <strong>{s.substituteIngredient}</strong>
+                          <span
+                            style={{
+                              fontWeight: 700,
+                              padding: "1px 6px",
+                              borderRadius: 4,
+                              background: s.qualityGrade.startsWith("A") ? "#e8f5e9" : "#fff3e0",
+                              color: s.qualityGrade.startsWith("A") ? "#2e7d32" : "#b26a00"
+                            }}
+                          >
+                            Grade {s.qualityGrade} ({s.ratio}x ratio)
+                          </span>
+                        </div>
+                        {s.amountNote && (
+                          <div style={{ color: "var(--warning)", fontWeight: 600 }}>{s.amountNote}</div>
+                        )}
+                        <div><strong>Why:</strong> {s.why}</div>
+                        <div><strong>When:</strong> {s.when}</div>
+                        <div><strong>How:</strong> {s.how}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     </Dialog>

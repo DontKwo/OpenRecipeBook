@@ -16,21 +16,33 @@ export const applyThemeAndAccent = (theme?: string, accent?: string): void => {
     document.documentElement.setAttribute("data-theme", effectiveTheme);
   }
 
-  if (effectiveAccent.startsWith("#")) {
-    document.documentElement.setAttribute("data-accent", "custom");
-    document.documentElement.style.setProperty("--accent", effectiveAccent);
-    document.documentElement.style.setProperty("--accent-contrast", "#ffffff");
-  } else {
-    document.documentElement.style.removeProperty("--accent");
-    document.documentElement.style.removeProperty("--accent-contrast");
-    document.documentElement.setAttribute("data-accent", effectiveAccent);
-  }
+  const hex = effectiveAccent.startsWith("#")
+    ? effectiveAccent
+    : ACCENT_COLORS[effectiveAccent] || "#3d7250";
 
-  const metaThemeColor = document.querySelector('meta[name="theme-color"]');
-  if (metaThemeColor) {
-    const hex = effectiveAccent.startsWith("#")
-      ? effectiveAccent
-      : ACCENT_COLORS[effectiveAccent] || "#3d7250";
-    metaThemeColor.setAttribute("content", hex);
+  document.documentElement.setAttribute(
+    "data-accent",
+    effectiveAccent.startsWith("#") ? "custom" : effectiveAccent
+  );
+  document.documentElement.style.setProperty("--accent", hex);
+  document.documentElement.style.setProperty("--accent-contrast", "#ffffff");
+
+  let metaThemeColor = document.querySelector('meta[name="theme-color"]');
+  if (!metaThemeColor) {
+    metaThemeColor = document.createElement("meta");
+    metaThemeColor.setAttribute("name", "theme-color");
+    document.head.appendChild(metaThemeColor);
+  }
+  metaThemeColor.setAttribute("content", hex);
+
+  try {
+    const win = window as unknown as {
+      AndroidBridge?: { setStatusBarColor?: (color: string) => void };
+    };
+    if (win.AndroidBridge?.setStatusBarColor) {
+      win.AndroidBridge.setStatusBarColor(hex);
+    }
+  } catch {
+    // Ignore Android bridge error
   }
 };

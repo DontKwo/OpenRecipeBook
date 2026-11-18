@@ -19,8 +19,12 @@ describe("Recipe Full-Text Search Engine", (): void => {
   });
 
   it("filters by favorites and courses correctly", (): void => {
-    const favorites = engine.queryRecipes(SAMPLE_RECIPES, "", { onlyFavorites: true });
-    expect(favorites.length).toBeGreaterThanOrEqual(1);
+    const listWithFavorite = [
+      ...SAMPLE_RECIPES.slice(0, 2),
+      { ...SAMPLE_RECIPES[2], favorite: true }
+    ];
+    const favorites = engine.queryRecipes(listWithFavorite, "", { onlyFavorites: true });
+    expect(favorites).toHaveLength(1);
 
     const dinners = engine.queryRecipes(SAMPLE_RECIPES, "", { course: "Dinner" });
     expect(dinners.length).toBeGreaterThanOrEqual(1);

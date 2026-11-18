@@ -528,8 +528,8 @@ export const SAMPLE_RECIPES: Recipe[] = [
       "comfort-food"
     ],
     "rating": 5,
-    "favorite": true,
-    "photoIds": ["/recipe-photos/recipe-mashed-baked-potatoes.jpg"],
+    "favorite": false,
+    "photoIds": ["/recipe-photos/recipe-chicken-tortilla-soup.jpg"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -634,7 +634,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-lemon-chicken.jpg"],
+    "photoIds": ["/recipe-photos/recipe-mashed-baked-potatoes.jpg"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -752,7 +752,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-bbq-mac-n-cheese.jpg"],
+    "photoIds": ["/recipe-photos/recipe-lemon-chicken.jpg"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -874,7 +874,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-nashville-hot-chicken.jpg"],
+    "photoIds": ["/recipe-photos/recipe-bbq-mac-n-cheese.jpg"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -1013,7 +1013,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-chicken-white-queso.jpg"],
+    "photoIds": ["/recipe-photos/recipe-nashville-hot-chicken.jpg"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -1118,7 +1118,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-lazy-spanish-rice.jpg"],
+    "photoIds": ["/recipe-photos/recipe-chicken-white-queso.jpg"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -1193,7 +1193,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-gordon-ramsay-potatoes.jpg"],
+    "photoIds": ["/recipe-photos/recipe-lazy-spanish-rice.jpg"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -1287,7 +1287,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-dinner-rolls.jpg"],
+    "photoIds": ["/recipe-photos/recipe-gordon-ramsay-potatoes.jpg"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -1414,7 +1414,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-slow-cooker-turkey-breast-with-aromatics.jpg"],
+    "photoIds": ["/recipe-photos/recipe-dinner-rolls.jpg"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -1582,7 +1582,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-turkey-gravy.jpg"],
+    "photoIds": ["/recipe-photos/recipe-slow-cooker-turkey-breast-with-aromatics.jpg"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -1671,7 +1671,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-broccoli-with-garlic-butter-cashews.jpg"],
+    "photoIds": ["/recipe-photos/recipe-turkey-gravy.jpg"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -1761,7 +1761,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-bisquick-sausage-balls.jpg"],
+    "photoIds": ["/recipe-photos/recipe-broccoli-with-garlic-butter-cashews.jpg"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -1845,7 +1845,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-cheesecake-factory-brown-bread.jpg"],
+    "photoIds": ["/recipe-photos/recipe-bisquick-sausage-balls.jpg"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -1996,7 +1996,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-cold-brew-thai-tea.jpg"],
+    "photoIds": ["/recipe-photos/recipe-cheesecake-factory-brown-bread.jpg"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -2083,7 +2083,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-texas-roadhouse-butter.jpg"],
+    "photoIds": ["/recipe-photos/recipe-cold-brew-thai-tea.jpg"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -2159,7 +2159,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-texas-roadhouse-rolls.jpg"],
+    "photoIds": ["/recipe-photos/recipe-texas-roadhouse-butter.jpg"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
