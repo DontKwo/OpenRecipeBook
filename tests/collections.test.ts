@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { Recipe, Collection } from "../src/domain/recipe/types";
+import { RecipeSearchEngine } from "../src/domain/recipe/search";
 
 describe("Collections Domain & Assignment Logic", (): void => {
   const sampleRecipes: Recipe[] = [
@@ -141,5 +142,45 @@ describe("Collections Domain & Assignment Logic", (): void => {
 
     expect(updated.name).toBe("Summer BBQ & Grill");
     expect(updated.id).toBe(col.id);
+  });
+
+  it("updates folder membership across recipes when selecting and searching recipes for a new folder", (): void => {
+    const newFolderId = "col-weekend";
+    const engine = new RecipeSearchEngine();
+    engine.indexRecipes(sampleRecipes);
+
+    const searchMatches = engine.queryRecipes(sampleRecipes, "pancake", {}, "title");
+    expect(searchMatches.map((r) => r.id)).toEqual(["rec-1"]);
+
+    const selectedSet = new Set(["rec-1", "rec-3"]);
+    const updatedRecipes = sampleRecipes.map((r) => {
+      const current = r.collectionIds || [];
+      const isIn = current.includes(newFolderId);
+      const shouldBeIn = selectedSet.has(r.id);
+      if (isIn === shouldBeIn) return r;
+      return {
+        ...r,
+        collectionIds: shouldBeIn
+          ? [...current, newFolderId]
+          : current.filter((id) => id !== newFolderId)
+      };
+    });
+
+    expect(updatedRecipes.find((r) => r.id === "rec-1")?.collectionIds).toContain(newFolderId);
+    expect(updatedRecipes.find((r) => r.id === "rec-1")?.collectionIds).toContain("col-breakfast");
+    expect(updatedRecipes.find((r) => r.id === "rec-2")?.collectionIds).not.toContain(newFolderId);
+    expect(updatedRecipes.find((r) => r.id === "rec-3")?.collectionIds).toContain(newFolderId);
+
+    // Removing a recipe from the folder preserves its other folder memberships
+    const nextSelected = new Set(["rec-3"]);
+    const afterRemove = updatedRecipes.map((r) => ({
+      ...r,
+      collectionIds: nextSelected.has(r.id)
+        ? r.collectionIds
+        : r.collectionIds.filter((id) => id !== newFolderId)
+    }));
+
+    expect(afterRemove.find((r) => r.id === "rec-1")?.collectionIds).toEqual(["col-breakfast", "col-quick"]);
+    expect(afterRemove.find((r) => r.id === "rec-3")?.collectionIds).toEqual(["col-quick", newFolderId]);
   });
 });

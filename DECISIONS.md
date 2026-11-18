@@ -19,14 +19,19 @@ This document records technical decisions and architectural choices made during 
 - Context: Section 2 and Section 10 of DESIGN.md require an installable APK for Android distribution.
 - Rationale: First-class Android WebView support with secure `https://appassets.androidplatform.net` origin, access to native sharing sheets, camera file picking, and native HTTP capabilities without requiring an external proxy server or complex CLI toolchain.
 
-### D-004: Desktop Wrapper: Electron
-- Choice: Electron shell for Windows desktop installer.
-- Context: Section 2 and Section 10 of DESIGN.md require a Windows desktop package with native HTTP fetching for website imports.
-- Rationale: Direct access to Node.js networking in the main process bypasses CORS restrictions when importing recipes from public websites.
+### D-004: Desktop Wrapper: Standalone Windows Executable (.exe) and Electron Parity
+- Choice: Standalone Windows desktop executable (`OpenRecipeBook.exe` built by `scripts/build_desktop_exe.cjs`) with embedded production assets, local native HTTP/filesystem APIs, and `electron/` parity.
+- Context: Users need a direct runnable `.exe` on Windows that stores recipes on disk outside browser cookies/storage and performs unconstrained HTTP fetching for recipe URL imports.
+- Rationale: Eliminates dependency on browser hosting or cookies and allows opening/modifying the recipe storage directory directly in Windows Explorer.
+
+### D-012: Desktop & Android Native Recipe File Storage (No Web App)
+- Choice: Remove the hosted Web App (PWA) deployment and store `.recipe.json` files and `library-metadata.json` directly inside the device recipe folder (`Documents\OpenRecipeBook\recipes` on Windows Desktop; `getExternalFilesDir("recipes")` on Android).
+- Context: Users should never lose recipes due to cleared browser cookies or site data, and must be able to inspect and add files in the storage folder on both platforms.
+- Rationale: Syncing between the UI and real on-disk `.recipe.json` files guarantees durability and easy file portability.
 
 ### D-005: Synced Folder Backup Architecture
 - Choice: File System Access API (`showDirectoryPicker`) for automated local cloud backups.
-- Context: Section 6.8 of DESIGN.md requests zero-login backups to Google Drive, Dropbox, or OneDrive.
+- Context: Section 6.8 of DESIGN.md requests zero-login backups to Google Drive or Dropbox.
 - Rationale: Users select their existing local synced cloud folder; the app writes dated `.openrecipebook.zip` archives directly without needing OAuth secrets or backend servers.
 
 ### D-006: Cookbook builder architecture

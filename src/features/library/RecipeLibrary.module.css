@@ -2,6 +2,7 @@
   display: flex;
   flex-direction: column;
   width: 100%;
+  min-width: 0;
   min-height: 100%;
   padding-bottom: var(--space-8);
   box-sizing: border-box;
@@ -17,43 +18,99 @@
   position: sticky;
   top: 0;
   z-index: var(--z-header);
+  width: 100%;
+  box-sizing: border-box;
 }
 
-/* Row 1: Search + Filters + Segmented control + Kebab menu - NEVER WRAPS AT 360px */
+/* Row 1: Search bar + action toolbar */
 .row1 {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   width: 100%;
+  min-width: 0;
   box-sizing: border-box;
+  flex-wrap: wrap;
 }
 
 .searchBox {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  flex: 1;
-  min-width: 0;
+  flex: 1 1 240px;
+  min-width: 180px;
   background-color: var(--surface-alt);
   border: 1px solid var(--border);
   border-radius: var(--radius-full);
   padding: 0 var(--space-3);
-  height: 40px;
+  min-height: 44px;
+  height: 44px;
+  cursor: text;
+  box-sizing: border-box;
 }
 
 .searchBox:focus-within {
   border-color: var(--accent);
   background-color: var(--surface);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 .searchInput {
   flex: 1;
   min-width: 0;
+  width: 100%;
+  height: 100%;
   border: none;
   background: transparent;
   color: var(--text);
-  font-size: 0.9375rem;
+  font-size: 1rem;
   outline: none;
+}
+
+.searchInput:focus,
+.searchInput:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.toolbarActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.viewToggle {
+  flex-shrink: 0;
+}
+
+@media (max-width: 767px) {
+  .controlsHeader {
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .searchBox {
+    flex: 1 1 100%;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .toolbarActions {
+    flex: 1 1 100%;
+    width: 100%;
+    justify-content: space-between;
+    gap: 6px;
+  }
+
+  .viewToggle button {
+    padding: 0 8px;
+    min-height: 36px;
+  }
+
+  .viewToggle button span {
+    display: none;
+  }
 }
 
 /* Row 2: Horizontally scrollable chip row */
@@ -71,6 +128,55 @@
 
 .row2::-webkit-scrollbar {
   display: none;
+}
+
+/* Active Folder Banner */
+.activeFolderBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: var(--space-3) var(--space-4) 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.activeFolderInfo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.activeFolderTitle {
+  font-family: var(--font-serif);
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+
+.activeFolderCount {
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.activeFolderActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+@media (max-width: 767px) {
+  .activeFolderBanner {
+    margin: var(--space-3) var(--space-3) 0 var(--space-3);
+    padding: var(--space-3);
+  }
 }
 
 /* Recipe layouts */
@@ -186,6 +292,41 @@
   border-radius: var(--radius-full);
 }
 
+.listItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.listItem:hover {
+  border-color: var(--accent);
+}
+
+.listThumbnail {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  flex-shrink: 0;
+}
+
+.listBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 /* Floating Action Button (FAB) on mobile */
 .mobileFab {
   display: flex;
@@ -240,4 +381,3 @@
     left: 240px;
   }
 }
-

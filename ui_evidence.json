@@ -1,8 +1,8 @@
 {
-  "run_id": "openrecipebook-ui-audit-1794768991808",
-  "framework": "web",
+  "run_id": "openrecipebook-ui-audit-1794971403639",
+  "framework": "desktop-exe",
   "commit": "HEAD",
-  "timestamp": "2026-11-15T18:56:31.808Z",
+  "timestamp": "2026-11-18T03:10:03.639Z",
   "viewports": [
     {
       "width": 360,
@@ -39,6 +39,19 @@
       "viewport": "360x740",
       "theme": "light",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
+      "searchMetrics": {
+        "width": 278,
+        "height": 42,
+        "left": 51,
+        "top": 9,
+        "right": 329
+      },
       "screenshot": "library_360x740_light.png"
     },
     {
@@ -46,19 +59,25 @@
       "viewport": "360x740",
       "theme": "light",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "recipe_view_top_360x740_light.png"
-    },
-    {
-      "screen": "Editor",
-      "viewport": "360x740",
-      "theme": "light",
-      "screenshot": "editor_360x740_light.png"
     },
     {
       "screen": "Meal Planner Week",
       "viewport": "360x740",
       "theme": "light",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "planner_week_360x740_light.png"
     },
     {
@@ -66,6 +85,12 @@
       "viewport": "360x740",
       "theme": "light",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "shopping_360x740_light.png"
     },
     {
@@ -73,6 +98,12 @@
       "viewport": "360x740",
       "theme": "light",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "totals_360x740_light.png"
     },
     {
@@ -80,6 +111,12 @@
       "viewport": "360x740",
       "theme": "light",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "settings_360x740_light.png"
     },
     {
@@ -87,6 +124,19 @@
       "viewport": "360x740",
       "theme": "dark",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
+      "searchMetrics": {
+        "width": 278,
+        "height": 42,
+        "left": 51,
+        "top": 9,
+        "right": 329
+      },
       "screenshot": "library_360x740_dark.png"
     },
     {
@@ -94,19 +144,25 @@
       "viewport": "360x740",
       "theme": "dark",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "recipe_view_top_360x740_dark.png"
-    },
-    {
-      "screen": "Editor",
-      "viewport": "360x740",
-      "theme": "dark",
-      "screenshot": "editor_360x740_dark.png"
     },
     {
       "screen": "Meal Planner Week",
       "viewport": "360x740",
       "theme": "dark",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "planner_week_360x740_dark.png"
     },
     {
@@ -114,6 +170,12 @@
       "viewport": "360x740",
       "theme": "dark",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "shopping_360x740_dark.png"
     },
     {
@@ -121,6 +183,12 @@
       "viewport": "360x740",
       "theme": "dark",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "totals_360x740_dark.png"
     },
     {
@@ -128,6 +196,12 @@
       "viewport": "360x740",
       "theme": "dark",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "settings_360x740_dark.png"
     },
     {
@@ -135,6 +209,19 @@
       "viewport": "390x844",
       "theme": "light",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
+      "searchMetrics": {
+        "width": 308,
+        "height": 42,
+        "left": 51,
+        "top": 9,
+        "right": 359
+      },
       "screenshot": "library_390x844_light.png"
     },
     {
@@ -142,19 +229,25 @@
       "viewport": "390x844",
       "theme": "light",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "recipe_view_top_390x844_light.png"
-    },
-    {
-      "screen": "Editor",
-      "viewport": "390x844",
-      "theme": "light",
-      "screenshot": "editor_390x844_light.png"
     },
     {
       "screen": "Meal Planner Week",
       "viewport": "390x844",
       "theme": "light",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "planner_week_390x844_light.png"
     },
     {
@@ -162,6 +255,12 @@
       "viewport": "390x844",
       "theme": "light",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "shopping_390x844_light.png"
     },
     {
@@ -169,6 +268,12 @@
       "viewport": "390x844",
       "theme": "light",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "totals_390x844_light.png"
     },
     {
@@ -176,6 +281,12 @@
       "viewport": "390x844",
       "theme": "light",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "settings_390x844_light.png"
     },
     {
@@ -183,6 +294,19 @@
       "viewport": "390x844",
       "theme": "dark",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
+      "searchMetrics": {
+        "width": 308,
+        "height": 42,
+        "left": 51,
+        "top": 9,
+        "right": 359
+      },
       "screenshot": "library_390x844_dark.png"
     },
     {
@@ -190,19 +314,25 @@
       "viewport": "390x844",
       "theme": "dark",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "recipe_view_top_390x844_dark.png"
-    },
-    {
-      "screen": "Editor",
-      "viewport": "390x844",
-      "theme": "dark",
-      "screenshot": "editor_390x844_dark.png"
     },
     {
       "screen": "Meal Planner Week",
       "viewport": "390x844",
       "theme": "dark",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "planner_week_390x844_dark.png"
     },
     {
@@ -210,6 +340,12 @@
       "viewport": "390x844",
       "theme": "dark",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "shopping_390x844_dark.png"
     },
     {
@@ -217,6 +353,12 @@
       "viewport": "390x844",
       "theme": "dark",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "totals_390x844_dark.png"
     },
     {
@@ -224,6 +366,12 @@
       "viewport": "390x844",
       "theme": "dark",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "settings_390x844_dark.png"
     },
     {
@@ -231,6 +379,19 @@
       "viewport": "768x1024",
       "theme": "light",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
+      "searchMetrics": {
+        "width": 606,
+        "height": 42,
+        "left": 127,
+        "top": 9,
+        "right": 733
+      },
       "screenshot": "library_768x1024_light.png"
     },
     {
@@ -238,19 +399,25 @@
       "viewport": "768x1024",
       "theme": "light",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "recipe_view_top_768x1024_light.png"
-    },
-    {
-      "screen": "Editor",
-      "viewport": "768x1024",
-      "theme": "light",
-      "screenshot": "editor_768x1024_light.png"
     },
     {
       "screen": "Meal Planner Week",
       "viewport": "768x1024",
       "theme": "light",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "planner_week_768x1024_light.png"
     },
     {
@@ -258,6 +425,12 @@
       "viewport": "768x1024",
       "theme": "light",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "shopping_768x1024_light.png"
     },
     {
@@ -265,6 +438,12 @@
       "viewport": "768x1024",
       "theme": "light",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "totals_768x1024_light.png"
     },
     {
@@ -272,6 +451,12 @@
       "viewport": "768x1024",
       "theme": "light",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "settings_768x1024_light.png"
     },
     {
@@ -279,6 +464,19 @@
       "viewport": "768x1024",
       "theme": "dark",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
+      "searchMetrics": {
+        "width": 606,
+        "height": 42,
+        "left": 127,
+        "top": 9,
+        "right": 733
+      },
       "screenshot": "library_768x1024_dark.png"
     },
     {
@@ -286,19 +484,25 @@
       "viewport": "768x1024",
       "theme": "dark",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "recipe_view_top_768x1024_dark.png"
-    },
-    {
-      "screen": "Editor",
-      "viewport": "768x1024",
-      "theme": "dark",
-      "screenshot": "editor_768x1024_dark.png"
     },
     {
       "screen": "Meal Planner Week",
       "viewport": "768x1024",
       "theme": "dark",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "planner_week_768x1024_dark.png"
     },
     {
@@ -306,6 +510,12 @@
       "viewport": "768x1024",
       "theme": "dark",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "shopping_768x1024_dark.png"
     },
     {
@@ -313,6 +523,12 @@
       "viewport": "768x1024",
       "theme": "dark",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "totals_768x1024_dark.png"
     },
     {
@@ -320,6 +536,12 @@
       "viewport": "768x1024",
       "theme": "dark",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "settings_768x1024_dark.png"
     },
     {
@@ -327,6 +549,19 @@
       "viewport": "1440x900",
       "theme": "light",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
+      "searchMetrics": {
+        "width": 629,
+        "height": 42,
+        "left": 295,
+        "top": 9,
+        "right": 924
+      },
       "screenshot": "library_1440x900_light.png"
     },
     {
@@ -334,19 +569,25 @@
       "viewport": "1440x900",
       "theme": "light",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "recipe_view_top_1440x900_light.png"
-    },
-    {
-      "screen": "Editor",
-      "viewport": "1440x900",
-      "theme": "light",
-      "screenshot": "editor_1440x900_light.png"
     },
     {
       "screen": "Meal Planner Week",
       "viewport": "1440x900",
       "theme": "light",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "planner_week_1440x900_light.png"
     },
     {
@@ -354,6 +595,12 @@
       "viewport": "1440x900",
       "theme": "light",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "shopping_1440x900_light.png"
     },
     {
@@ -361,6 +608,12 @@
       "viewport": "1440x900",
       "theme": "light",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "totals_1440x900_light.png"
     },
     {
@@ -368,6 +621,12 @@
       "viewport": "1440x900",
       "theme": "light",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "settings_1440x900_light.png"
     },
     {
@@ -375,6 +634,19 @@
       "viewport": "1440x900",
       "theme": "dark",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
+      "searchMetrics": {
+        "width": 629,
+        "height": 42,
+        "left": 295,
+        "top": 9,
+        "right": 924
+      },
       "screenshot": "library_1440x900_dark.png"
     },
     {
@@ -382,19 +654,25 @@
       "viewport": "1440x900",
       "theme": "dark",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "recipe_view_top_1440x900_dark.png"
-    },
-    {
-      "screen": "Editor",
-      "viewport": "1440x900",
-      "theme": "dark",
-      "screenshot": "editor_1440x900_dark.png"
     },
     {
       "screen": "Meal Planner Week",
       "viewport": "1440x900",
       "theme": "dark",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "planner_week_1440x900_dark.png"
     },
     {
@@ -402,6 +680,12 @@
       "viewport": "1440x900",
       "theme": "dark",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "shopping_1440x900_dark.png"
     },
     {
@@ -409,6 +693,12 @@
       "viewport": "1440x900",
       "theme": "dark",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "totals_1440x900_dark.png"
     },
     {
@@ -416,6 +706,12 @@
       "viewport": "1440x900",
       "theme": "dark",
       "hasHorizontalScroll": false,
+      "overflowDetails": {
+        "hasOverflow": false,
+        "docOverflow": false,
+        "mainOverflow": false,
+        "clipped": []
+      },
       "screenshot": "settings_1440x900_dark.png"
     }
   ]

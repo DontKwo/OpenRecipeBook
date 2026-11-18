@@ -1,69 +1,38 @@
 # Packaging and Distribution Guide
 
-OpenRecipeBook is designed to run in three deployment environments without changing application logic:
+OpenRecipeBook runs in two native deployment environments without changing application logic:
 
-1. **Progressive Web App (PWA):** Runs in any modern browser, fully functional offline with client-side IndexedDB storage.
-2. **Windows Desktop Application:** Electron shell providing unconstrained HTTP access to bypass browser CORS restrictions when importing recipe URLs.
-3. **Android Mobile Application:** Capacitor wrapper providing native system sharing integration and file associations.
+1. **Windows Desktop Application (`.exe`):** Standalone Windows executable (`OpenRecipeBook-Windows.exe`) storing recipe files directly on disk (`Documents\OpenRecipeBook\recipes`) with unconstrained HTTP access for importing recipe URLs.
+2. **Android Mobile Application (`.apk`):** Native Android container (`OpenRecipeBook-Android.apk`) using WebViewAssetLoader, on-disk app storage (`Android/data/org.openrecipebook.app/files/recipes`), native sharing integration, and file picking.
 
 ---
 
-## 1. Web Progressive Web App (PWA)
+## 1. Windows Desktop Executable
+
+The Windows build embeds the compiled Vite production bundle (`dist/`) into a standalone executable (`build/OpenRecipeBook.exe` and `build/OpenRecipeBook-Windows.exe`) using `scripts/build_desktop_exe.cjs`.
 
 ### Build Commands
 
-```bash
+```powershell
 # Install dependencies
 npm install
 
-# Build production bundle with service worker precaching
-npm run build
-
-# Preview production build locally
-npm run preview
+# Build production assets and standalone Windows .exe
+npm run build:desktop
 ```
 
-### Installation
+The output executable is created at `build/OpenRecipeBook.exe` and `build/OpenRecipeBook-Windows.exe`.
 
-- **Desktop (Chrome/Edge):** Click the "Install OpenRecipeBook" icon in the browser address bar.
-- **Android (Chrome):** Tap menu (three dots) -> "Add to Home screen" or "Install app".
-- **iOS (Safari):** Tap Share button -> "Add to Home Screen".
+### Native Desktop Storage
+
+- Default storage folder: `Documents\OpenRecipeBook\recipes`
+- Users can view the folder path, open it in Windows Explorer, choose a custom folder, view all stored `.recipe.json` files, and add recipe files from inside the app (`Storage` button in the library or Settings).
 
 ---
 
-## 2. Windows Desktop Application
+## 2. Android Mobile Application
 
-The desktop application wraps the production web build with Electron to provide a native desktop window and a CORS-free HTTP fetcher in `electron/main.cjs`.
-
-### Build Structure
-
-The portable Windows release bundles:
-- `dist/`: Production Vite web build.
-- `electron/main.cjs`: Electron main process with native HTTP proxy.
-- `electron/preload.cjs`: Preload script exposing `window.nativeApi.fetchPage()`.
-- `package.json`: Main entry pointer and metadata.
-
-### Packaging Portable Archive
-
-```powershell
-# 1. Build web application
-npm run build
-
-# 2. Assemble staging folder
-New-Item -ItemType Directory -Force -Path build/windows
-Copy-Item -Recurse -Force dist build/windows/dist
-Copy-Item -Recurse -Force electron build/windows/electron
-Copy-Item package.json build/windows/package.json
-
-# 3. Create zip archive
-Compress-Archive -Path build/windows/* -DestinationPath build/OpenRecipeBook-Windows-Portable.zip -Force
-```
-
----
-
-## 3. Android Mobile Application
-
-The Android project is housed under `android/` and uses standard Android Gradle with AndroidX WebKit Asset Loader to run OpenRecipeBook in a native app container with offline storage and native HTTP URL fetching.
+The Android project is housed under `android/` and uses standard Android Gradle with AndroidX WebKit Asset Loader to run OpenRecipeBook in a native app container with offline disk storage and native HTTP URL fetching.
 
 ### Prerequisites
 
@@ -74,10 +43,10 @@ The Android project is housed under `android/` and uses standard Android Gradle 
 ### Build Steps
 
 ```bash
-# 1. Build production web assets
+# 1. Build production assets
 npm run build
 
-# 2. Sync web assets into Android project
+# 2. Sync assets into Android project
 mkdir -p android/app/src/main/assets
 cp -r dist/* android/app/src/main/assets/
 
@@ -90,25 +59,26 @@ The compiled APK is output to:
 `android/app/build/outputs/apk/release/app-release.apk`
 (Packaged as `OpenRecipeBook-Android.apk` in GitHub Releases).
 
-### Android Integrations
+### Android Storage & Integrations
 
-- **Web Share Target:** Configured in `vite.config.ts` and manifest to receive recipe URLs shared from mobile browsers (Chrome, Firefox, Samsung Internet).
-- **File Association:** Registers handlers for `.recipe.json`, `.openrecipebook.zip`, and `.paprikarecipes` files to open directly into OpenRecipeBook.
+- **On-Disk Recipe Folder:** `Android/data/org.openrecipebook.app/files/recipes` (accessible via the Storage button in the Library and Settings screens to browse files and add new `.recipe.json`, `.zip`, `.paprikarecipes`, or `.txt` files).
+- **Share Sheet Target:** Receives recipe URLs shared from mobile browsers straight into OpenRecipeBook.
+- **File Association:** Registers handlers for `.recipe.json` files to open directly into OpenRecipeBook.
 
 ---
 
-## 4. GitHub Releases Workflow
+## 3. GitHub Releases Workflow
 
-Automated releases trigger when a version tag matching `v*` is pushed to GitHub:
+Automated releases trigger when pushing to `main` or pushing a version tag matching `v*`:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
 The GitHub Actions workflow (`.github/workflows/release.yml`) executes:
 1. Runs full Vitest unit test suite across all modules.
-2. Builds production web bundle with Vite and TypeScript compiler.
-3. Packages the portable Windows application archive (`OpenRecipeBook-Windows-Portable.zip`).
-4. Calculates SHA-256 checksums and writes `SHA256SUMS.txt`.
-5. Publishes release assets and release notes to the GitHub repository Releases page.
+2. Builds production bundle with Vite and TypeScript compiler.
+3. Compiles standalone Windows desktop executable (`OpenRecipeBook-Windows.exe`).
+4. Compiles and signs `OpenRecipeBook-Android.apk`.
+5. Calculates SHA-256 checksums (`SHA256SUMS.txt`) and publishes release assets to GitHub Releases.

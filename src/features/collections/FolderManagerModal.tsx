@@ -10,6 +10,8 @@ export interface FolderManagerModalProps {
   recipes: Recipe[];
   onSaveCollection: (collection: Collection) => Promise<void> | void;
   onDeleteCollection: (collectionId: string) => Promise<void> | void;
+  onOpenCollection?: (collectionId: string) => void;
+  onAddRecipesToCollection?: (collectionId: string) => void;
   onClose: () => void;
 }
 
@@ -18,6 +20,8 @@ export const FolderManagerModal: FC<FolderManagerModalProps> = ({
   recipes,
   onSaveCollection,
   onDeleteCollection,
+  onOpenCollection,
+  onAddRecipesToCollection,
   onClose
 }): ReactElement => {
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -40,6 +44,18 @@ export const FolderManagerModal: FC<FolderManagerModalProps> = ({
   const handleCreate = async (): Promise<void> => {
     const trimmed = newFolderName.trim();
     if (!trimmed) return;
+    const existing = collections.find(
+      (c: Collection): boolean => c.name.trim().toLowerCase() === trimmed.toLowerCase()
+    );
+    if (existing) {
+      setNewFolderName("");
+      onOpenCollection?.(existing.id);
+      if (onAddRecipesToCollection) {
+        onAddRecipesToCollection(existing.id);
+        onClose();
+      }
+      return;
+    }
     const newCol: Collection = {
       id: `col-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       name: trimmed,
@@ -47,6 +63,13 @@ export const FolderManagerModal: FC<FolderManagerModalProps> = ({
     };
     await onSaveCollection(newCol);
     setNewFolderName("");
+    if (onOpenCollection) {
+      onOpenCollection(newCol.id);
+    }
+    if (onAddRecipesToCollection) {
+      onAddRecipesToCollection(newCol.id);
+      onClose();
+    }
   };
 
   const getRecipeCount = (colId: string): number => {
@@ -167,12 +190,70 @@ export const FolderManagerModal: FC<FolderManagerModalProps> = ({
                       </div>
                     ) : (
                       <>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <FolderIcon width={18} height={18} style={{ color: "var(--accent)" }} />
-                          <span style={{ fontWeight: 600, fontSize: "0.9375rem" }}>{col.name}</span>
-                          <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>({count})</span>
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <button
+                          type="button"
+                          onClick={(): void => {
+                            if (onOpenCollection) {
+                              onOpenCollection(col.id);
+                              onClose();
+                            }
+                          }}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            flex: 1,
+                            minWidth: 0,
+                            border: "none",
+                            background: "transparent",
+                            color: "var(--text)",
+                            padding: "4px 0",
+                            cursor: onOpenCollection ? "pointer" : "default",
+                            textAlign: "left"
+                          }}
+                        >
+                          <FolderIcon width={18} height={18} style={{ color: "var(--accent)", flexShrink: 0 }} />
+                          <span
+                            style={{
+                              fontWeight: 600,
+                              fontSize: "0.9375rem",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {col.name}
+                          </span>
+                          <span style={{ fontSize: "0.75rem", color: "var(--muted)", flexShrink: 0 }}>({count})</span>
+                        </button>
+                        <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                          {onOpenCollection && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={(): void => {
+                                onOpenCollection(col.id);
+                                onClose();
+                              }}
+                            >
+                              Open
+                            </Button>
+                          )}
+                          {onAddRecipesToCollection && (
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              icon={<PlusIcon width={14} height={14} />}
+                              aria-label={`Add recipes to ${col.name}`}
+                              onClick={(): void => {
+                                onOpenCollection?.(col.id);
+                                onAddRecipesToCollection(col.id);
+                                onClose();
+                              }}
+                            >
+                              Add
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"

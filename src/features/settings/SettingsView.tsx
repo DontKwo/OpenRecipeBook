@@ -1,7 +1,7 @@
-import { useState, useEffect, type FC, type ReactElement, type ChangeEvent } from "react";
+import { useState, useEffect, useRef, type FC, type ReactElement, type ChangeEvent } from "react";
 import type { Recipe } from "../../domain/recipe/types";
 import { BRAND } from "../../config/brand";
-import { DownloadIcon, UploadIcon, TrashIcon } from "../../ui/icons";
+import { DownloadIcon, UploadIcon, TrashIcon, FolderIcon } from "../../ui/icons";
 import { Button, IconButton } from "../../ui/Button";
 import { applyThemeAndAccent } from "../../styles/themeManager";
 import {
@@ -9,12 +9,19 @@ import {
   clearStoredDirectoryHandle,
   type AutoBackupResult
 } from "../../domain/backup/backupFolder";
+import {
+  getStorageLocationInfo,
+  openSystemStorageFolder,
+  type StorageLocationInfo
+} from "../../domain/storage/recipeStorageService";
 import styles from "./SettingsView.module.css";
 
 export interface SettingsViewProps {
   onExportFullBackup: () => void;
   onRestoreFullBackup: (file: File) => void;
   onOpenUserIngredients: () => void;
+  onOpenStorageModal?: () => void;
+  recipes?: Recipe[];
   recipeCount: number;
   trashedRecipes?: Recipe[];
   onRestoreRecipe?: (id: string) => void;
@@ -27,6 +34,8 @@ export const SettingsView: FC<SettingsViewProps> = ({
   onExportFullBackup,
   onRestoreFullBackup,
   onOpenUserIngredients,
+  onOpenStorageModal,
+  recipes = [],
   recipeCount,
   trashedRecipes = [],
   onRestoreRecipe,
@@ -36,11 +45,13 @@ export const SettingsView: FC<SettingsViewProps> = ({
 }): ReactElement => {
   const [theme, setTheme] = useState<string>(() => localStorage.getItem("orb_theme") || "system");
   const [accent, setAccent] = useState<string>(() => localStorage.getItem("accentTheme") || "terracotta");
-  const [storageUsage, setStorageUsage] = useState<string>("Calculating...");
+  const [storageInfo, setStorageInfo] = useState<StorageLocationInfo | null>(null);
+  const [folderStatus, setFolderStatus] = useState<string | null>(null);
   const [folderName, setFolderName] = useState<string | null>(null);
   const [isFolderBackupAvailable, setIsFolderBackupAvailable] = useState<boolean>(false);
   const [backupFeedback, setBackupFeedback] = useState<string | null>(null);
   const [isBackingUp, setIsBackingUp] = useState<boolean>(false);
+  const restoreInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const destination = new FileSystemFolderBackupDestination();
@@ -53,18 +64,19 @@ export const SettingsView: FC<SettingsViewProps> = ({
   }, []);
 
   useEffect(() => {
-    if ("storage" in navigator && "estimate" in navigator.storage) {
-      navigator.storage.estimate().then((estimate) => {
-        const usedMb = ((estimate.usage || 0) / (1024 * 1024)).toFixed(2);
-        const quotaMb = ((estimate.quota || 0) / (1024 * 1024)).toFixed(0);
-        setStorageUsage(`${usedMb} MB (Browser sandbox limit: ${quotaMb} MB)`);
-      }).catch((): void => {
-        setStorageUsage("Local sandbox storage active");
-      });
-    } else {
-      setStorageUsage("Local sandbox storage active");
+    getStorageLocationInfo(recipes)
+      .then((info: StorageLocationInfo): void => setStorageInfo(info))
+      .catch((): void => setStorageInfo(null));
+  }, [recipes]);
+
+  const handleOpenSystemFolder = async (): Promise<void> => {
+    const res = await openSystemStorageFolder();
+    if (res.message) {
+      setFolderStatus(res.message);
+    } else if (res.storagePath) {
+      setFolderStatus(`Storage path: ${res.storagePath}`);
     }
-  }, []);
+  };
 
   const handleThemeChange = (newTheme: string): void => {
     setTheme(newTheme);
@@ -170,11 +182,63 @@ export const SettingsView: FC<SettingsViewProps> = ({
         </div>
       </section>
 
+      {/* Recipe Storage Location Section */}
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Recipe Storage Location</h2>
+        <p className={styles.sectionText}>
+          Recipes are stored directly on your device as <code>.recipe.json</code> files, independent of browser cookies or cache.
+        </p>
+        <div
+          style={{
+            padding: "var(--space-3)",
+            borderRadius: "var(--radius-md)",
+            border: "1px solid var(--border)",
+            background: "var(--surface-alt)",
+            fontFamily: "var(--font-mono)",
+            fontSize: "0.8125rem",
+            wordBreak: "break-all"
+          }}
+        >
+          {storageInfo ? storageInfo.storagePath : "Loading storage folder..."}
+        </div>
+        <div style={{ fontSize: "0.875rem", color: "var(--muted)" }}>
+          {storageInfo ? `${storageInfo.files.length} file(s) in storage folder` : ""}
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
+          {onOpenStorageModal && (
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              icon={<FolderIcon width={15} height={15} />}
+              onClick={onOpenStorageModal}
+            >
+              Browse & Add Recipe Files
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={(): void => {
+              void handleOpenSystemFolder();
+            }}
+          >
+            Open Folder Location
+          </Button>
+        </div>
+        {folderStatus && (
+          <div style={{ fontSize: "0.8125rem", color: "var(--accent)" }}>
+            {folderStatus}
+          </div>
+        )}
+      </section>
+
       {/* Backup and Restore */}
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Data Backup & Restore</h2>
         <p className={styles.sectionText}>
-          Your data lives locally in your device IndexedDB. Export regular full zip backups to Google Drive, Dropbox, or a local folder to keep your cookbook safe.
+          Export full zip backups of your recipes, folders, meal plans, and shopping lists for safekeeping or moving between Windows Desktop and Android.
         </p>
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-3)", marginTop: "var(--space-2)" }}>
@@ -186,22 +250,20 @@ export const SettingsView: FC<SettingsViewProps> = ({
             <DownloadIcon width={16} height={16} /> Export Full Library (.zip)
           </Button>
 
-          <label style={{ cursor: "pointer", display: "inline-flex" }}>
-            <span style={{ display: "none" }}>Restore file</span>
-            <input
-              type="file"
-              accept=".zip,.json"
-              onChange={handleFileInput}
-              style={{ display: "none" }}
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={(): void => {}}
-            >
-              <UploadIcon width={16} height={16} /> Restore from Backup (.zip)
-            </Button>
-          </label>
+          <input
+            ref={restoreInputRef}
+            type="file"
+            accept=".zip,.json"
+            onChange={handleFileInput}
+            style={{ display: "none" }}
+          />
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={(): void => restoreInputRef.current?.click()}
+          >
+            <UploadIcon width={16} height={16} /> Restore from Backup (.zip)
+          </Button>
         </div>
 
         {/* Synced Backup Folder */}
@@ -262,7 +324,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
             </div>
           ) : (
             <div style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
-              Direct folder sync requires a desktop browser supporting the File System Access API (Chrome, Edge). Use manual .zip backup on mobile.
+              Use Export Full Library (.zip) or your device recipe storage folder above to back up recipes.
             </div>
           )}
 
@@ -369,10 +431,10 @@ export const SettingsView: FC<SettingsViewProps> = ({
             <strong>Stored Recipes:</strong> {recipeCount}
           </div>
           <div>
-            <strong>Local Storage Used:</strong> {storageUsage}
+            <strong>Storage Files:</strong> {storageInfo ? `${storageInfo.files.length} files on disk` : "Active"}
           </div>
           <p className={styles.sectionText}>
-            OpenRecipeBook is 100% private and offline-first. All data and photos reside solely within your device sandboxed local storage (IndexedDB). No servers, tracking, or background tasks use your device hardware or storage.
+            OpenRecipeBook is private and local-first on Windows Desktop and Android. Recipe files stay directly on your device without external servers or tracking.
           </p>
         </div>
       </section>

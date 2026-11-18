@@ -1,4 +1,6 @@
 .container {
+  width: 100%;
+  min-width: 0;
   max-width: 840px;
   margin: 0 auto;
   padding: var(--space-4) var(--space-4) 80px var(--space-4);
@@ -51,6 +53,8 @@
 
 .addInput {
   flex: 1;
+  min-width: 0;
+  width: 100%;
   border: 1px solid var(--border);
   border-radius: var(--radius-full);
   padding: 10px 16px;
@@ -58,6 +62,7 @@
   color: var(--text);
   font-size: 0.9375rem;
   outline: none;
+  box-sizing: border-box;
 }
 
 .addInput:focus {
@@ -72,15 +77,29 @@
   border-radius: var(--radius-full);
   padding: 6px 14px;
   background: var(--surface-alt);
+  min-width: 0;
+}
+
+.searchBar:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 .searchInput {
   flex: 1;
+  min-width: 0;
+  width: 100%;
   border: none;
   background: transparent;
   color: var(--text);
   font-size: 0.875rem;
   outline: none;
+}
+
+.searchInput:focus,
+.searchInput:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 .statusStrip {

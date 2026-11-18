@@ -1,4 +1,6 @@
 .container {
+  width: 100%;
+  min-width: 0;
   max-width: 900px;
   margin: 0 auto;
   padding: var(--space-4) var(--space-4) 80px var(--space-4);
@@ -14,6 +16,7 @@
   justify-content: space-between;
   gap: var(--space-3);
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .title {
@@ -32,14 +35,20 @@
   flex-direction: column;
   gap: var(--space-3);
   box-shadow: var(--shadow-sm);
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .sectionHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
   border-bottom: 1px solid var(--border);
   padding-bottom: var(--space-2);
+  min-width: 0;
 }
 
 .sectionTitle {
@@ -96,12 +105,16 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: var(--space-3);
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .totalsGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: var(--space-3);
+  min-width: 0;
 }
 
 .ingredientCard {

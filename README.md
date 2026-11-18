@@ -4,41 +4,29 @@ OpenRecipeBook is a free, open-source personal cookbook application for Windows 
 
 ## Install and Download
 
-Choose the version that fits your workflow:
+OpenRecipeBook runs strictly as a native desktop or mobile app with local file storage:
 
 | Platform | Download / Link | Notes |
 |---|---|---|
-| **Android** | [Download Android APK](https://github.com/DontKwo/OpenRecipeBook/releases/latest/download/OpenRecipeBook-Android.apk) | Standalone native Android application (.apk). Direct install with offline storage, camera support, and native URL import. |
-| **Windows PC** | [Download Windows Package](https://github.com/DontKwo/OpenRecipeBook/releases/latest/download/OpenRecipeBook-Windows-Portable.zip) | Native desktop app with unconstrained HTTP for direct website recipe importing. |
-| **Web App (PWA)** | [Open Web App](https://dontkwo.github.io/OpenRecipeBook/) | Instant access in any modern browser. Supports offline use and browser installation. |
+| **Windows PC (.exe)** | [Download Windows Executable](https://github.com/DontKwo/OpenRecipeBook/releases/latest/download/OpenRecipeBook-Windows.exe) | Standalone Windows executable storing recipes directly on disk (`Documents\OpenRecipeBook\recipes`) with unconstrained HTTP recipe URL importing. |
+| **Android (.apk)** | [Download Android APK](https://github.com/DontKwo/OpenRecipeBook/releases/latest/download/OpenRecipeBook-Android.apk) | Standalone native Android application (.apk). Direct install with local file storage (`Android/data/org.openrecipebook.app/files/recipes`), file picking, and native URL import. |
 
-### Which Version Should You Use?
+### Platform Details
 
-- **Android App:** Download the `.apk` file directly to your Android device and tap to install. Operates fully offline, uses native file and photo picking, and allows sharing recipe links from your browser straight into OpenRecipeBook.
-- **Windows Desktop:** Best for importing recipes directly from URLs without browser CORS restrictions. Available as a portable zip from [GitHub Releases](https://github.com/DontKwo/OpenRecipeBook/releases). Unsigned releases may show a standard Windows SmartScreen prompt on first run; click "More info" then "Run anyway".
-- **Web App (PWA):** Best for instant access in any browser without downloading files. Runs offline after initial visit. On Android or desktop Chromium, tap "Install" in your browser address bar or menu.
-- **Bridging Devices:** Each device maintains its own local IndexedDB storage. Use the built-in full backup export (`.openrecipebook.zip`) or single recipe export (`.recipe.json`) to transfer recipes between PC and Android.
+- **Windows Desktop:** Download and run `OpenRecipeBook-Windows.exe`. Recipes are stored directly as `.recipe.json` files inside your chosen recipe storage folder (`Documents\OpenRecipeBook\recipes` by default), independent of browser cookies or cache. Unsigned releases may show a standard Windows SmartScreen prompt on first run; click "More info" then "Run anyway".
+- **Android App:** Download the `.apk` file directly to your Android device and tap to install. Operates fully offline, uses native file and photo picking, stores recipe files in your app storage folder, and allows sharing recipe links from your browser straight into OpenRecipeBook.
+- **Bridging Devices:** Copy `.recipe.json` files directly from your storage folder or use the built-in full backup export (`.openrecipebook.zip`) to transfer recipes between Windows Desktop and Android.
 
 ## Key Features
 
+- **Direct On-Disk Recipe Storage:** View your recipe storage folder path, open the folder, see every `.recipe.json` or backup file inside it, and add recipe files on both Windows Desktop and Android.
+- **Folder Organization:** Create recipe folders, open any folder directly, and search or select recipes to add into it.
 - **Instant Scaling Engine:** Fast multipliers (0.5x, 1x, 2x, 3x, and custom) for ingredient quantities with fraction formatting, unit promotion (3 tsp -> 1 tbsp), and yield stepping.
 - **Ingredient Totals Tool:** Pick multiple recipes to compute combined ingredient requirements with exact rational arithmetic (e.g. 1 cup + 2/3 cup + 1/3 cup flour sums to 2 cups flour).
 - **Meal Planner:** Weekly calendar planner with Breakfast, Lunch, Dinner, and Snack slots. Add meals to your shopping list with a single click.
 - **Aisle-Grouped Shopping List:** Organize ingredients automatically by grocery aisle, tick off items in the store, and copy formatted lists to your clipboard.
 - **Interactive Cook Mode:** Full-screen step-by-step reading view with screen wake lock and one-tap concurrent cooking timers.
 - **Universal Importer:** Import from Recipe Keeper zip archives, Paprika exports, schema.org JSON-LD, plain text, and web pages.
-- **Local-First Storage:** User data stays strictly on device with optional folder backups for Google Drive, Dropbox, or OneDrive.
-
-## "Save Recipe" Bookmarklet
-
-To capture recipes while browsing on desktop browsers without installing extra software:
-
-1. Create a new browser bookmark named `Save to OpenRecipeBook`.
-2. Paste this code into the URL field:
-   ```javascript
-   javascript:(function(){var s=document.querySelectorAll('script[type="application/ld+json"]');var r=null;for(var i=0;i<s.length;i++){try{var p=JSON.parse(s[i].textContent||"");var c=function(n){if(!n||typeof n!=="object")return;var t=n["@type"];if(t==="Recipe"||(Array.isArray(t)&&t.includes("Recipe"))){r=n;}if(Array.isArray(n["@graph"])){n["@graph"].forEach(c);}};c(p);if(r)break;}catch(e){}}if(!r){alert("No recipe data found on this page.");return;}window.open("https://dontkwo.github.io/OpenRecipeBook/#import="+encodeURIComponent(JSON.stringify(r)),"_blank");})();
-   ```
-3. Click the bookmark on any recipe page to send it straight to your OpenRecipeBook review screen.
 
 ## Development Setup
 
@@ -48,14 +36,14 @@ Prerequisites: Node.js 18+ and npm.
 # Install dependencies
 npm install
 
-# Start local development server
-npm run dev
-
 # Run Vitest unit test suite
 npm test
 
-# Build production bundle
+# Build application assets
 npm run build
+
+# Build standalone Windows desktop executable (build/OpenRecipeBook.exe)
+npm run build:desktop
 ```
 
 ## Documentation

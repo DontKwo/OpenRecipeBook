@@ -86,23 +86,17 @@ jobs:
       - name: Run Test Suite
         run: npm test
 
-      - name: Build Web Application
+      - name: Build Desktop Application
         run: npm run build
 
-      - name: Package Portable Windows Desktop Application
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path build/windows
-          Copy-Item -Recurse -Force dist build/windows/dist
-          Copy-Item -Recurse -Force electron build/windows/electron
-          Copy-Item package.json build/windows/package.json
-          Compress-Archive -Path build/windows/* -DestinationPath build/OpenRecipeBook-Windows-Portable.zip -Force
+      - name: Package Windows Desktop Executable
+        run: node scripts/build_desktop_exe.cjs
 
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
         with:
           name: windows-package
-          path: build/OpenRecipeBook-Windows-Portable.zip
+          path: build/OpenRecipeBook-Windows.exe
 
   build-android:
     runs-on: ubuntu-latest
@@ -328,7 +322,7 @@ jobs:
       - name: Generate Checksums
         run: |
           cd build
-          sha256sum OpenRecipeBook-Windows-Portable.zip OpenRecipeBook-Android.apk > SHA256SUMS.txt
+          sha256sum OpenRecipeBook-Windows.exe OpenRecipeBook-Android.apk > SHA256SUMS.txt
 
       - name: Tag Release
         if: startsWith(github.ref, 'refs/heads/main')
@@ -347,7 +341,7 @@ jobs:
           prerelease: false
           make_latest: "true"
           files: |
-            build/OpenRecipeBook-Windows-Portable.zip
+            build/OpenRecipeBook-Windows.exe
             build/OpenRecipeBook-Android.apk
             build/SHA256SUMS.txt
           generate_release_notes: true

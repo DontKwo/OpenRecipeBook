@@ -26,7 +26,8 @@ import {
   PrinterIcon,
   UploadIcon,
   TrashIcon,
-  BookOpenIcon
+  BookOpenIcon,
+  XIcon
 } from "../../ui/icons";
 import { Button, IconButton } from "../../ui/Button";
 import { SegmentedControl } from "../../ui/SegmentedControl";
@@ -35,6 +36,7 @@ import { Menu } from "../../ui/Menu";
 import { Dialog } from "../../ui/Dialog";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { FolderManagerModal } from "../collections/FolderManagerModal";
+import { AddRecipesToFolderModal } from "../collections/AddRecipesToFolderModal";
 import { RecipeFilterModal } from "./RecipeFilterModal";
 import styles from "./RecipeLibrary.module.css";
 
@@ -46,6 +48,8 @@ export interface RecipeLibraryProps {
   onSaveCollection?: (collection: Collection) => Promise<void> | void;
   onDeleteCollection?: (collectionId: string) => Promise<void> | void;
   onBatchAssignCollection?: (recipeIds: string[], collectionId: string) => void;
+  onSaveFolderRecipes?: (collectionId: string, selectedRecipeIds: string[]) => Promise<void> | void;
+  onOpenStorageModal?: () => void;
   onUpdateRecipe?: (recipe: Recipe) => void;
   onSelectRecipe: (recipeId: string) => void;
   onNewRecipe: () => void;
@@ -67,6 +71,8 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
   onSaveCollection,
   onDeleteCollection,
   onBatchAssignCollection,
+  onSaveFolderRecipes,
+  onOpenStorageModal,
   onSelectRecipe,
   onNewRecipe,
   onImportFile,
@@ -87,6 +93,7 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
   // Modal states
   const [showFilterModal, setShowFilterModal] = useState<boolean>(false);
   const [showFolderModal, setShowFolderModal] = useState<boolean>(false);
+  const [addRecipesFolderId, setAddRecipesFolderId] = useState<string | null>(null);
   const [isMultiSelectMode, setIsMultiSelectMode] = useState<boolean>(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState<boolean>(false);
@@ -95,7 +102,6 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Search engine setup
   const searchEngine = useMemo(() => {
     const engine = new RecipeSearchEngine();
     engine.indexRecipes(recipes);
@@ -111,6 +117,21 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
     }
     return Array.from(set).sort();
   }, [recipes]);
+
+  const activeCollection = useMemo((): Collection | undefined => {
+    if (!activeCollectionId) return undefined;
+    return collections.find((c: Collection): boolean => c.id === activeCollectionId);
+  }, [collections, activeCollectionId]);
+
+  const addRecipesTargetCollection = useMemo((): Collection | undefined => {
+    if (!addRecipesFolderId) return undefined;
+    return collections.find((c: Collection): boolean => c.id === addRecipesFolderId);
+  }, [collections, addRecipesFolderId]);
+
+  const activeCollectionRecipeCount = useMemo((): number => {
+    if (!activeCollectionId) return 0;
+    return recipes.filter((r: Recipe): boolean => r.collectionIds?.includes(activeCollectionId) ?? false).length;
+  }, [recipes, activeCollectionId]);
 
   const activeFilterCount =
     (selectedCourse ? 1 : 0) +
@@ -144,7 +165,18 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
       });
     }
     return list;
-  }, [searchEngine, recipes, searchQuery, selectedCourse, onlyFavorites, minRating, maxMinutes, onlyHasPhoto, sortBy, activeCollectionId]);
+  }, [
+    searchEngine,
+    recipes,
+    searchQuery,
+    selectedCourse,
+    onlyFavorites,
+    minRating,
+    maxMinutes,
+    onlyHasPhoto,
+    sortBy,
+    activeCollectionId
+  ]);
 
   const toggleSelectRecipe = (id: string, e?: MouseEvent): void => {
     e?.stopPropagation();
@@ -184,7 +216,6 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
     setIsMultiSelectMode(false);
   };
 
-  // If no recipes in system at all
   if (recipes.length === 0) {
     return (
       <div style={{ textAlign: "center", padding: "var(--space-8) var(--space-4)", maxWidth: "480px", margin: "0 auto" }}>
@@ -192,23 +223,36 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
           Your Recipe Book is Empty
         </h2>
         <p style={{ color: "var(--muted)", marginBottom: "var(--space-6)" }}>
-          Start building your collection or explore with original sample recipes.
+          Start building your collection, add recipe files to your storage folder, or explore sample recipes.
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
           <Button
+            type="button"
             variant="primary"
             onClick={onLoadSamples}
           >
             Load Sample Recipes
           </Button>
           <Button
+            type="button"
             variant="secondary"
             icon={<PlusIcon width={18} height={18} />}
             onClick={onNewRecipe}
           >
             Add a Recipe
           </Button>
+          {onOpenStorageModal && (
+            <Button
+              type="button"
+              variant="secondary"
+              icon={<FolderIcon width={16} height={16} />}
+              onClick={onOpenStorageModal}
+            >
+              Open Recipe Storage Folder
+            </Button>
+          )}
           <Button
+            type="button"
             variant="ghost"
             icon={<UploadIcon width={16} height={16} />}
             onClick={onImportFile}
@@ -220,14 +264,24 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
     );
   }
 
+  const isEmptyFolderWithoutQuery = Boolean(
+    activeCollection &&
+      activeCollectionRecipeCount === 0 &&
+      !searchQuery.trim() &&
+      activeFilterCount === 0 &&
+      !onlyFavorites
+  );
+
   return (
     <div className={styles.libraryContainer}>
       {/* Sticky Header with Row 1 & Row 2 */}
       <div className={styles.controlsHeader}>
-        {/* Row 1: Search + Filters + View Toggle + More Menu (Never wraps at 360px) */}
         <div className={styles.row1}>
-          <div className={styles.searchBox}>
-            <SearchIcon width={16} height={16} style={{ color: "var(--muted)", flexShrink: 0 }} />
+          <div
+            className={styles.searchBox}
+            onClick={(): void => searchInputRef.current?.focus()}
+          >
+            <SearchIcon width={18} height={18} style={{ color: "var(--muted)", flexShrink: 0 }} />
             <input
               ref={searchInputRef}
               type="search"
@@ -237,74 +291,122 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
               className={styles.searchInput}
               aria-label="Search recipes"
             />
-          </div>
-
-          <Button
-            variant="secondary"
-            size="sm"
-            icon={<FilterIcon width={16} height={16} />}
-            onClick={(): void => setShowFilterModal(true)}
-            aria-label="Filters"
-          >
-            {activeFilterCount > 0 ? `Filters (${activeFilterCount})` : "Filters"}
-          </Button>
-
-          <SegmentedControl
-            options={[
-              { value: "grid", icon: <GridIcon width={16} height={16} />, label: "Grid" },
-              { value: "compact", icon: <CompactGridIcon width={16} height={16} />, label: "Compact" },
-              { value: "list", icon: <ListIcon width={16} height={16} />, label: "List" }
-            ]}
-            value={viewMode}
-            onChange={(val: string): void => setViewMode(val as "grid" | "compact" | "list")}
-            size="sm"
-          />
-
-          <Menu
-            trigger={
+            {searchQuery && (
               <IconButton
                 variant="ghost"
-                size="md"
-                icon={<MoreIcon width={18} height={18} />}
-                aria-label="More options"
+                size="sm"
+                icon={<XIcon width={14} height={14} />}
+                aria-label="Clear search"
+                onClick={(e): void => {
+                  e.stopPropagation();
+                  setSearchQuery("");
+                  searchInputRef.current?.focus();
+                }}
               />
-            }
-            items={[
-              ...(onOpenCookbookBuilder
-                ? [
-                    {
-                      id: "print",
-                      icon: <PrinterIcon width={16} height={16} />,
-                      label: "Print / Export Cookbook",
-                      onClick: onOpenCookbookBuilder
-                    }
-                  ]
-                : []),
-              {
-                id: "select",
-                icon: <ListIcon width={16} height={16} />,
-                label: isMultiSelectMode ? "Exit Select Mode" : "Select Multiple Recipes",
-                onClick: (): void => {
-                  if (isMultiSelectMode) {
-                    setSelectedIds(new Set());
-                  }
-                  setIsMultiSelectMode(!isMultiSelectMode);
+            )}
+          </div>
+
+          <div className={styles.toolbarActions}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<FilterIcon width={15} height={15} />}
+                onClick={(): void => setShowFilterModal(true)}
+                aria-label="Filters"
+              >
+                {activeFilterCount > 0 ? `Filters (${activeFilterCount})` : "Filters"}
+              </Button>
+
+              {onOpenStorageModal && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={<FolderIcon width={15} height={15} />}
+                  onClick={onOpenStorageModal}
+                  aria-label="Recipe storage folder"
+                >
+                  Storage
+                </Button>
+              )}
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+              <SegmentedControl
+                className={styles.viewToggle}
+                name="Recipe layout view"
+                options={[
+                  { value: "grid", icon: <GridIcon width={16} height={16} />, label: "Grid", ariaLabel: "Grid view" },
+                  {
+                    value: "compact",
+                    icon: <CompactGridIcon width={16} height={16} />,
+                    label: "Compact",
+                    ariaLabel: "Compact view"
+                  },
+                  { value: "list", icon: <ListIcon width={16} height={16} />, label: "List", ariaLabel: "List view" }
+                ]}
+                value={viewMode}
+                onChange={(val: string): void => setViewMode(val as "grid" | "compact" | "list")}
+                size="sm"
+              />
+
+              <Menu
+                trigger={
+                  <IconButton
+                    variant="ghost"
+                    size="sm"
+                    icon={<MoreIcon width={18} height={18} />}
+                    aria-label="More options"
+                  />
                 }
-              },
-              {
-                id: "import",
-                icon: <UploadIcon width={16} height={16} />,
-                label: "Import Recipes",
-                onClick: onImportFile
-              },
-              {
-                id: "folders",
-                icon: <FolderIcon width={16} height={16} />,
-                label: "Manage Folders",
-                onClick: (): void => setShowFolderModal(true)
-              }
-            ]}
-          />
+                items={[
+                  ...(onOpenStorageModal
+                    ? [
+                        {
+                          id: "storage",
+                          icon: <FolderIcon width={16} height={16} />,
+                          label: "Recipe Storage Folder",
+                          onClick: onOpenStorageModal
+                        }
+                      ]
+                    : []),
+                  ...(onOpenCookbookBuilder
+                    ? [
+                        {
+                          id: "print",
+                          icon: <PrinterIcon width={16} height={16} />,
+                          label: "Print / Export Cookbook",
+                          onClick: onOpenCookbookBuilder
+                        }
+                      ]
+                    : []),
+                  {
+                    id: "select",
+                    icon: <ListIcon width={16} height={16} />,
+                    label: isMultiSelectMode ? "Exit Select Mode" : "Select Multiple Recipes",
+                    onClick: (): void => {
+                      if (isMultiSelectMode) {
+                        setSelectedIds(new Set());
+                      }
+                      setIsMultiSelectMode(!isMultiSelectMode);
+                    }
+                  },
+                  {
+                    id: "import",
+                    icon: <UploadIcon width={16} height={16} />,
+                    label: "Import Recipes",
+                    onClick: onImportFile
+                  },
+                  {
+                    id: "folders",
+                    icon: <FolderIcon width={16} height={16} />,
+                    label: "Manage Folders",
+                    onClick: (): void => setShowFolderModal(true)
+                  }
+                ]}
+              />
+            </div>
+          </div>
         </div>
 
         {/* Row 2: Horizontally scrollable chips */}
@@ -351,10 +453,73 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
         </div>
       </div>
 
+      {/* Active Folder Banner */}
+      {activeCollection && (
+        <div className={styles.activeFolderBanner}>
+          <div className={styles.activeFolderInfo}>
+            <FolderIcon width={20} height={20} style={{ color: "var(--accent)", flexShrink: 0 }} />
+            <div>
+              <h2 className={styles.activeFolderTitle}>{activeCollection.name}</h2>
+              <span className={styles.activeFolderCount}>
+                {activeCollectionRecipeCount} {activeCollectionRecipeCount === 1 ? "recipe" : "recipes"}
+              </span>
+            </div>
+          </div>
+          <div className={styles.activeFolderActions}>
+            {onSaveFolderRecipes && (
+              <Button
+                variant="primary"
+                size="sm"
+                icon={<PlusIcon width={15} height={15} />}
+                onClick={(): void => setAddRecipesFolderId(activeCollection.id)}
+              >
+                Add Recipes
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={(): void => setShowFolderModal(true)}
+            >
+              Manage Folders
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={(): void => onSelectCollection?.(null)}
+            >
+              All Recipes
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Recipe List / Grid / Compact Content */}
-      {filteredRecipes.length === 0 ? (
+      {isEmptyFolderWithoutQuery && activeCollection ? (
         <div style={{ textAlign: "center", padding: "var(--space-8) var(--space-4)", color: "var(--muted)" }}>
-          <p style={{ fontSize: "1.125rem", marginBottom: "var(--space-2)" }}>No recipes matched your search or filters.</p>
+          <p style={{ fontSize: "1.125rem", marginBottom: "var(--space-3)", color: "var(--text)" }}>
+            Folder &ldquo;{activeCollection.name}&rdquo; is empty.
+          </p>
+          <p style={{ fontSize: "0.9375rem", marginBottom: "var(--space-4)" }}>
+            Search or select recipes from your cookbook to add into this folder.
+          </p>
+          {onSaveFolderRecipes && (
+            <Button
+              variant="primary"
+              icon={<PlusIcon width={16} height={16} />}
+              onClick={(): void => setAddRecipesFolderId(activeCollection.id)}
+            >
+              Select or Search Recipes to Add
+            </Button>
+          )}
+        </div>
+      ) : filteredRecipes.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "var(--space-8) var(--space-4)", color: "var(--muted)" }}>
+          <p style={{ fontSize: "1.125rem", marginBottom: "var(--space-2)" }}>
+            No recipes matched your search or filters.
+          </p>
           <Button
             variant="secondary"
             onClick={(): void => {
@@ -455,7 +620,6 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
               );
             }
 
-            // Grid and Compact Grid
             return (
               <div
                 key={recipe.id}
@@ -468,7 +632,6 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
                   }
                 }}
               >
-                {/* Thumbnail */}
                 {recipe.photoIds?.[0] ? (
                   <img
                     src={`/api/photos/${recipe.photoIds[0]}`}
@@ -487,7 +650,6 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
                   </div>
                 )}
 
-                {/* Card Body */}
                 <div className={styles.cardBody}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                     <h3 className={styles.cardTitle}>{recipe.title}</h3>
@@ -551,7 +713,7 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
         <PlusIcon width={24} height={24} />
       </button>
 
-      {/* Multi-Select Action Bar (Clears bottom tab bar on mobile) */}
+      {/* Multi-Select Action Bar */}
       {isMultiSelectMode && (
         <div className={styles.multiSelectBar}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -627,7 +789,24 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
           recipes={recipes}
           onSaveCollection={onSaveCollection}
           onDeleteCollection={onDeleteCollection}
+          onOpenCollection={(colId: string): void => {
+            setOnlyFavorites(false);
+            onSelectCollection?.(colId);
+          }}
+          onAddRecipesToCollection={
+            onSaveFolderRecipes ? (colId: string): void => setAddRecipesFolderId(colId) : undefined
+          }
           onClose={(): void => setShowFolderModal(false)}
+        />
+      )}
+
+      {/* Add Recipes to Folder Modal */}
+      {addRecipesTargetCollection && onSaveFolderRecipes && (
+        <AddRecipesToFolderModal
+          collection={addRecipesTargetCollection}
+          recipes={recipes}
+          onSaveFolderRecipes={onSaveFolderRecipes}
+          onClose={(): void => setAddRecipesFolderId(null)}
         />
       )}
 
@@ -641,12 +820,14 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
           footer={
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, width: "100%" }}>
               <Button
+                type="button"
                 variant="secondary"
                 onClick={(): void => setShowBatchFolderModal(false)}
               >
                 Cancel
               </Button>
               <Button
+                type="button"
                 variant="primary"
                 onClick={handleAssignBatchFolder}
                 disabled={!batchTargetFolderId}

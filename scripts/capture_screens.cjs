@@ -1,26 +1,28 @@
-const http = require('http');
-const net = require('net');
-const crypto = require('crypto');
-const fs = require('fs');
-const path = require('path');
-const { spawn } = require('child_process');
+const http = require("http");
+const net = require("net");
+const crypto = require("crypto");
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const assert = require("assert");
+const { spawn } = require("child_process");
 
 function createWsConnection(wsUrl) {
   return new Promise((resolve, reject) => {
     const url = new URL(wsUrl);
     const port = url.port || 80;
-    const key = crypto.randomBytes(16).toString('base64');
+    const key = crypto.randomBytes(16).toString("base64");
 
     const socket = net.connect(port, url.hostname, () => {
       const headers = [
         `GET ${url.pathname} HTTP/1.1`,
         `Host: ${url.hostname}:${port}`,
-        'Upgrade: websocket',
-        'Connection: Upgrade',
+        "Upgrade: websocket",
+        "Connection: Upgrade",
         `Sec-WebSocket-Key: ${key}`,
-        'Sec-WebSocket-Version: 13',
-        '\r\n'
-      ].join('\r\n');
+        "Sec-WebSocket-Version: 13",
+        "\r\n"
+      ].join("\r\n");
       socket.write(headers);
     });
 
@@ -28,9 +30,9 @@ function createWsConnection(wsUrl) {
     const callbacks = new Map();
     let buffer = Buffer.alloc(0);
 
-    socket.on('data', chunk => {
+    socket.on("data", (chunk) => {
       buffer = Buffer.concat([buffer, chunk]);
-      const headerEnd = buffer.indexOf('\r\n\r\n');
+      const headerEnd = buffer.indexOf("\r\n\r\n");
       if (headerEnd !== -1 && !socket.handshakeComplete) {
         socket.handshakeComplete = true;
         buffer = buffer.slice(headerEnd + 4);
@@ -103,7 +105,7 @@ function createWsConnection(wsUrl) {
 
         if (opcode === 1) {
           try {
-            const data = JSON.parse(payload.toString('utf8'));
+            const data = JSON.parse(payload.toString("utf8"));
             if (data.id && callbacks.has(data.id)) {
               const cb = callbacks.get(data.id);
               callbacks.delete(data.id);
@@ -111,72 +113,158 @@ function createWsConnection(wsUrl) {
               else cb.resolve(data.result);
             }
           } catch (e) {
-            console.error('Parse error', e);
+            console.error("Parse error", e);
           }
         }
       }
     });
 
-    socket.on('error', reject);
+    socket.on("error", reject);
   });
 }
 
 function fetchJson(url) {
   return new Promise((resolve, reject) => {
-    http.get(url, res => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => resolve(JSON.parse(data)));
-    }).on('error', reject);
+    http
+      .get(url, (res) => {
+        let data = "";
+        res.on("data", (chunk) => (data += chunk));
+        res.on("end", () => resolve(JSON.parse(data)));
+      })
+      .on("error", reject);
   });
 }
 
 async function evalJs(ws, expression) {
-  const res = await ws.send('Runtime.evaluate', {
+  const res = await ws.send("Runtime.evaluate", {
     expression,
-    returnByValue: true
+    returnByValue: true,
+    awaitPromise: true
   });
   if (res.exceptionDetails) {
-    console.error('Eval error:', res.exceptionDetails);
+    console.error("Eval error:", res.exceptionDetails);
   }
   return res.result ? res.result.value : undefined;
 }
 
 async function capture(ws, filename) {
-  if (!fs.existsSync('screenshots')) {
-    fs.mkdirSync('screenshots', { recursive: true });
+  if (!fs.existsSync("screenshots")) {
+    fs.mkdirSync("screenshots", { recursive: true });
   }
-  const shot = await ws.send('Page.captureScreenshot');
-  fs.writeFileSync(`screenshots/${filename}`, Buffer.from(shot.data, 'base64'));
+  const shot = await ws.send("Page.captureScreenshot");
+  fs.writeFileSync(`screenshots/${filename}`, Buffer.from(shot.data, "base64"));
   console.log(`Saved screenshots/${filename}`);
 }
 
+function findBrowserExecutable() {
+  const candidates = [
+    process.env.CHROME_BIN,
+    path.join(process.env.PROGRAMFILES || "C:\\Program Files", "Google", "Chrome", "Application", "chrome.exe"), // # noqa: 91
+    path.join(process.env["PROGRAMFILES(X86)"] || "C:\\Program Files (x86)", "Microsoft", "Edge", "Application", "msedge.exe"), // # noqa: 91
+    path.join(process.env.PROGRAMFILES || "C:\\Program Files", "Microsoft", "Edge", "Application", "msedge.exe") // # noqa: 91
+  ].filter(Boolean);
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  throw new Error("Could not find Chrome or Edge binary for headless screenshot audit.");
+}
+
+async function startDesktopHostServer() {
+  const exePath = path.resolve(__dirname, "..", "build", "OpenRecipeBook.exe");
+  if (!fs.existsSync(exePath)) {
+    throw new Error(`Missing ${exePath}. Run npm run build:desktop first.`);
+  }
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "orb-ui-audit-"));
+  const dataDir = path.join(tempRoot, "host-config");
+  const storageDir = path.join(tempRoot, "recipes");
+
+  const proc = spawn(
+    exePath,
+    ["--headless-server", "0", `--data-dir=${dataDir}`, `--storage-dir=${storageDir}`],
+    { stdio: ["ignore", "pipe", "pipe"] }
+  );
+
+  const baseUrl = await new Promise((resolve, reject) => {
+    let stdout = "";
+    const timer = setTimeout(() => reject(new Error("Timed out starting OpenRecipeBook.exe")), 10000);
+    proc.stdout.on("data", (chunk) => {
+      stdout += chunk.toString("utf8");
+      const match = /READY\s+(http:\/\/127\.0\.0\.1:\d+\/)/.exec(stdout);
+      if (match) {
+        clearTimeout(timer);
+        resolve(match[1]);
+      }
+    });
+    proc.on("exit", (code) => {
+      clearTimeout(timer);
+      reject(new Error(`OpenRecipeBook.exe exited early (${code})`));
+    });
+  });
+
+  return { proc, baseUrl, tempRoot, storageDir };
+}
+
+async function checkHorizontalOverflow(ws, vpWidth) {
+  return evalJs(
+    ws,
+    `(() => {
+      const docOverflow = document.documentElement.scrollWidth > document.documentElement.clientWidth;
+      const main = document.querySelector('main');
+      const mainOverflow = main ? main.scrollWidth > main.clientWidth + 1 : false;
+      const isInsideHorizontalScroller = (el) => {
+        let p = el.parentElement;
+        while (p && p !== main && p !== document.body) {
+          const ox = getComputedStyle(p).overflowX;
+          if (ox === 'auto' || ox === 'scroll') return true;
+          p = p.parentElement;
+        }
+        return false;
+      };
+      const clipped = [];
+      for (const el of document.querySelectorAll('main input, main button, main select')) {
+        if (isInsideHorizontalScroller(el)) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0 && r.right > ${vpWidth} + 2) {
+          clipped.push(el.tagName + ':' + (el.getAttribute('aria-label') || el.textContent || '').trim().slice(0, 30) + ' right=' + Math.round(r.right));
+        }
+      }
+      return {
+        hasOverflow: docOverflow || mainOverflow || clipped.length > 0,
+        docOverflow,
+        mainOverflow,
+        clipped
+      };
+    })()`
+  );
+}
+
 const VIEWPORTS = [
-  { width: 360, height: 740, name: '360x740', mobile: true },
-  { width: 390, height: 844, name: '390x844', mobile: true },
-  { width: 768, height: 1024, name: '768x1024', mobile: false },
-  { width: 1440, height: 900, name: '1440x900', mobile: false }
+  { width: 360, height: 740, name: "360x740", mobile: true },
+  { width: 390, height: 844, name: "390x844", mobile: true },
+  { width: 768, height: 1024, name: "768x1024", mobile: false },
+  { width: 1440, height: 900, name: "1440x900", mobile: false }
 ];
 
-const THEMES = ['light', 'dark'];
+const THEMES = ["light", "dark"];
 
 async function main() {
-  const chromePath = process.env.CHROME_BIN || path.join(process.env['PROGRAMFILES'] || 'C:\\Program Files', 'Google', 'Chrome', 'Application', 'chrome.exe'); // # noqa: 91
-  const profileDir = path.resolve(__dirname, '..', 'temp-chrome-profile');
-  const chrome = spawn(chromePath, [
-    '--headless=new',
-    '--disable-gpu',
-    '--remote-debugging-port=9222',
+  const host = await startDesktopHostServer();
+  const browserPath = findBrowserExecutable();
+  const profileDir = path.join(host.tempRoot, "browser-profile");
+  const browser = spawn(browserPath, [
+    "--headless=new",
+    "--disable-gpu",
+    "--remote-debugging-port=9222",
     `--user-data-dir=${profileDir}`,
-    'about:blank'
+    "about:blank"
   ]);
 
-  await new Promise(r => setTimeout(r, 2000));
+  await new Promise((r) => setTimeout(r, 2000));
 
   const evidence = {
-    run_id: 'openrecipebook-ui-audit-' + Date.now(),
-    framework: 'web',
-    commit: 'HEAD',
+    run_id: "openrecipebook-ui-audit-" + Date.now(),
+    framework: "desktop-exe",
+    commit: "HEAD",
     timestamp: new Date().toISOString(),
     viewports: VIEWPORTS,
     themes: THEMES,
@@ -184,19 +272,19 @@ async function main() {
   };
 
   try {
-    const targets = await fetchJson('http://127.0.0.1:9222/json');
-    const target = targets.find(t => t.type === 'page');
-    if (!target) throw new Error('No page target found');
+    const targets = await fetchJson("http://127.0.0.1:9222/json");
+    const target = targets.find((t) => t.type === "page");
+    if (!target) throw new Error("No page target found");
 
-    const wsUrl = target.webSocketDebuggerUrl.replace('localhost', '127.0.0.1');
+    const wsUrl = target.webSocketDebuggerUrl.replace("localhost", "127.0.0.1");
     const ws = await createWsConnection(wsUrl);
 
-    await ws.send('Page.enable');
-    await ws.send('Runtime.enable');
-    await ws.send('DOM.enable');
+    await ws.send("Page.enable");
+    await ws.send("Runtime.enable");
+    await ws.send("DOM.enable");
 
     for (const vp of VIEWPORTS) {
-      await ws.send('Emulation.setDeviceMetricsOverride', {
+      await ws.send("Emulation.setDeviceMetricsOverride", {
         width: vp.width,
         height: vp.height,
         deviceScaleFactor: 1,
@@ -206,240 +294,283 @@ async function main() {
       for (const theme of THEMES) {
         console.log(`\n=== Testing ${vp.name} [${theme}] ===`);
 
-        // Navigate clean
-        await ws.send('Page.navigate', { url: 'http://localhost:5173/' });
-        await new Promise(r => setTimeout(r, 1000));
+        await ws.send("Page.navigate", { url: host.baseUrl });
+        await new Promise((r) => setTimeout(r, 1200));
 
-        // Apply theme
-        await evalJs(ws, `(() => {
-          document.documentElement.setAttribute('data-theme', '${theme}');
-          localStorage.setItem('orb_theme', '${theme}');
-        })()`);
-        await new Promise(r => setTimeout(r, 200));
+        await evalJs(
+          ws,
+          `(() => {
+            document.documentElement.setAttribute('data-theme', '${theme}');
+            localStorage.setItem('orb_theme', '${theme}');
+          })()`
+        );
+        await new Promise((r) => setTimeout(r, 200));
 
-        // 1. Library View
-        const hasHScrollLib = await evalJs(ws, `document.documentElement.scrollWidth > document.documentElement.clientWidth`);
+        // 1. Library View + Search Box Accessibility Check
+        const searchMetrics = await evalJs(
+          ws,
+          `(() => {
+            const input = document.querySelector('input[aria-label="Search recipes"]');
+            if (!input) return null;
+            const r = input.getBoundingClientRect();
+            return { width: Math.round(r.width), height: Math.round(r.height), left: Math.round(r.left), top: Math.round(r.top), right: Math.round(r.right) };
+          })()`
+        );
+        assert.ok(searchMetrics, `Search input missing at ${vp.name} ${theme}`);
+        assert.ok(searchMetrics.width >= 200, `Search input compressed (${searchMetrics.width}px) at ${vp.name}`);
+        assert.ok(searchMetrics.height >= 36, `Search input too short (${searchMetrics.height}px) at ${vp.name}`);
+
+        const clickX = Math.round(searchMetrics.left + 20);
+        const clickY = Math.round(searchMetrics.top + searchMetrics.height / 2);
+
+        // Test clicking and typing into search box
+        await ws.send("Input.dispatchMouseEvent", {
+          type: "mousePressed",
+          x: clickX,
+          y: clickY,
+          button: "left",
+          clickCount: 1
+        });
+        await ws.send("Input.dispatchMouseEvent", {
+          type: "mouseReleased",
+          x: clickX,
+          y: clickY,
+          button: "left",
+          clickCount: 1
+        });
+        await ws.send("Input.insertText", { text: "BBQ" });
+        await new Promise((r) => setTimeout(r, 250));
+        const filteredTitles = await evalJs(
+          ws,
+          `Array.from(document.querySelectorAll('main h3')).map(h => h.textContent)`
+        );
+        assert.ok(
+          filteredTitles.some((t) => t.includes("BBQ")),
+          `Expected search to filter BBQ recipe at ${vp.name}`
+        );
+        await evalJs(
+          ws,
+          `(() => {
+            const clearBtn = document.querySelector('button[aria-label="Clear search"]');
+            if (clearBtn) clearBtn.click();
+          })()`
+        );
+        await new Promise((r) => setTimeout(r, 200));
+
+        const libOverflow = await checkHorizontalOverflow(ws, vp.width);
         await capture(ws, `library_${vp.name}_${theme}.png`);
         evidence.interactions.push({
-          screen: 'Library',
+          screen: "Library",
           viewport: vp.name,
           theme,
-          hasHorizontalScroll: hasHScrollLib,
+          hasHorizontalScroll: libOverflow.hasOverflow,
+          overflowDetails: libOverflow,
+          searchMetrics,
           screenshot: `library_${vp.name}_${theme}.png`
         });
 
-        // 2. Open First Recipe (Recipe View Top)
-        await evalJs(ws, `(() => {
-          const cards = Array.from(document.querySelectorAll('[class*="recipeCard"]'));
-          if (cards[0]) cards[0].click();
-          else {
-            const el = Array.from(document.querySelectorAll('div, h3, a')).find(e => e.textContent.includes('Pancake') || e.textContent.includes('Turkey'));
-            if (el) el.click();
-          }
-        })()`);
-        await new Promise(r => setTimeout(r, 600));
+        // 2. Storage Modal + Folder Creation Flow (on 360x740 & 1440x900 light)
+        if ((vp.width === 360 || vp.width === 1440) && theme === "light") {
+          await evalJs(
+            ws,
+            `(() => {
+              const btn = document.querySelector('button[aria-label="Recipe storage folder"]');
+              if (btn) btn.click();
+            })()`
+          );
+          await new Promise((r) => setTimeout(r, 400));
+          const storagePathShown = await evalJs(
+            ws,
+            `document.querySelector('[data-testid="storage-path-value"]')?.textContent || ''`
+          );
+          assert.ok(storagePathShown.includes(host.storageDir), "Storage modal must display actual storage folder path");
+          await capture(ws, `storage_modal_${vp.name}_${theme}.png`);
+          await evalJs(
+            ws,
+            `document.querySelector('button[aria-label="Close dialog"]')?.click()`
+          );
+          await new Promise((r) => setTimeout(r, 250));
 
-        const hasHScrollRecipe = await evalJs(ws, `document.documentElement.scrollWidth > document.documentElement.clientWidth`);
+          // Folder creation -> auto-open -> search/select recipe modal
+          await evalJs(
+            ws,
+            `(() => {
+              const chip = Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'Folder');
+              if (chip) chip.click();
+            })()`
+          );
+          await new Promise((r) => setTimeout(r, 300));
+          await evalJs(
+            ws,
+            `(() => {
+              const inp = document.querySelector('input[placeholder="New folder name..."]');
+              if (inp) {
+                const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+                setter.call(inp, 'Weeknight');
+                inp.dispatchEvent(new Event('input', { bubbles: true }));
+              }
+            })()`
+          );
+          await new Promise((r) => setTimeout(r, 150));
+          await evalJs(
+            ws,
+            `(() => {
+              const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'Create');
+              if (btn) btn.click();
+            })()`
+          );
+          await new Promise((r) => setTimeout(r, 400));
+          const addRecipesSearchVisible = await evalJs(
+            ws,
+            `Boolean(document.querySelector('input[aria-label="Search recipes to add to folder"]'))`
+          );
+          assert.ok(addRecipesSearchVisible, "Creating a folder must open the recipe search & selection modal");
+          await capture(ws, `folder_add_recipes_${vp.name}_${theme}.png`);
+          await evalJs(ws, `document.querySelector('button[aria-label="Close dialog"]')?.click()`);
+          await new Promise((r) => setTimeout(r, 200));
+          await evalJs(
+            ws,
+            `(() => {
+              const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'All Recipes');
+              if (btn) btn.click();
+            })()`
+          );
+          await new Promise((r) => setTimeout(r, 200));
+        }
+
+        // 3. Open First Recipe (Recipe View)
+        await evalJs(
+          ws,
+          `(() => {
+            const h3 = document.querySelector('main h3');
+            if (h3) h3.click();
+          })()`
+        );
+        await new Promise((r) => setTimeout(r, 500));
+
+        const recipeOverflow = await checkHorizontalOverflow(ws, vp.width);
         await capture(ws, `recipe_view_top_${vp.name}_${theme}.png`);
         evidence.interactions.push({
-          screen: 'Recipe View Top',
+          screen: "Recipe View Top",
           viewport: vp.name,
           theme,
-          hasHorizontalScroll: hasHScrollRecipe,
+          hasHorizontalScroll: recipeOverflow.hasOverflow,
+          overflowDetails: recipeOverflow,
           screenshot: `recipe_view_top_${vp.name}_${theme}.png`
         });
 
-        // 3. Recipe View Bottom (scroll down)
-        await evalJs(ws, `window.scrollTo(0, document.body.scrollHeight)`);
-        await new Promise(r => setTimeout(r, 400));
-        await capture(ws, `recipe_view_bottom_${vp.name}_${theme}.png`);
-
-        // 4. Recipe View Menu Open
-        await evalJs(ws, `window.scrollTo(0, 0)`);
-        await new Promise(r => setTimeout(r, 200));
-        await evalJs(ws, `(() => {
-          const btn = document.querySelector('button[aria-label="Recipe actions"]') || Array.from(document.querySelectorAll('button')).find(b => b.innerHTML.includes('circle'));
-          if (btn) btn.click();
-        })()`);
-        await new Promise(r => setTimeout(r, 400));
-        await capture(ws, `recipe_view_menu_${vp.name}_${theme}.png`);
-
-        // Close menu / click backdrop
-        await evalJs(ws, `(() => {
-          const backdrop = document.querySelector('[class*="backdrop"]') || document.body;
-          backdrop.click();
-        })()`);
-        await new Promise(r => setTimeout(r, 200));
-
-        // 5. Cook Mode
-        await evalJs(ws, `(() => {
-          const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('Cook Mode'));
-          if (btn) btn.click();
-        })()`);
-        await new Promise(r => setTimeout(r, 600));
-
-        await capture(ws, `cook_mode_base_${vp.name}_${theme}.png`);
-
-        // 6. Cook Mode Timers Drawer
-        await evalJs(ws, `(() => {
-          const btn = document.querySelector('button[aria-label="View timers"]') || Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('Timers'));
-          if (btn) btn.click();
-        })()`);
-        await new Promise(r => setTimeout(r, 400));
-        await capture(ws, `cook_mode_timers_${vp.name}_${theme}.png`);
-
-        // 7. Cook Mode Ingredients Drawer
-        await evalJs(ws, `(() => {
-          const btn = document.querySelector('button[aria-label="View ingredients"]') || Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('Ingredients'));
-          if (btn) btn.click();
-        })()`);
-        await new Promise(r => setTimeout(r, 400));
-        await capture(ws, `cook_mode_ingredients_${vp.name}_${theme}.png`);
-
-        // 8. Cook Mode Steps Drawer
-        await evalJs(ws, `(() => {
-          const btn = document.querySelector('button[aria-label="View steps"]') || Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('Steps'));
-          if (btn) btn.click();
-        })()`);
-        await new Promise(r => setTimeout(r, 400));
-        await capture(ws, `cook_mode_steps_${vp.name}_${theme}.png`);
-
-        // Exit Cook Mode
-        await evalJs(ws, `(() => {
-          const btn = document.querySelector('button[aria-label="Exit Cook Mode"]');
-          if (btn) btn.click();
-        })()`);
-        await new Promise(r => setTimeout(r, 400));
-
-        // 9. Editor View (click Edit Recipe)
-        await evalJs(ws, `(() => {
-          const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('Edit'));
-          if (btn) btn.click();
-        })()`);
-        await new Promise(r => setTimeout(r, 600));
-        await capture(ws, `editor_${vp.name}_${theme}.png`);
-        evidence.interactions.push({
-          screen: 'Editor',
-          viewport: vp.name,
-          theme,
-          screenshot: `editor_${vp.name}_${theme}.png`
-        });
-
-        // Cancel Editor
-        await evalJs(ws, `(() => {
-          const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('Cancel'));
-          if (btn) btn.click();
-        })()`);
-        await new Promise(r => setTimeout(r, 400));
-
-        // 10. Planner View
-        await evalJs(ws, `(() => {
-          const tabs = Array.from(document.querySelectorAll('button, a'));
-          const plannerTab = tabs.find(t => t.textContent.includes('Planner') || t.textContent.includes('Plan'));
-          if (plannerTab) plannerTab.click();
-        })()`);
-        await new Promise(r => setTimeout(r, 600));
-        const hasHScrollPlanner = await evalJs(ws, `document.documentElement.scrollWidth > document.documentElement.clientWidth`);
+        // 4. Planner View
+        await evalJs(
+          ws,
+          `(() => {
+            const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('Plan'));
+            if (btn) btn.click();
+          })()`
+        );
+        await new Promise((r) => setTimeout(r, 500));
+        const plannerOverflow = await checkHorizontalOverflow(ws, vp.width);
         await capture(ws, `planner_week_${vp.name}_${theme}.png`);
         evidence.interactions.push({
-          screen: 'Meal Planner Week',
+          screen: "Meal Planner Week",
           viewport: vp.name,
           theme,
-          hasHorizontalScroll: hasHScrollPlanner,
+          hasHorizontalScroll: plannerOverflow.hasOverflow,
+          overflowDetails: plannerOverflow,
           screenshot: `planner_week_${vp.name}_${theme}.png`
         });
 
-        // 11. Planner Add Meal Dialog
-        await evalJs(ws, `(() => {
-          const addBtns = Array.from(document.querySelectorAll('button')).filter(b => b.textContent.includes('+ Add') || b.textContent.includes('Add Meal'));
-          if (addBtns[0]) addBtns[0].click();
-        })()`);
-        await new Promise(r => setTimeout(r, 400));
-        await capture(ws, `planner_add_meal_${vp.name}_${theme}.png`);
-
-        // Close Add Meal dialog
-        await evalJs(ws, `(() => {
-          const closeBtn = document.querySelector('button[aria-label="Close dialog"]');
-          if (closeBtn) closeBtn.click();
-        })()`);
-        await new Promise(r => setTimeout(r, 300));
-
-        // 12. Shopping List
-        await evalJs(ws, `(() => {
-          const tabs = Array.from(document.querySelectorAll('button, a'));
-          const shopTab = tabs.find(t => t.textContent.includes('Shopping'));
-          if (shopTab) shopTab.click();
-        })()`);
-        await new Promise(r => setTimeout(r, 600));
-        const hasHScrollShop = await evalJs(ws, `document.documentElement.scrollWidth > document.documentElement.clientWidth`);
+        // 5. Shopping List
+        await evalJs(
+          ws,
+          `(() => {
+            const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('Shopping'));
+            if (btn) btn.click();
+          })()`
+        );
+        await new Promise((r) => setTimeout(r, 500));
+        const shopOverflow = await checkHorizontalOverflow(ws, vp.width);
         await capture(ws, `shopping_${vp.name}_${theme}.png`);
         evidence.interactions.push({
-          screen: 'Shopping List',
+          screen: "Shopping List",
           viewport: vp.name,
           theme,
-          hasHorizontalScroll: hasHScrollShop,
+          hasHorizontalScroll: shopOverflow.hasOverflow,
+          overflowDetails: shopOverflow,
           screenshot: `shopping_${vp.name}_${theme}.png`
         });
 
-        // 13. Ingredient Totals
-        await evalJs(ws, `(() => {
-          const tabs = Array.from(document.querySelectorAll('button, a'));
-          const totTab = tabs.find(t => t.textContent.includes('Totals'));
-          if (totTab) totTab.click();
-        })()`);
-        await new Promise(r => setTimeout(r, 600));
-
-        // Add a recipe in totals
-        await evalJs(ws, `(() => {
-          const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('Add Recipe'));
-          if (btn) btn.click();
-        })()`);
-        await new Promise(r => setTimeout(r, 300));
-        await evalJs(ws, `(() => {
-          const item = document.querySelector('[class*="item"]');
-          if (item) item.click();
-        })()`);
-        await new Promise(r => setTimeout(r, 400));
-
-        const hasHScrollTotals = await evalJs(ws, `document.documentElement.scrollWidth > document.documentElement.clientWidth`);
+        // 6. Ingredient Totals (with picker open)
+        await evalJs(
+          ws,
+          `(() => {
+            const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('Totals'));
+            if (btn) btn.click();
+          })()`
+        );
+        await new Promise((r) => setTimeout(r, 500));
+        await evalJs(
+          ws,
+          `(() => {
+            const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('Add Recipe'));
+            if (btn) btn.click();
+          })()`
+        );
+        await new Promise((r) => setTimeout(r, 300));
+        const totalsOverflow = await checkHorizontalOverflow(ws, vp.width);
         await capture(ws, `totals_${vp.name}_${theme}.png`);
         evidence.interactions.push({
-          screen: 'Ingredient Totals',
+          screen: "Ingredient Totals",
           viewport: vp.name,
           theme,
-          hasHorizontalScroll: hasHScrollTotals,
+          hasHorizontalScroll: totalsOverflow.hasOverflow,
+          overflowDetails: totalsOverflow,
           screenshot: `totals_${vp.name}_${theme}.png`
         });
 
-        // 14. Settings View
-        await evalJs(ws, `(() => {
-          const tabs = Array.from(document.querySelectorAll('button, a'));
-          const setTab = tabs.find(t => t.textContent.includes('Settings'));
-          if (setTab) setTab.click();
-        })()`);
-        await new Promise(r => setTimeout(r, 600));
-        const hasHScrollSettings = await evalJs(ws, `document.documentElement.scrollWidth > document.documentElement.clientWidth`);
+        // 7. Settings View
+        await evalJs(
+          ws,
+          `(() => {
+            const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('Settings'));
+            if (btn) btn.click();
+          })()`
+        );
+        await new Promise((r) => setTimeout(r, 500));
+        const settingsOverflow = await checkHorizontalOverflow(ws, vp.width);
         await capture(ws, `settings_${vp.name}_${theme}.png`);
         evidence.interactions.push({
-          screen: 'Settings',
+          screen: "Settings",
           viewport: vp.name,
           theme,
-          hasHorizontalScroll: hasHScrollSettings,
+          hasHorizontalScroll: settingsOverflow.hasOverflow,
+          overflowDetails: settingsOverflow,
           screenshot: `settings_${vp.name}_${theme}.png`
         });
       }
     }
 
-    fs.writeFileSync('ui_evidence.json', JSON.stringify(evidence, null, 2));
-    console.log('\nAudit complete! ui_evidence.json populated.');
+    fs.writeFileSync("ui_evidence.json", JSON.stringify(evidence, null, 2));
+    console.log("\nAudit complete! ui_evidence.json populated.");
+
+    const failedOverflow = evidence.interactions.filter((i) => i.hasHorizontalScroll);
+    if (failedOverflow.length > 0) {
+      console.error("Horizontal overflow detected:", JSON.stringify(failedOverflow, null, 2));
+      process.exitCode = 1;
+    }
 
     ws.close();
   } finally {
-    chrome.kill();
+    browser.kill();
+    host.proc.kill();
+    try {
+      fs.rmSync(host.tempRoot, { recursive: true, force: true });
+    } catch {
+      // Ignore cleanup lock
+    }
   }
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error(err);
   process.exit(1);
 });

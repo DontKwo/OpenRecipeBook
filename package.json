@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:desktop": "tsc && vite build && node scripts/build_desktop_exe.cjs",
     "preview": "vite preview",
     "test": "vitest run",
     "screenshots": "node scripts/capture_screens.cjs"

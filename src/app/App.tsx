@@ -41,6 +41,14 @@ import { UserIngredientsModal } from "../features/settings/UserIngredientsModal"
 import { ComponentGallery } from "../features/gallery/ComponentGallery";
 import { ImportReviewModal } from "../features/import/ImportReviewModal";
 import { CookbookBuilderModal } from "../features/cookbook/CookbookBuilderModal";
+import { StorageLocationModal } from "../features/storage/StorageLocationModal";
+import {
+  syncLibraryWithStorage,
+  writeRecipeToStorage,
+  deleteRecipeFromStorage,
+  writeLibraryMetadataToStorage,
+  type AddStorageFilesResult
+} from "../domain/storage/recipeStorageService";
 import {
   FileSystemFolderBackupDestination,
   type AutoBackupResult
@@ -82,6 +90,7 @@ function AppContent(): ReactElement {
   const [activeCollectionId, setActiveCollectionId] = useState<string | null>(null);
   const [showUserIngredientsModal, setShowUserIngredientsModal] = useState<boolean>(false);
   const [showCookbookModal, setShowCookbookModal] = useState<boolean>(false);
+  const [showStorageModal, setShowStorageModal] = useState<boolean>(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState<boolean>(false);
   const [emptyTrashConfirmOpen, setEmptyTrashConfirmOpen] = useState<boolean>(false);
   const [isDraggingOver, setIsDraggingOver] = useState<boolean>(false);
@@ -92,14 +101,64 @@ function AppContent(): ReactElement {
   const [cookModeMultiplier, setCookModeMultiplier] = useState<number>(1);
   const [importCandidates, setImportCandidates] = useState<Recipe[] | null>(null);
 
+  const persistMetadataToStorage = async (): Promise<void> => {
+    try {
+      const [cols, meals, lists, storedCombos, ingredients] = await Promise.all([
+        db.collections.toArray(),
+        db.mealPlan.toArray(),
+        db.shoppingLists.toArray(),
+        db.combos.toArray(),
+        db.userIngredients.toArray()
+      ]);
+      await writeLibraryMetadataToStorage({
+        collections: cols,
+        mealPlan: meals,
+        shoppingLists: lists,
+        combos: storedCombos,
+        userIngredients: ingredients
+      });
+    } catch {
+      // Ignore metadata write failure
+    }
+  };
+
   const refreshAllData = async (): Promise<void> => {
     try {
       await runRecipeCleanupMigration();
 
       let allStored = await db.recipes.toArray();
+      const syncResult = await syncLibraryWithStorage(allStored);
+
+      if (syncResult.importedRecipes.length > 0) {
+        for (const imported of syncResult.importedRecipes) {
+          await db.recipes.put(imported);
+        }
+        allStored = await db.recipes.toArray();
+      }
+
+      if (syncResult.restoredMetadata) {
+        const meta = syncResult.restoredMetadata;
+        if ((await db.collections.count()) === 0 && meta.collections.length > 0) {
+          for (const col of meta.collections) await db.collections.put(col);
+        }
+        if ((await db.mealPlan.count()) === 0 && meta.mealPlan.length > 0) {
+          for (const entry of meta.mealPlan) await db.mealPlan.put(entry);
+        }
+        if ((await db.shoppingLists.count()) === 0 && meta.shoppingLists.length > 0) {
+          for (const list of meta.shoppingLists) await db.shoppingLists.put(list);
+        }
+        if ((await db.combos.count()) === 0 && meta.combos.length > 0) {
+          for (const combo of meta.combos) await db.combos.put(combo);
+        }
+        if ((await db.userIngredients.count()) === 0 && meta.userIngredients.length > 0) {
+          for (const ing of meta.userIngredients) await db.userIngredients.put(ing);
+        }
+      }
+
       if (allStored.length === 0) {
         for (const sample of SAMPLE_RECIPES) {
           await db.recipes.put(sample);
+          await writeRecipeToStorage(sample);
         }
         allStored = await db.recipes.toArray();
       }
@@ -114,6 +173,7 @@ function AppContent(): ReactElement {
           const deletedTime = new Date(recipe.deletedAt).getTime();
           if (now - deletedTime > thirtyDaysMs) {
             await db.recipes.delete(recipe.id);
+            await deleteRecipeFromStorage(recipe.id, recipe.title);
           } else {
             trashed.push(recipe);
           }
@@ -264,6 +324,13 @@ function AppContent(): ReactElement {
     setActiveTab("recipe-view");
   };
 
+  useEffect(() => {
+    const mainEl = document.querySelector("main");
+    if (mainEl) {
+      mainEl.scrollTo({ top: 0 });
+    }
+  }, [activeTab, selectedRecipeId]);
+
   const handleNewRecipe = (): void => {
     setEditingRecipe(undefined);
     setActiveTab("editor");
@@ -277,6 +344,7 @@ function AppContent(): ReactElement {
   // Local persistence without forcing navigation away
   const handlePersistRecipe = async (recipe: Recipe): Promise<void> => {
     const saved = await saveRecipe(recipe);
+    await writeRecipeToStorage(saved);
     setRecipes((prev: Recipe[]): Recipe[] =>
       prev.map((r: Recipe): Recipe => (r.id === saved.id ? saved : r))
     );
@@ -285,6 +353,7 @@ function AppContent(): ReactElement {
   // Editor save: saves and navigates to view
   const handleSaveRecipe = async (savedRecipe: Recipe): Promise<void> => {
     const saved = await saveRecipe(savedRecipe);
+    await writeRecipeToStorage(saved);
     setRecipes((prev: Recipe[]): Recipe[] => {
       const exists = prev.some((r: Recipe): boolean => r.id === saved.id);
       if (exists) return prev.map((r: Recipe): Recipe => (r.id === saved.id ? saved : r));
@@ -296,6 +365,7 @@ function AppContent(): ReactElement {
 
   const handleDuplicateRecipe = async (newRecipe: Recipe): Promise<void> => {
     const saved = await saveRecipe(newRecipe);
+    await writeRecipeToStorage(saved);
     setRecipes((prev: Recipe[]): Recipe[] => [...prev, saved]);
     setSelectedRecipeId(saved.id);
     setActiveTab("recipe-view");
@@ -309,6 +379,7 @@ function AppContent(): ReactElement {
         deletedAt: new Date().toISOString()
       };
       await db.recipes.put(trashedItem);
+      await deleteRecipeFromStorage(target.id, target.title);
       setRecipes((prev: Recipe[]): Recipe[] => prev.filter((r: Recipe): boolean => r.id !== id));
       setTrashedRecipes((prev: Recipe[]): Recipe[] => [...prev, trashedItem]);
       setActiveTab("library");
@@ -330,6 +401,7 @@ function AppContent(): ReactElement {
         updatedAt: new Date().toISOString()
       };
       await db.recipes.put(restored);
+      await writeRecipeToStorage(restored);
       setTrashedRecipes((prev: Recipe[]): Recipe[] =>
         prev.filter((r: Recipe): boolean => r.id !== id)
       );
@@ -339,10 +411,15 @@ function AppContent(): ReactElement {
   };
 
   const handlePermanentDeleteRecipe = async (id: string): Promise<void> => {
+    const target =
+      trashedRecipes.find((r: Recipe): boolean => r.id === id) ||
+      recipes.find((r: Recipe): boolean => r.id === id);
     await db.recipes.delete(id);
+    await deleteRecipeFromStorage(id, target?.title);
     setTrashedRecipes((prev: Recipe[]): Recipe[] =>
       prev.filter((r: Recipe): boolean => r.id !== id)
     );
+    setRecipes((prev: Recipe[]): Recipe[] => prev.filter((r: Recipe): boolean => r.id !== id));
   };
 
   const handleEmptyTrash = (): void => {
@@ -352,6 +429,7 @@ function AppContent(): ReactElement {
   const handleConfirmEmptyTrash = async (): Promise<void> => {
     for (const recipe of trashedRecipes) {
       await db.recipes.delete(recipe.id);
+      await deleteRecipeFromStorage(recipe.id, recipe.title);
     }
     setTrashedRecipes([]);
     showToast("Trash emptied");
@@ -366,6 +444,7 @@ function AppContent(): ReactElement {
         updatedAt: new Date().toISOString()
       };
       await db.recipes.put(updated);
+      await writeRecipeToStorage(updated);
       setRecipes((prev: Recipe[]): Recipe[] =>
         prev.map((r: Recipe): Recipe => (r.id === id ? updated : r))
       );
@@ -378,6 +457,7 @@ function AppContent(): ReactElement {
       const target = recipes.find((r: Recipe): boolean => r.id === id);
       if (target) {
         await db.recipes.put({ ...target, deletedAt: nowIso, updatedAt: nowIso });
+        await deleteRecipeFromStorage(target.id, target.title);
       }
     }
     await refreshAllData();
@@ -389,7 +469,9 @@ function AppContent(): ReactElement {
     for (const id of recipeIds) {
       const target = recipes.find((r: Recipe): boolean => r.id === id);
       if (target && !target.tags.includes(tag)) {
-        await db.recipes.put({ ...target, tags: [...target.tags, tag], updatedAt: nowIso });
+        const updated = { ...target, tags: [...target.tags, tag], updatedAt: nowIso };
+        await db.recipes.put(updated);
+        await writeRecipeToStorage(updated);
       }
     }
     await refreshAllData();
@@ -420,6 +502,7 @@ function AppContent(): ReactElement {
       }
       return [...prev, collection];
     });
+    await persistMetadataToStorage();
   };
 
   const handleDeleteCollection = async (collectionId: string): Promise<void> => {
@@ -440,7 +523,9 @@ function AppContent(): ReactElement {
         updatedAt: new Date().toISOString()
       };
       await db.recipes.put(updated);
+      await writeRecipeToStorage(updated);
     }
+    await persistMetadataToStorage();
     await refreshAllData();
   };
 
@@ -459,11 +544,54 @@ function AppContent(): ReactElement {
             updatedAt: new Date().toISOString()
           };
           await db.recipes.put(updated);
+          await writeRecipeToStorage(updated);
         }
       }
     }
+    await persistMetadataToStorage();
     await refreshAllData();
     showToast(`Updated folder assignment for ${recipeIds.length} recipes`);
+  };
+
+  const handleSetCollectionRecipes = async (
+    collectionId: string,
+    selectedRecipeIds: string[]
+  ): Promise<void> => {
+    const selectedSet = new Set(selectedRecipeIds);
+    for (const r of recipes) {
+      const currentIds = r.collectionIds || [];
+      const currentlyIn = currentIds.includes(collectionId);
+      const shouldBeIn = selectedSet.has(r.id);
+      if (currentlyIn !== shouldBeIn) {
+        const nextIds = shouldBeIn
+          ? [...currentIds, collectionId]
+          : currentIds.filter((id: string): boolean => id !== collectionId);
+        const updated: Recipe = {
+          ...r,
+          collectionIds: nextIds,
+          updatedAt: new Date().toISOString()
+        };
+        await db.recipes.put(updated);
+        await writeRecipeToStorage(updated);
+      }
+    }
+    await persistMetadataToStorage();
+    await refreshAllData();
+    showToast(`Folder recipes updated (${selectedRecipeIds.length} selected)`);
+  };
+
+  const handleStorageFilesImported = async (result: AddStorageFilesResult): Promise<void> => {
+    for (const rec of result.importedRecipes) {
+      await saveRecipe(rec);
+      await writeRecipeToStorage(rec);
+    }
+    if (result.reviewCandidates.length > 0) {
+      setImportCandidates(result.reviewCandidates);
+    }
+    await refreshAllData();
+    if (result.importedRecipes.length > 0 && result.reviewCandidates.length === 0) {
+      showToast(`Added ${result.importedRecipes.length} recipe(s) from storage`);
+    }
   };
 
   const handleAddRecipeToShoppingList = async (recipe: Recipe): Promise<void> => {
@@ -477,6 +605,7 @@ function AppContent(): ReactElement {
     const merged = mergeShoppingItems(primaryList.items, newItems);
     const updated = { ...primaryList, items: merged };
     await db.shoppingLists.put(updated);
+    await persistMetadataToStorage();
     setShoppingLists((prev: ShoppingList[]): ShoppingList[] =>
       prev.map((l: ShoppingList): ShoppingList => (l.id === updated.id ? updated : l))
     );
@@ -510,6 +639,7 @@ function AppContent(): ReactElement {
     const merged = mergeShoppingItems(primaryList.items, newItems);
     const updated = { ...primaryList, items: merged };
     await db.shoppingLists.put(updated);
+    await persistMetadataToStorage();
     setShoppingLists((prev: ShoppingList[]): ShoppingList[] =>
       prev.map((l: ShoppingList): ShoppingList => (l.id === updated.id ? updated : l))
     );
@@ -535,11 +665,13 @@ function AppContent(): ReactElement {
             id: `recipe-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
             title: `${candidate.title} (Copy)`
           };
-          await saveRecipe(cloned);
+          const savedClone = await saveRecipe(cloned);
+          await writeRecipeToStorage(savedClone);
           continue;
         }
       }
-      await saveRecipe(candidate);
+      const savedCandidate = await saveRecipe(candidate);
+      await writeRecipeToStorage(savedCandidate);
     }
 
     setImportCandidates(null);
@@ -702,13 +834,16 @@ function AppContent(): ReactElement {
             onSaveCollection={handleSaveCollection}
             onDeleteCollection={handleDeleteCollection}
             onBatchAssignCollection={handleBatchAssignCollection}
+            onSaveFolderRecipes={handleSetCollectionRecipes}
+            onOpenStorageModal={(): void => setShowStorageModal(true)}
             onUpdateRecipe={handlePersistRecipe}
             onSelectRecipe={handleSelectRecipe}
             onNewRecipe={handleNewRecipe}
             onImportFile={(): void => setActiveTab("settings")}
             onLoadSamples={async (): Promise<void> => {
               for (const sample of SAMPLE_RECIPES) {
-                await saveRecipe(sample);
+                const saved = await saveRecipe(sample);
+                await writeRecipeToStorage(saved);
               }
               await refreshAllData();
             }}
@@ -773,10 +908,12 @@ function AppContent(): ReactElement {
             combos={combos}
             onSaveCombo={async (combo: Combo): Promise<void> => {
               await db.combos.put(combo);
+              await persistMetadataToStorage();
               await refreshAllData();
             }}
             onDeleteCombo={async (id: string): Promise<void> => {
               await db.combos.delete(id);
+              await persistMetadataToStorage();
               await refreshAllData();
             }}
           />
@@ -789,17 +926,20 @@ function AppContent(): ReactElement {
             savedMenus={savedMenus}
             onSaveEntry={async (entry: MealPlanEntry): Promise<void> => {
               await db.mealPlan.put(entry);
+              await persistMetadataToStorage();
               await refreshAllData();
             }}
             onSaveMultipleEntries={async (newEntries: MealPlanEntry[]): Promise<void> => {
               for (const entry of newEntries) {
                 await db.mealPlan.put(entry);
               }
+              await persistMetadataToStorage();
               await refreshAllData();
             }}
             onDeleteEntry={async (id: string): Promise<void> => {
               const target = mealPlanEntries.find((e: MealPlanEntry): boolean => e.id === id);
               await db.mealPlan.delete(id);
+              await persistMetadataToStorage();
               await refreshAllData();
               if (target) {
                 showToast({
@@ -832,15 +972,18 @@ function AppContent(): ReactElement {
             lists={shoppingLists}
             onSaveList={async (updatedList: ShoppingList): Promise<void> => {
               await db.shoppingLists.put(updatedList);
+              await persistMetadataToStorage();
               await refreshAllData();
             }}
             onCreateList={async (name: string): Promise<void> => {
               const newList = createDefaultShoppingList(name);
               await db.shoppingLists.add(newList);
+              await persistMetadataToStorage();
               await refreshAllData();
             }}
             onDeleteList={async (listId: string): Promise<void> => {
               await db.shoppingLists.delete(listId);
+              await persistMetadataToStorage();
               await refreshAllData();
             }}
           />
@@ -865,8 +1008,8 @@ function AppContent(): ReactElement {
                 collections,
                 mealPlan: mealPlanEntries,
                 shoppingLists,
-                combos: [],
-                userIngredients: []
+                combos,
+                userIngredients
               };
               const data = exportBackupZip(payload);
               const blob = new Blob([new Uint8Array(data)], { type: "application/zip" });
@@ -880,12 +1023,22 @@ function AppContent(): ReactElement {
             onRestoreFullBackup={async (file: File): Promise<void> => {
               const buffer = await file.arrayBuffer();
               const backupData = importBackupZip(new Uint8Array(buffer));
-              for (const r of backupData.recipes) await saveRecipe(r);
+              for (const r of backupData.recipes) {
+                const saved = await saveRecipe(r);
+                await writeRecipeToStorage(saved);
+              }
               for (const c of backupData.collections) await db.collections.put(c);
+              for (const m of backupData.mealPlan || []) await db.mealPlan.put(m);
+              for (const s of backupData.shoppingLists || []) await db.shoppingLists.put(s);
+              for (const combo of backupData.combos || []) await db.combos.put(combo);
+              for (const ing of backupData.userIngredients || []) await db.userIngredients.put(ing);
+              await persistMetadataToStorage();
               await refreshAllData();
               showToast("Backup restored successfully");
             }}
             onOpenUserIngredients={(): void => setShowUserIngredientsModal(true)}
+            onOpenStorageModal={(): void => setShowStorageModal(true)}
+            recipes={recipes}
             recipeCount={recipes.length}
             trashedRecipes={trashedRecipes}
             onRestoreRecipe={handleRestoreRecipe}
@@ -993,14 +1146,17 @@ function AppContent(): ReactElement {
           userIngredients={userIngredients}
           onSaveIngredient={async (item: DictionaryIngredient): Promise<void> => {
             await db.userIngredients.put(item);
+            await persistMetadataToStorage();
             await refreshAllData();
           }}
           onDeleteIngredient={async (id: string): Promise<void> => {
             await db.userIngredients.delete(id);
+            await persistMetadataToStorage();
             await refreshAllData();
           }}
           onImportUserIngredients={async (items: DictionaryIngredient[]): Promise<void> => {
             for (const item of items) await db.userIngredients.put(item);
+            await persistMetadataToStorage();
             await refreshAllData();
           }}
           onClose={(): void => setShowUserIngredientsModal(false)}
@@ -1012,6 +1168,20 @@ function AppContent(): ReactElement {
           recipes={recipes}
           collections={collections}
           onClose={(): void => setShowCookbookModal(false)}
+        />
+      )}
+
+      {showStorageModal && (
+        <StorageLocationModal
+          recipes={recipes}
+          onClose={(): void => setShowStorageModal(false)}
+          onSyncFromStorage={refreshAllData}
+          onFilesImported={handleStorageFilesImported}
+          onOpenRecipe={(id: string): void => {
+            setSelectedRecipeId(id);
+            setActiveTab("recipe-view");
+          }}
+          onDeleteRecipeById={handlePermanentDeleteRecipe}
         />
       )}
 
