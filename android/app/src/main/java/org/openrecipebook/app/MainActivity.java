@@ -473,13 +473,16 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public void setStatusBarColor(String hexColor) {
             if (hexColor == null || hexColor.isEmpty()) return;
-            runOnUiThread(() -> {
-                try {
-                    int color = android.graphics.Color.parseColor(hexColor);
-                    getWindow().setStatusBarColor(color);
-                } catch (Exception ignored) {
-                }
-            });
+            if (context instanceof android.app.Activity) {
+                android.app.Activity activity = (android.app.Activity) context;
+                activity.runOnUiThread(() -> {
+                    try {
+                        int color = android.graphics.Color.parseColor(hexColor);
+                        activity.getWindow().setStatusBarColor(color);
+                    } catch (Exception ignored) {
+                    }
+                });
+            }
         }
 
         @JavascriptInterface
