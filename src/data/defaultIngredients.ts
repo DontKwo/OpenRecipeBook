@@ -84,7 +84,9 @@ export const BUILT_IN_INGREDIENTS: DictionaryIngredient[] = [
     name: "active dry yeast",
     aliases: ["dry yeast","instant yeast","rapid rise","rapid-rise yeast"],
     aisle: "Baking",
-    unitFamily: "volume"
+    unitFamily: "volume",
+    gramsPerMl: 0.64,
+    densitySource: "King Arthur Baking Weight Chart"
   },
   {
     id: "cocoa-powder",

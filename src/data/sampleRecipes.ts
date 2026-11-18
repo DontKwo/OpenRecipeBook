@@ -191,7 +191,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
       "Baking",
       "Cakes"
     ],
-    "collectionIds": ["col-desserts","col-breads"],
+    "collectionIds": ["col-desserts"],
     "tags": [
       "lemon",
       "cake",
@@ -200,7 +200,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-starbucks-lemon-loaf.jpg"],
+    "photoIds": ["/recipe-photos/recipe-starbucks-lemon-loaf.png"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -286,7 +286,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-avalanche-bars.jpg"],
+    "photoIds": ["/recipe-photos/recipe-avalanche-bars.png"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -380,7 +380,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-lemon-bars.jpg"],
+    "photoIds": ["/recipe-photos/recipe-lemon-bars.png"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -529,7 +529,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-chicken-tortilla-soup.jpg"],
+    "photoIds": ["/recipe-photos/recipe-chicken-tortilla-soup.png"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -634,7 +634,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-mashed-baked-potatoes.jpg"],
+    "photoIds": ["/recipe-photos/recipe-mashed-baked-potatoes.png"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -752,7 +752,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-lemon-chicken.jpg"],
+    "photoIds": ["/recipe-photos/recipe-lemon-chicken.png"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -874,7 +874,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-bbq-mac-n-cheese.jpg"],
+    "photoIds": ["/recipe-photos/recipe-bbq-mac-n-cheese.png"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -1004,7 +1004,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
       "Poultry",
       "Southern"
     ],
-    "collectionIds": ["col-appetizers"],
+    "collectionIds": ["col-mains"],
     "tags": [
       "fried-chicken",
       "spicy",
@@ -1013,7 +1013,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-nashville-hot-chicken.jpg"],
+    "photoIds": ["/recipe-photos/recipe-nashville-hot-chicken.png"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -1109,7 +1109,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     "categories": [
       "Dips & Sauces"
     ],
-    "collectionIds": ["col-sides"],
+    "collectionIds": ["col-appetizers"],
     "tags": [
       "queso",
       "cheese-dip",
@@ -1118,7 +1118,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-chicken-white-queso.jpg"],
+    "photoIds": ["/recipe-photos/recipe-chicken-white-queso.png"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -1185,7 +1185,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     "categories": [
       "Grains & Rice"
     ],
-    "collectionIds": ["col-thanksgiving","col-sides"],
+    "collectionIds": ["col-sides"],
     "tags": [
       "rice",
       "spanish-rice",
@@ -1193,7 +1193,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-lazy-spanish-rice.jpg"],
+    "photoIds": ["/recipe-photos/recipe-lazy-spanish-rice.png"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -1278,7 +1278,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
       "Potatoes",
       "Holiday"
     ],
-    "collectionIds": ["col-thanksgiving","col-breads","col-sides"],
+    "collectionIds": ["col-thanksgiving", "col-sides"],
     "tags": [
       "potatoes",
       "mash",
@@ -1287,7 +1287,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-gordon-ramsay-potatoes.jpg"],
+    "photoIds": ["/recipe-photos/recipe-gordon-ramsay-potatoes.png"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -1405,7 +1405,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     "categories": [
       "Breads & Rolls"
     ],
-    "collectionIds": ["col-thanksgiving","col-mains"],
+    "collectionIds": ["col-thanksgiving", "col-breads", "col-sides"],
     "tags": [
       "bread",
       "rolls",
@@ -1414,7 +1414,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-dinner-rolls.jpg"],
+    "photoIds": ["/recipe-photos/recipe-dinner-rolls.png"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -1573,7 +1573,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
       "Poultry",
       "Slow Cooker"
     ],
-    "collectionIds": ["col-thanksgiving","col-sides"],
+    "collectionIds": ["col-thanksgiving", "col-mains"],
     "tags": [
       "turkey",
       "slow-cooker",
@@ -1582,7 +1582,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-slow-cooker-turkey-breast-with-aromatics.jpg"],
+    "photoIds": ["/recipe-photos/recipe-slow-cooker-turkey-breast-with-aromatics.png"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -1671,7 +1671,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-turkey-gravy.jpg"],
+    "photoIds": ["/recipe-photos/recipe-turkey-gravy.png"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -1752,7 +1752,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     "categories": [
       "Vegetables"
     ],
-    "collectionIds": ["col-thanksgiving","col-appetizers"],
+    "collectionIds": ["col-thanksgiving", "col-sides"],
     "tags": [
       "broccoli",
       "vegetables",
@@ -1761,7 +1761,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-broccoli-with-garlic-butter-cashews.jpg"],
+    "photoIds": ["/recipe-photos/recipe-broccoli-with-garlic-butter-cashews.png"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -1836,7 +1836,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     "categories": [
       "Appetizers"
     ],
-    "collectionIds": ["col-breads"],
+    "collectionIds": ["col-thanksgiving", "col-appetizers"],
     "tags": [
       "sausage-balls",
       "appetizer",
@@ -1845,7 +1845,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-bisquick-sausage-balls.jpg"],
+    "photoIds": ["/recipe-photos/recipe-bisquick-sausage-balls.png"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -1987,7 +1987,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     "categories": [
       "Breads & Rolls"
     ],
-    "collectionIds": ["col-drinks"],
+    "collectionIds": ["col-breads"],
     "tags": [
       "brown-bread",
       "cheesecake-factory",
@@ -1996,7 +1996,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-cheesecake-factory-brown-bread.jpg"],
+    "photoIds": ["/recipe-photos/recipe-cheesecake-factory-brown-bread.png"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -2074,7 +2074,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     "categories": [
       "Tea & Drinks"
     ],
-    "collectionIds": ["col-sides","col-appetizers"],
+    "collectionIds": ["col-drinks"],
     "tags": [
       "thai-tea",
       "cold-brew",
@@ -2083,7 +2083,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-cold-brew-thai-tea.jpg"],
+    "photoIds": ["/recipe-photos/recipe-cold-brew-thai-tea.png"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -2150,7 +2150,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     "categories": [
       "Spreads & Butters"
     ],
-    "collectionIds": ["col-breads","col-sides"],
+    "collectionIds": ["col-sides", "col-appetizers"],
     "tags": [
       "butter",
       "cinnamon-butter",
@@ -2159,7 +2159,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-texas-roadhouse-butter.jpg"],
+    "photoIds": ["/recipe-photos/recipe-texas-roadhouse-butter.png"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1
@@ -2295,7 +2295,7 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "rating": 5,
     "favorite": false,
-    "photoIds": ["/recipe-photos/recipe-texas-roadhouse-rolls.jpg"],
+    "photoIds": ["/recipe-photos/recipe-texas-roadhouse-rolls.png"],
     "createdAt": "2026-11-13T12:00:00Z",
     "updatedAt": "2026-11-13T12:00:00Z",
     "schemaVersion": 1

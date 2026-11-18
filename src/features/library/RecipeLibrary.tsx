@@ -275,6 +275,19 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
       !onlyFavorites
   );
 
+  const matchingCollections = useMemo((): Collection[] => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return [];
+    return collections.filter((col: Collection): boolean =>
+      col.name.toLowerCase().includes(q) ||
+      (col.description ? col.description.toLowerCase().includes(q) : false)
+    );
+  }, [collections, searchQuery]);
+
+  const getCollectionRecipeCount = (colId: string): number => {
+    return recipes.filter((r: Recipe): boolean => r.collectionIds?.includes(colId) ?? false).length;
+  };
+
   return (
     <div className={styles.libraryContainer}>
       {/* Sticky Header with Row 1 & Row 2 */}
@@ -503,6 +516,48 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
         </div>
       )}
 
+      {/* Matching Folders in Search Results */}
+      {matchingCollections.length > 0 && (
+        <div className={styles.matchingFoldersContainer}>
+          <div className={styles.matchingFoldersHeader}>
+            <FolderIcon width={16} height={16} style={{ color: "var(--accent)" }} />
+            <span>Matching Folders ({matchingCollections.length})</span>
+          </div>
+          <div className={styles.matchingFoldersList}>
+            {matchingCollections.map((col: Collection): ReactElement => {
+              const count = getCollectionRecipeCount(col.id);
+              const isSelected = activeCollectionId === col.id;
+              return (
+                <button
+                  key={col.id}
+                  type="button"
+                  className={`${styles.folderSearchCard} ${isSelected ? styles.folderSearchCardActive : ""}`}
+                  onClick={(): void => {
+                    setOnlyFavorites(false);
+                    onSelectCollection?.(isSelected ? null : col.id);
+                  }}
+                >
+                  <div className={styles.folderCardIconWrap}>
+                    <FolderIcon width={20} height={20} />
+                  </div>
+                  <div className={styles.folderCardBody}>
+                    <div className={styles.folderCardTitleRow}>
+                      <span className={styles.folderCardTitle}>{col.name}</span>
+                      <span className={styles.folderCardBadge}>
+                        {count} {count === 1 ? "recipe" : "recipes"}
+                      </span>
+                    </div>
+                    {col.description && (
+                      <p className={styles.folderCardDesc}>{col.description}</p>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Recipe List / Grid / Compact Content */}
       {isEmptyFolderWithoutQuery && activeCollection ? (
         <div style={{ textAlign: "center", padding: "var(--space-8) var(--space-4)", color: "var(--muted)" }}>
@@ -525,7 +580,9 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
       ) : filteredRecipes.length === 0 ? (
         <div style={{ textAlign: "center", padding: "var(--space-8) var(--space-4)", color: "var(--muted)" }}>
           <p style={{ fontSize: "1.125rem", marginBottom: "var(--space-2)" }}>
-            No recipes matched your search or filters.
+            {matchingCollections.length > 0
+              ? `No individual recipes matched, but found ${matchingCollections.length} folder${matchingCollections.length > 1 ? "s" : ""} above.`
+              : "No recipes matched your search or filters."}
           </p>
           <Button
             variant="secondary"

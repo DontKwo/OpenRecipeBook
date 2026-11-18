@@ -221,6 +221,7 @@ export const IngredientTotalsView: FC<IngredientTotalsViewProps> = ({
               onSelectRecipe={handleSelectRecipeFromPicker}
               placeholder="Search recipe by name or course to add..."
               onCancel={(): void => setShowPicker(false)}
+              autoFocus={false}
             />
           </div>
         )}

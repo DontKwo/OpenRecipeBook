@@ -26,6 +26,7 @@ import {
   CalendarIcon,
   MoreIcon,
   BookOpenIcon,
+  BookmarkIcon,
   CopyIcon
 } from "../../ui/icons";
 import { Button, IconButton } from "../../ui/Button";
@@ -99,6 +100,7 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
 
   // Saved Menus modal state
   const [showMenusModal, setShowMenusModal] = useState<boolean>(false);
+  const [showSaveWeekModal, setShowSaveWeekModal] = useState<boolean>(false);
   const [newMenuName, setNewMenuName] = useState<string>("");
   const [deletingMenu, setDeletingMenu] = useState<SavedMenu | null>(null);
 
@@ -287,6 +289,12 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
     }
   };
 
+  const handleOpenSaveWeekModal = (): void => {
+    const rangeLabel = `${weekDays[0].label} - ${weekDays[6].label}`;
+    setNewMenuName(`Week of ${rangeLabel}`);
+    setShowSaveWeekModal(true);
+  };
+
   const handleSaveWeekAsMenu = (e: FormEvent): void => {
     e.preventDefault();
     const name = newMenuName.trim();
@@ -318,7 +326,8 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
 
     onSaveMenu?.(menu);
     setNewMenuName("");
-    showToast(`Saved menu "${name}"`);
+    setShowSaveWeekModal(false);
+    showToast(`Saved week meal plan "${name}"`);
   };
 
   const handleApplyMenu = (menu: SavedMenu): void => {
@@ -424,6 +433,33 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
               Add to Shopping
             </Button>
 
+            {viewMode === "week" && (
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<BookmarkIcon width={16} height={16} />}
+                onClick={handleOpenSaveWeekModal}
+                disabled={currentWeekEntries.length === 0}
+                title={
+                  currentWeekEntries.length === 0
+                    ? "Add meals to this week before saving"
+                    : "Save this week as a reusable meal plan"
+                }
+              >
+                Save Week
+              </Button>
+            )}
+
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<BookOpenIcon width={16} height={16} />}
+              onClick={(): void => setShowMenusModal(true)}
+              title="View, restore, or manage saved weekly meal plans"
+            >
+              Saved Plans{savedMenus.length > 0 ? ` (${savedMenus.length})` : ""}
+            </Button>
+
             <Menu
               trigger={
                 <IconButton
@@ -435,6 +471,13 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
               }
               items={[
                 {
+                  id: "save-week",
+                  icon: <BookmarkIcon width={16} height={16} />,
+                  label: "Save Current Week Plan",
+                  onClick: handleOpenSaveWeekModal,
+                  disabled: currentWeekEntries.length === 0
+                },
+                {
                   id: "suggest",
                   icon: <CalendarIcon width={16} height={16} />,
                   label: "Suggest a Plan",
@@ -444,7 +487,7 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
                 {
                   id: "menus",
                   icon: <BookOpenIcon width={16} height={16} />,
-                  label: `Saved Menus (${savedMenus.length})`,
+                  label: `Saved Meal Plans (${savedMenus.length})`,
                   onClick: (): void => setShowMenusModal(true)
                 },
                 {
@@ -907,11 +950,65 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
         />
       )}
 
+      {/* Save Week Plan Modal */}
+      {showSaveWeekModal && (
+        <Dialog
+          isOpen
+          title="Save Week Meal Plan"
+          onClose={(): void => setShowSaveWeekModal(false)}
+          maxWidth={480}
+        >
+          <form onSubmit={handleSaveWeekAsMenu} style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
+            <p style={{ fontSize: "0.875rem", color: "var(--muted)", margin: 0 }}>
+              Save all <strong>{currentWeekEntries.length} meals</strong> from this week ({weekDays[0].label} - {weekDays[6].label}) as a reusable meal plan template. You can restore it to any future week at any time.
+            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label htmlFor="save-week-plan-name" style={{ fontSize: "0.8125rem", fontWeight: 600 }}>
+                Plan Name
+              </label>
+              <input
+                id="save-week-plan-name"
+                type="text"
+                value={newMenuName}
+                onChange={(e: ChangeEvent<HTMLInputElement>): void => setNewMenuName(e.target.value)}
+                placeholder="e.g. Week of Nov 18, Quick Weeknights..."
+                autoFocus
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--border)",
+                  background: "var(--surface)",
+                  color: "var(--text)"
+                }}
+              />
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: "var(--space-2)" }}>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={(): void => setShowSaveWeekModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={!newMenuName.trim() || currentWeekEntries.length === 0}
+              >
+                Save Meal Plan
+              </Button>
+            </div>
+          </form>
+        </Dialog>
+      )}
+
       {/* Saved Menus Modal */}
       {showMenusModal && (
         <Dialog
           isOpen
-          title="Saved Menus"
+          title="Saved Week Plans"
           onClose={(): void => setShowMenusModal(false)}
           maxWidth={500}
           footer={

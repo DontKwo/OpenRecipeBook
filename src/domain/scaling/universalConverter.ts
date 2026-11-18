@@ -42,10 +42,13 @@ export const BUILT_IN_UNIT_DEFINITIONS: CustomUnitDefinition[] = [
   { key: "gallon", label: "Gallon (US Liquid)", family: "volume", toBase: DEFAULT_VOLUME_TO_ML.gallon, aliases: ["gallons", "gal"], isBuiltIn: true, source: "NIST Handbook 44" },
   { key: "ml", label: "Milliliter", family: "volume", toBase: 1.0, aliases: ["mls", "milliliter", "milliliters", "millilitre", "millilitres"], isBuiltIn: true, source: "SI Metric" },
   { key: "l", label: "Liter", family: "volume", toBase: 1000.0, aliases: ["liter", "liters", "litre", "litres"], isBuiltIn: true, source: "SI Metric" },
+  { key: "pinch", label: "Pinch", family: "volume", toBase: DEFAULT_VOLUME_TO_ML.tsp / 16, aliases: ["pinches"], isBuiltIn: true, source: "Culinary Standard (1/16 tsp)" },
+  { key: "dash", label: "Dash", family: "volume", toBase: DEFAULT_VOLUME_TO_ML.tsp / 8, aliases: ["dashes"], isBuiltIn: true, source: "Culinary Standard (1/8 tsp)" },
   { key: "g", label: "Gram", family: "weight", toBase: 1.0, aliases: ["gram", "grams"], isBuiltIn: true, source: "SI Metric" },
   { key: "kg", label: "Kilogram", family: "weight", toBase: 1000.0, aliases: ["kilogram", "kilograms"], isBuiltIn: true, source: "SI Metric" },
   { key: "oz", label: "Ounce (Avoirdupois)", family: "weight", toBase: DEFAULT_WEIGHT_TO_GRAMS.oz, aliases: ["ounce", "ounces"], isBuiltIn: true, source: "NIST Handbook 44" },
-  { key: "lb", label: "Pound (Avoirdupois)", family: "weight", toBase: DEFAULT_WEIGHT_TO_GRAMS.lb, aliases: ["lbs", "pound", "pounds"], isBuiltIn: true, source: "NIST Handbook 44" }
+  { key: "lb", label: "Pound (Avoirdupois)", family: "weight", toBase: DEFAULT_WEIGHT_TO_GRAMS.lb, aliases: ["lbs", "pound", "pounds"], isBuiltIn: true, source: "NIST Handbook 44" },
+  { key: "packet", label: "Packet (Yeast / 7g)", family: "weight", toBase: 7.0, aliases: ["packets", "pack", "packs", "pkg", "pkgs", "envelope", "envelopes", "package", "packages"], isBuiltIn: true, source: "Standard Baking Yeast Packet (1/4 oz / 7g / 2 1/4 tsp)" }
 ];
 
 export const getEffectiveUnitDefinitions = (): CustomUnitDefinition[] => {

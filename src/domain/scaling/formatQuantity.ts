@@ -41,7 +41,7 @@ export function formatFractionalNumber(value: number, useVulgarFractions: boolea
 
   // Find matching cooking fraction within tolerance
   let closestFraction: CookingFraction | null = null;
-  let smallestDelta = 0.015;
+  let smallestDelta = 0.035;
 
   for (const fractionItem of COMMON_FRACTIONS) {
     const delta = Math.abs(fractionalPart - fractionItem.decimalValue);

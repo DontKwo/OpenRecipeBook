@@ -65,7 +65,22 @@ describe("Substitutions Engine and Recipe Disallowed Substitutions", (): void =>
     for (const r of SAMPLE_RECIPES) {
       expect(r.favorite).toBe(false);
       expect(r.photoIds).toHaveLength(1);
-      expect(r.photoIds[0]).toBe(`/recipe-photos/${r.id}.jpg`);
+      expect(r.photoIds[0]).toBe(`/recipe-photos/${r.id}.png`);
     }
+  });
+
+  it("verifies Thanksgiving collection contains exact 6 holiday items without Spanish Rice", (): void => {
+    const thanksgivingRecipes = SAMPLE_RECIPES.filter((r) =>
+      r.collectionIds?.includes("col-thanksgiving")
+    );
+    expect(thanksgivingRecipes).toHaveLength(6);
+    const ids = thanksgivingRecipes.map((r) => r.id);
+    expect(ids).toContain("recipe-bisquick-sausage-balls");
+    expect(ids).toContain("recipe-broccoli-with-garlic-butter-cashews");
+    expect(ids).toContain("recipe-dinner-rolls");
+    expect(ids).toContain("recipe-gordon-ramsay-potatoes");
+    expect(ids).toContain("recipe-slow-cooker-turkey-breast-with-aromatics");
+    expect(ids).toContain("recipe-turkey-gravy");
+    expect(ids).not.toContain("recipe-lazy-spanish-rice");
   });
 });

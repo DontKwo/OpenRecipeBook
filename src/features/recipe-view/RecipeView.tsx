@@ -646,7 +646,7 @@ export const RecipeView: FC<RecipeViewProps> = ({
                                     <option value="" disabled>
                                       Convert to unit...
                                     </option>
-                                    {["g", "ml", "cup", "tbsp", "tsp", "oz", "lb"].map((u: string) => (
+                                    {["g", "ml", "cup", "tbsp", "tsp", "oz", "lb", "kg", "l", "fl oz", "packet", "pinch"].map((u: string) => (
                                       <option key={u} value={u}>
                                         {u}
                                       </option>

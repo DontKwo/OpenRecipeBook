@@ -26,7 +26,7 @@ export function RecipePicker({
   onSelectCustomMeal,
   placeholder = "Search recipes...",
   onCancel,
-  autoFocus = true
+  autoFocus = false
 }: RecipePickerProps): JSX.Element {
   const [query, setQuery] = useState<string>("");
   const [selectedIndex, setSelectedIndex] = useState<number>(0);

@@ -101,7 +101,17 @@ export const UNIT_CANONICAL_MAP: Record<string, string> = {
   pinch: "pinch",
   pinches: "pinch",
   dash: "dash",
-  dashes: "dash"
+  dashes: "dash",
+  packet: "packet",
+  packets: "packet",
+  pack: "packet",
+  packs: "packet",
+  package: "packet",
+  packages: "packet",
+  pkg: "packet",
+  pkgs: "packet",
+  envelope: "packet",
+  envelopes: "packet"
 };
 
 export function parseNumberToken(token: string): number | null {
@@ -261,6 +271,55 @@ export function parseIngredient(rawText: string, ingredientIdentifier: string = 
       },
       confidence: "high"
     };
+  }
+
+  // Handle leading parenthetical quantity and unit: e.g. "(2 1/4 tsp) pack of active dry yeast" or "(1/4 cup) butter"
+  const leadingParentheticalPattern = /^\(([\d\s\/\.\u00BD\u00BC\u00BE\u2153\u2154\u215B\u215C\u215D\u215E]+)\s*([a-zA-Z\.]+)\)\s*(?:(?:pack|packet|package|pkg|bag|envelope)\s+(?:of\s+)?)?(.*)$/i;
+  const leadingParenMatch = leadingParentheticalPattern.exec(trimmedRaw);
+  if (leadingParenMatch) {
+    const qty = parseSingleQuantityString(leadingParenMatch[1]);
+    const rawUnit = leadingParenMatch[2].toLowerCase().replace(/\.$/, "");
+    const resolvedUnit = UNIT_CANONICAL_MAP[rawUnit] || rawUnit;
+    const remainder = parseUnitAndName(leadingParenMatch[3]);
+    if (qty !== null) {
+      return {
+        ingredient: {
+          id: ingredientIdentifier,
+          raw: rawText,
+          quantity: { kind: "single", value: qty },
+          unit: resolvedUnit,
+          name: remainder.name || leadingParenMatch[3].trim(),
+          note: remainder.note,
+          scalable: true
+        },
+        confidence: "high"
+      };
+    }
+  }
+
+  // Handle packet/pack with inner volume/weight size: e.g. "1 packet (2 1/4 tsp) active dry yeast"
+  const packetWithSizePattern = /^(\d+(?:\s+\d+\/\d+|\/\d+|\.\d+|[\u00BD\u00BC\u00BE\u2153\u2154\u215B\u215C\u215D\u215E])?)\s*(?:pack|packet|package|pkg|bag|envelope)s?\s+(?:of\s+)?\(([\d\s\/\.\u00BD\u00BC\u00BE\u2153\u2154\u215B\u215C\u215D\u215E]+)\s*([a-zA-Z\.]+)\)\s*(.*)$/i;
+  const packetMatch = packetWithSizePattern.exec(trimmedRaw);
+  if (packetMatch) {
+    const multiplier = parseSingleQuantityString(packetMatch[1]) || 1;
+    const innerQty = parseSingleQuantityString(packetMatch[2]);
+    const rawUnit = packetMatch[3].toLowerCase().replace(/\.$/, "");
+    const resolvedUnit = UNIT_CANONICAL_MAP[rawUnit] || rawUnit;
+    const remainder = parseUnitAndName(packetMatch[4]);
+    if (innerQty !== null) {
+      return {
+        ingredient: {
+          id: ingredientIdentifier,
+          raw: rawText,
+          quantity: { kind: "single", value: multiplier * innerQty },
+          unit: resolvedUnit,
+          name: remainder.name || packetMatch[4].trim(),
+          note: remainder.note ? `${multiplier} packet, ${remainder.note}` : `${multiplier} packet`,
+          scalable: true
+        },
+        confidence: "high"
+      };
+    }
   }
 
   // Handle parenthetical size directly following number: e.g. "1 (14 oz) can tomatoes"
