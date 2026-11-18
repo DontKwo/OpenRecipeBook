@@ -7,6 +7,7 @@ import {
 } from "react";
 import type { Recipe } from "../domain/recipe/types";
 import { useRecipeSearch } from "./useRecipeSearch";
+import { resolvePhotoUrl } from "../domain/recipe/photoPipeline";
 import { SearchIcon, BookOpenIcon, PlusIcon, ClockIcon } from "./icons";
 import styles from "./RecipePicker.module.css";
 
@@ -121,7 +122,7 @@ export function RecipePicker({
               <div className={styles.thumbnail}>
                 {recipe.photoIds?.[0] ? (
                   <img
-                    src={`/api/photos/${recipe.photoIds[0]}`}
+                    src={resolvePhotoUrl(recipe.photoIds[0])}
                     alt=""
                     style={{ width: "100%", height: "100%", objectFit: "cover" }}
                     onError={(e: React.SyntheticEvent<HTMLImageElement>): void => {

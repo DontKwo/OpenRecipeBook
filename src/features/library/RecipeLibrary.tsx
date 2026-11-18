@@ -11,6 +11,7 @@ import type { Recipe, Collection } from "../../domain/recipe/types";
 import { RecipeSearchEngine, type SortField } from "../../domain/recipe/search";
 import { getCoursePlaceholder } from "../../domain/recipe/placeholders";
 import { formatTimeMinutes } from "../../domain/recipe/normalize";
+import { resolvePhotoUrl } from "../../domain/recipe/photoPipeline";
 import {
   SearchIcon,
   PlusIcon,
@@ -88,7 +89,9 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
   const [maxMinutes, setMaxMinutes] = useState<number | undefined>(undefined);
   const [onlyHasPhoto, setOnlyHasPhoto] = useState<boolean>(false);
   const [sortBy, setSortBy] = useState<SortField>("recentAdded");
-  const [viewMode, setViewMode] = useState<"grid" | "compact" | "list">("grid");
+  const [viewMode, setViewMode] = useState<"list" | "expanded" | "grid">(
+    () => (localStorage.getItem("orb_library_view") as "list" | "expanded" | "grid") || "list"
+  );
 
   // Modal states
   const [showFilterModal, setShowFilterModal] = useState<boolean>(false);
@@ -336,17 +339,21 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
                 className={styles.viewToggle}
                 name="Recipe layout view"
                 options={[
-                  { value: "grid", icon: <GridIcon width={16} height={16} />, label: "Grid", ariaLabel: "Grid view" },
+                  { value: "list", icon: <ListIcon width={16} height={16} />, label: "List", ariaLabel: "List view" },
                   {
-                    value: "compact",
+                    value: "expanded",
                     icon: <CompactGridIcon width={16} height={16} />,
-                    label: "Compact",
-                    ariaLabel: "Compact view"
+                    label: "Expanded",
+                    ariaLabel: "Expanded list view"
                   },
-                  { value: "list", icon: <ListIcon width={16} height={16} />, label: "List", ariaLabel: "List view" }
+                  { value: "grid", icon: <GridIcon width={16} height={16} />, label: "Grid", ariaLabel: "Grid view" }
                 ]}
                 value={viewMode}
-                onChange={(val: string): void => setViewMode(val as "grid" | "compact" | "list")}
+                onChange={(val: string): void => {
+                  const mode = val as "list" | "expanded" | "grid";
+                  setViewMode(mode);
+                  localStorage.setItem("orb_library_view", mode);
+                }}
                 size="sm"
               />
 
@@ -537,8 +544,8 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
           className={
             viewMode === "grid"
               ? styles.grid
-              : viewMode === "compact"
-              ? styles.compactGrid
+              : viewMode === "expanded"
+              ? styles.expandedList
               : styles.list
           }
         >
@@ -572,7 +579,7 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
                   )}
                   {recipe.photoIds?.[0] ? (
                     <img
-                      src={`/api/photos/${recipe.photoIds[0]}`}
+                      src={resolvePhotoUrl(recipe.photoIds[0])}
                       alt={recipe.title}
                       className={styles.listThumbnail}
                       onError={(e: MouseEvent<HTMLImageElement>): void => {
@@ -620,6 +627,104 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
               );
             }
 
+            if (viewMode === "expanded") {
+              return (
+                <div
+                  key={recipe.id}
+                  className={`${styles.expandedItem} ${isSelected ? styles.cardSelected : ""}`}
+                  onClick={(): void => {
+                    if (isMultiSelectMode) {
+                      toggleSelectRecipe(recipe.id);
+                    } else {
+                      onSelectRecipe(recipe.id);
+                    }
+                  }}
+                >
+                  {isMultiSelectMode && (
+                    <div style={{ display: "flex", alignItems: "center", padding: "0 var(--space-2)" }}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={(): void => toggleSelectRecipe(recipe.id)}
+                        onClick={(e: MouseEvent): void => e.stopPropagation()}
+                        style={{ width: 18, height: 18, cursor: "pointer" }}
+                      />
+                    </div>
+                  )}
+                  {recipe.photoIds?.[0] ? (
+                    <img
+                      src={resolvePhotoUrl(recipe.photoIds[0])}
+                      alt={recipe.title}
+                      className={styles.expandedThumbnail}
+                      onError={(e: MouseEvent<HTMLImageElement>): void => {
+                        (e.target as HTMLElement).style.display = "none";
+                      }}
+                    />
+                  ) : (
+                    <div
+                      className={styles.expandedThumbnail}
+                      style={{ background: placeholder.gradient }}
+                    >
+                      <BookOpenIcon width={36} height={36} />
+                    </div>
+                  )}
+
+                  <div className={styles.expandedBody}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                      <h3 className={styles.cardTitle}>{recipe.title}</h3>
+                      <IconButton
+                        variant="ghost"
+                        size="sm"
+                        icon={<HeartIcon fill={recipe.favorite ? "var(--danger)" : "none"} width={16} height={16} />}
+                        style={{ color: recipe.favorite ? "var(--danger)" : "var(--muted)" }}
+                        aria-label={recipe.favorite ? "Remove favorite" : "Add favorite"}
+                        onClick={(e: MouseEvent): void => {
+                          e.stopPropagation();
+                          onToggleFavorite(recipe.id);
+                        }}
+                      />
+                    </div>
+
+                    {recipe.description && (
+                      <p className={styles.expandedDescription}>{recipe.description}</p>
+                    )}
+
+                    <div className={styles.cardMeta} style={{ marginTop: "4px" }}>
+                      {recipe.rating ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 3, color: "var(--accent)" }}>
+                          <StarIcon fill="currentColor" width={13} height={13} />
+                          {recipe.rating}
+                        </span>
+                      ) : null}
+                      {totalMinutes > 0 && (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+                          <ClockIcon width={13} height={13} />
+                          {formatTimeMinutes(totalMinutes)}
+                        </span>
+                      )}
+                      {recipe.servings && <span>{recipe.servings} {recipe.servingsLabel || "servings"}</span>}
+                      {recipe.courses?.[0] && <span>{recipe.courses[0]}</span>}
+                    </div>
+
+                    {hasAssignedFolders && (
+                      <div className={styles.cardTags} style={{ marginTop: "4px" }}>
+                        {recipe.collectionIds?.map((colId: string): ReactElement | null => {
+                          const col = collections.find((c: Collection): boolean => c.id === colId);
+                          if (!col) return null;
+                          return (
+                            <span key={col.id} className={styles.tagBadge}>
+                              <FolderIcon width={11} height={11} />
+                              {col.name}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            }
+
             return (
               <div
                 key={recipe.id}
@@ -634,19 +739,19 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
               >
                 {recipe.photoIds?.[0] ? (
                   <img
-                    src={`/api/photos/${recipe.photoIds[0]}`}
+                    src={resolvePhotoUrl(recipe.photoIds[0])}
                     alt={recipe.title}
-                    className={viewMode === "compact" ? styles.compactThumbnail : styles.cardThumbnail}
+                    className={styles.cardThumbnail}
                     onError={(e: MouseEvent<HTMLImageElement>): void => {
                       (e.target as HTMLElement).style.display = "none";
                     }}
                   />
                 ) : (
                   <div
-                    className={viewMode === "compact" ? styles.compactThumbnail : styles.cardThumbnail}
+                    className={styles.cardThumbnail}
                     style={{ background: placeholder.gradient }}
                   >
-                    <BookOpenIcon width={viewMode === "compact" ? 32 : 44} height={viewMode === "compact" ? 32 : 44} />
+                    <BookOpenIcon width={44} height={44} />
                   </div>
                 )}
 

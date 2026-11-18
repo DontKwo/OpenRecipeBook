@@ -19,6 +19,11 @@ import { formatTimeMinutes } from "../../domain/recipe/normalize";
 import { appendRecipeNote } from "../../domain/recipe/recipeModifier";
 import { calculateRecipeNutrition } from "../../domain/nutrition/nutritionCalculator";
 import { BUILT_IN_INGREDIENTS } from "../../data/defaultIngredients";
+import { resolvePhotoUrl } from "../../domain/recipe/photoPipeline";
+import { parseScaleMultiplier } from "../../domain/scaling/formatQuantity";
+import { convertIngredientUnit } from "../../domain/scaling/universalConverter";
+import { getSubstitutionsForIngredient } from "../../domain/ingredients/substitutions";
+import { parseIngredient } from "../../domain/scaling/parseIngredient";
 import {
   ArrowLeft,
   EditIcon,
@@ -86,8 +91,36 @@ export const RecipeView: FC<RecipeViewProps> = ({
 }): ReactElement => {
   const { showToast } = useToast();
   const [multiplier, setMultiplier] = useState<number>(1);
+  const [scaleInputText, setScaleInputText] = useState<string>("1x");
   const [unitSystem, setUnitSystem] = useState<"US" | "Metric">("US");
   const [checkedIngredients, setCheckedIngredients] = useState<Record<string, boolean>>({});
+  const [inlineConvertedUnits, setInlineConvertedUnits] = useState<Record<string, { formatted: string; unit: string }>>({});
+  const [openUnitSelectorKey, setOpenUnitSelectorKey] = useState<string | null>(null);
+  const [openSubstitutionsKey, setOpenSubstitutionsKey] = useState<string | null>(null);
+  const [appliedSubstitutions, setAppliedSubstitutions] = useState<Record<string, string>>({});
+
+  const handleApplyInlineUnitConvert = (key: string, line: string, targetUnit: string): void => {
+    const parsed = parseIngredient(line).ingredient;
+    if (!parsed || !parsed.quantity) return;
+    const numValue = parsed.quantity.kind === "single" ? parsed.quantity.value : parsed.quantity.min;
+    if (numValue === undefined || isNaN(numValue)) return;
+    const fromUnit = parsed.unit || "unit";
+    const res = convertIngredientUnit(
+      numValue,
+      fromUnit,
+      targetUnit,
+      parsed.name,
+      undefined,
+      combinedDictionary
+    );
+    if (res.success) {
+      setInlineConvertedUnits((prev) => ({
+        ...prev,
+        [key]: { formatted: res.formattedAmount, unit: targetUnit }
+      }));
+      setOpenUnitSelectorKey(null);
+    }
+  };
   const [newNoteInput, setNewNoteInput] = useState<string>("");
   const [showLogModal, setShowLogModal] = useState<boolean>(false);
   const [logNotes, setLogNotes] = useState<string>("");
@@ -319,7 +352,7 @@ export const RecipeView: FC<RecipeViewProps> = ({
       <section className={styles.hero}>
         {recipe.photoIds?.[0] ? (
           <img
-            src={`/api/photos/${recipe.photoIds[0]}`}
+            src={resolvePhotoUrl(recipe.photoIds[0])}
             alt={recipe.title}
             className={styles.heroImage}
             onError={(e): void => {
@@ -397,29 +430,32 @@ export const RecipeView: FC<RecipeViewProps> = ({
             <span style={{ fontSize: "0.8125rem", color: "var(--muted)", fontWeight: 600 }}>
               SCALE:
             </span>
-            <div className={styles.stepper}>
-              <button
-                type="button"
-                className={styles.stepperButton}
-                onClick={(): void => setMultiplier((prev: number): number => Math.max(0.25, prev - 0.5))}
-                aria-label="Decrease servings scale"
-              >
-                -
-              </button>
-              <span className={styles.stepperCount}>{multiplier}x</span>
-              <button
-                type="button"
-                className={styles.stepperButton}
-                onClick={(): void => setMultiplier((prev: number): number => prev + 0.5)}
-                aria-label="Increase servings scale"
-              >
-                +
-              </button>
+            <div className={styles.scaleTyper}>
+              <input
+                type="text"
+                className={styles.scaleInput}
+                value={scaleInputText}
+                aria-label="Recipe scale multiplier (e.g. 1.22x)"
+                onChange={(e: ChangeEvent<HTMLInputElement>): void => {
+                  const val = e.target.value;
+                  setScaleInputText(val);
+                  const parsed = parseScaleMultiplier(val);
+                  if (parsed !== null) {
+                    setMultiplier(parsed);
+                  }
+                }}
+                onBlur={(): void => {
+                  setScaleInputText(`${multiplier}x`);
+                }}
+              />
             </div>
 
             <SegmentedControl
               value={multiplier}
-              onChange={setMultiplier}
+              onChange={(val: number): void => {
+                setMultiplier(val);
+                setScaleInputText(`${val}x`);
+              }}
               options={[
                 { value: 0.5, label: "1/2x" },
                 { value: 1, label: "1x" },
@@ -484,41 +520,235 @@ export const RecipeView: FC<RecipeViewProps> = ({
                       </h4>
                     )}
                     {group.items.map((ing: Ingredient, iIdx: number): ReactElement => {
-                      const displayLine =
-                        unitSystem === "Metric"
-                          ? convertIngredientSystem(ing.raw, "Metric")
-                          : ing.raw;
-                      const isChecked = Boolean(checkedIngredients[ing.id || `ing-${gIdx}-${iIdx}`]);
+                      const ingKey = ing.id || `ing-${gIdx}-${iIdx}`;
+                      const baseLine =
+                        appliedSubstitutions[ingKey] ||
+                        (unitSystem === "Metric" ? convertIngredientSystem(ing.raw, "Metric") : ing.raw);
+                      const isChecked = Boolean(checkedIngredients[ingKey]);
+                      const parsed = parseIngredient(baseLine).ingredient;
+                      const canConvert = Boolean(parsed && parsed.quantity && parsed.unit);
+                      const convertedResult = inlineConvertedUnits[ingKey];
+                      const substitutions = getSubstitutionsForIngredient(ing.raw, {
+                        courses: recipe.courses,
+                        tags: recipe.tags,
+                        title: recipe.title
+                      });
 
                       return (
-                        <label
-                          key={ing.id || `ing-${gIdx}-${iIdx}`}
-                          style={{
-                            display: "flex",
-                            alignItems: "flex-start",
-                            gap: 10,
-                            padding: "6px 8px",
-                            borderRadius: "var(--radius-sm)",
-                            background: isChecked ? "var(--surface-alt)" : "transparent",
-                            cursor: "pointer",
-                            fontSize: "0.9375rem",
-                            textDecoration: isChecked ? "line-through" : "none",
-                            color: isChecked ? "var(--muted)" : "var(--text)"
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={(): void => toggleIngredientChecked(ing.id || `ing-${gIdx}-${iIdx}`)}
+                        <div key={ingKey} style={{ display: "flex", flexDirection: "column" }}>
+                          <label
                             style={{
-                              marginTop: 3,
-                              width: 17,
-                              height: 17,
-                              accentColor: "var(--accent)"
+                              display: "flex",
+                              alignItems: "flex-start",
+                              gap: 10,
+                              padding: "6px 8px",
+                              borderRadius: "var(--radius-sm)",
+                              background: isChecked ? "var(--surface-alt)" : "transparent",
+                              cursor: "pointer",
+                              fontSize: "0.9375rem"
                             }}
-                          />
-                          <span style={{ lineHeight: 1.45 }}>{displayLine}</span>
-                        </label>
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(): void => toggleIngredientChecked(ingKey)}
+                              style={{
+                                marginTop: 3,
+                                width: 17,
+                                height: 17,
+                                accentColor: "var(--accent)"
+                              }}
+                            />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <span
+                                style={{
+                                  lineHeight: 1.45,
+                                  textDecoration: isChecked ? "line-through" : "none",
+                                  color: isChecked ? "var(--muted)" : "var(--text)"
+                                }}
+                              >
+                                {baseLine}
+                              </span>
+                              {convertedResult && (
+                                <span className={styles.inlineConvertedResult} style={{ marginLeft: "8px" }}>
+                                  = {convertedResult.formatted} {convertedResult.unit}
+                                  <button
+                                    type="button"
+                                    aria-label="Remove converted unit"
+                                    style={{
+                                      background: "none",
+                                      border: "none",
+                                      color: "inherit",
+                                      cursor: "pointer",
+                                      padding: "0 2px"
+                                    }}
+                                    onClick={(): void => {
+                                      setInlineConvertedUnits((prev) => {
+                                        const next = { ...prev };
+                                        delete next[ingKey];
+                                        return next;
+                                      });
+                                    }}
+                                  >
+                                    ×
+                                  </button>
+                                </span>
+                              )}
+                            </div>
+                          </label>
+
+                          {/* Inline Convert and Substitute Actions */}
+                          <div className={styles.inlineActionRow}>
+                            {canConvert &&
+                              (openUnitSelectorKey === ingKey ? (
+                                <div style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                  <select
+                                    className={styles.inlineUnitSelect}
+                                    aria-label="Select target unit"
+                                    defaultValue=""
+                                    onChange={(e: ChangeEvent<HTMLSelectElement>): void => {
+                                      if (e.target.value) {
+                                        handleApplyInlineUnitConvert(ingKey, baseLine, e.target.value);
+                                      }
+                                    }}
+                                  >
+                                    <option value="" disabled>
+                                      Convert to unit...
+                                    </option>
+                                    {["g", "ml", "cup", "tbsp", "tsp", "oz", "lb"].map((u: string) => (
+                                      <option key={u} value={u}>
+                                        {u}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    type="button"
+                                    className={styles.inlineConvertTrigger}
+                                    onClick={(): void => setOpenUnitSelectorKey(null)}
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className={styles.inlineConvertTrigger}
+                                  onClick={(): void => setOpenUnitSelectorKey(ingKey)}
+                                >
+                                  <ConvertIcon width={12} height={12} /> Convert Unit
+                                </button>
+                              ))}
+
+                            {substitutions.length > 0 && (
+                              <button
+                                type="button"
+                                className={styles.inlineConvertTrigger}
+                                onClick={(): void =>
+                                  setOpenSubstitutionsKey(openSubstitutionsKey === ingKey ? null : ingKey)
+                                }
+                              >
+                                {substitutions.length} Substitute{substitutions.length > 1 ? "s" : ""}
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Inline Substitutions Panel */}
+                          {openSubstitutionsKey === ingKey && substitutions.length > 0 && (
+                            <div className={styles.subCard}>
+                              <div
+                                style={{
+                                  fontWeight: 600,
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center"
+                                }}
+                              >
+                                <span>Substitutions for: {ing.raw}</span>
+                                <button
+                                  type="button"
+                                  style={{
+                                    background: "none",
+                                    border: "none",
+                                    cursor: "pointer",
+                                    color: "var(--muted)",
+                                    fontSize: "0.875rem"
+                                  }}
+                                  onClick={(): void => setOpenSubstitutionsKey(null)}
+                                >
+                                  ×
+                                </button>
+                              </div>
+
+                              {substitutions.map((sub, sIdx: number): ReactElement => {
+                                const isGoodGrade = sub.qualityGrade.startsWith("A");
+                                const isMediumGrade = sub.qualityGrade.startsWith("B");
+                                const badgeBg = isGoodGrade ? "#e8f5e9" : isMediumGrade ? "#fff3e0" : "#ffebee";
+                                const badgeColor = isGoodGrade ? "#2e7d32" : isMediumGrade ? "#b26a00" : "#c62828";
+
+                                return (
+                                  <div
+                                    key={sIdx}
+                                    style={{
+                                      padding: "8px",
+                                      borderRadius: "var(--radius-sm)",
+                                      border: "1px solid var(--border)",
+                                      background: "var(--surface)",
+                                      display: "flex",
+                                      flexDirection: "column",
+                                      gap: 4
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "space-between",
+                                        flexWrap: "wrap",
+                                        gap: 4
+                                      }}
+                                    >
+                                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                        <span
+                                          className={styles.subGradeBadge}
+                                          style={{ background: badgeBg, color: badgeColor }}
+                                        >
+                                          Grade {sub.qualityGrade}
+                                        </span>
+                                        <strong>{sub.substituteIngredient}</strong>
+                                      </div>
+                                      <Button
+                                        type="button"
+                                        variant="secondary"
+                                        size="sm"
+                                        onClick={(): void => {
+                                          setAppliedSubstitutions((prev) => ({
+                                            ...prev,
+                                            [ingKey]: `${sub.substituteIngredient} (substitute for ${ing.raw})`
+                                          }));
+                                          setOpenSubstitutionsKey(null);
+                                        }}
+                                      >
+                                        Use Sub
+                                      </Button>
+                                    </div>
+
+                                    {sub.amountNote && (
+                                      <div style={{ fontWeight: 600, color: "var(--warning)", fontSize: "0.75rem" }}>
+                                        {sub.amountNote}
+                                      </div>
+                                    )}
+                                    <div style={{ fontSize: "0.75rem", color: "var(--text)" }}>
+                                      <strong>Why:</strong> {sub.why}
+                                    </div>
+                                    <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+                                      <strong>When:</strong> {sub.when} · <strong>How:</strong> {sub.how}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
                       );
                     })}
                   </div>

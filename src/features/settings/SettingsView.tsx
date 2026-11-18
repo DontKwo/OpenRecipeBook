@@ -4,6 +4,9 @@ import { BRAND } from "../../config/brand";
 import { DownloadIcon, UploadIcon, TrashIcon, FolderIcon } from "../../ui/icons";
 import { Button, IconButton } from "../../ui/Button";
 import { applyThemeAndAccent } from "../../styles/themeManager";
+import { TRUSTED_CONVERSION_SOURCES } from "../../domain/scaling/customConversions";
+import { UnitConversionsManagerModal } from "./UnitConversionsManagerModal";
+import { CloudBackupModal } from "./CloudBackupModal";
 import {
   FileSystemFolderBackupDestination,
   clearStoredDirectoryHandle,
@@ -44,7 +47,13 @@ export const SettingsView: FC<SettingsViewProps> = ({
   onRunAutoFolderBackup
 }): ReactElement => {
   const [theme, setTheme] = useState<string>(() => localStorage.getItem("orb_theme") || "system");
-  const [accent, setAccent] = useState<string>(() => localStorage.getItem("accentTheme") || "terracotta");
+  const [accent, setAccent] = useState<string>(() => localStorage.getItem("accentTheme") || "sage");
+  const [customColor, setCustomColor] = useState<string>(() => {
+    const saved = localStorage.getItem("accentTheme") || "sage";
+    return saved.startsWith("#") ? saved : "#3d7250";
+  });
+  const [showConversionsModal, setShowConversionsModal] = useState<boolean>(false);
+  const [showCloudModal, setShowCloudModal] = useState<boolean>(false);
   const [storageInfo, setStorageInfo] = useState<StorageLocationInfo | null>(null);
   const [folderStatus, setFolderStatus] = useState<string | null>(null);
   const [folderName, setFolderName] = useState<string | null>(null);
@@ -160,10 +169,10 @@ export const SettingsView: FC<SettingsViewProps> = ({
           <span style={{ display: "block", fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)", marginBottom: "var(--space-2)" }}>
             Accent Color
           </span>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)", alignItems: "center" }}>
             {[
-              { id: "terracotta", label: "Terracotta" },
               { id: "sage", label: "Sage" },
+              { id: "terracotta", label: "Terracotta" },
               { id: "slate", label: "Slate" },
               { id: "berry", label: "Berry" },
               { id: "ochre", label: "Ochre" }
@@ -178,6 +187,51 @@ export const SettingsView: FC<SettingsViewProps> = ({
                 {item.label}
               </Button>
             ))}
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginTop: "var(--space-3)" }}>
+            <span style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>Custom Color:</span>
+            <input
+              type="color"
+              value={customColor}
+              aria-label="Custom color picker wheel"
+              onChange={(e: ChangeEvent<HTMLInputElement>): void => {
+                setCustomColor(e.target.value);
+                handleAccentChange(e.target.value);
+              }}
+              style={{
+                width: 32,
+                height: 32,
+                border: "none",
+                borderRadius: "var(--radius-sm)",
+                cursor: "pointer",
+                background: "transparent",
+                padding: 0
+              }}
+            />
+            <input
+              type="text"
+              value={customColor}
+              aria-label="Custom hex color code"
+              onChange={(e: ChangeEvent<HTMLInputElement>): void => {
+                const val = e.target.value;
+                setCustomColor(val);
+                if (/^#[0-9a-fA-F]{6}$/.test(val)) {
+                  handleAccentChange(val);
+                }
+              }}
+              placeholder="#3d7250"
+              style={{
+                width: 85,
+                padding: "4px 8px",
+                borderRadius: "var(--radius-sm)",
+                border: "1px solid var(--border)",
+                background: "var(--surface)",
+                color: "var(--text)",
+                fontFamily: "var(--font-mono)",
+                fontSize: "0.8125rem"
+              }}
+            />
           </div>
         </div>
       </section>
@@ -316,7 +370,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
                   type="button"
                   variant="secondary"
                   size="sm"
-                  onClick={handlePickFolder}
+                  onClick={(): void => setShowCloudModal(true)}
                 >
                   Choose Backup Folder
                 </Button>
@@ -334,6 +388,54 @@ export const SettingsView: FC<SettingsViewProps> = ({
             </div>
           )}
         </div>
+      </section>
+
+      {/* Unit Conversions & Citations Section */}
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Unit Conversions & Ingredient Densities</h2>
+        <p className={styles.sectionText}>
+          Volume and weight conversions follow NIST Handbook 44 and USDA FoodData Central standards. You can override, add, remove, and reset conversions.
+        </p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={(): void => setShowConversionsModal(true)}
+          >
+            Manage Unit Conversions & Densities
+          </Button>
+        </div>
+
+        <details
+          style={{
+            marginTop: "var(--space-3)",
+            padding: "var(--space-3)",
+            borderRadius: "var(--radius-md)",
+            border: "1px solid var(--border)",
+            background: "var(--surface-alt)"
+          }}
+        >
+          <summary style={{ fontWeight: 600, fontSize: "0.875rem", cursor: "pointer", color: "var(--accent)" }}>
+            View Trusted Online Conversion Sources & Citations
+          </summary>
+          <div style={{ marginTop: "var(--space-3)", display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+            {TRUSTED_CONVERSION_SOURCES.map((source, sIdx: number) => (
+              <div key={sIdx} style={{ fontSize: "0.8125rem", display: "flex", flexDirection: "column", gap: "2px" }}>
+                <div style={{ fontWeight: 600 }}>{source.name} ({source.organization})</div>
+                <div style={{ color: "var(--muted)" }}>{source.scope}</div>
+                <div style={{ fontSize: "0.75rem", color: "var(--text)" }}>{source.verifiedNotes}</div>
+                <a
+                  href={source.url}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  style={{ color: "var(--accent)", wordBreak: "break-all", fontSize: "0.75rem" }}
+                >
+                  {source.url}
+                </a>
+              </div>
+            ))}
+          </div>
+        </details>
       </section>
 
       {/* Dictionary Section */}
@@ -477,6 +579,20 @@ export const SettingsView: FC<SettingsViewProps> = ({
           Package ID: <code>{BRAND.packageId}</code> · Version 0.1.0
         </p>
       </section>
+
+      <CloudBackupModal
+        isOpen={showCloudModal}
+        onClose={(): void => setShowCloudModal(false)}
+        currentFolderName={folderName}
+        onPickLocalFolder={handlePickFolder}
+        onDisconnectFolder={handleDisconnectFolder}
+      />
+
+      {showConversionsModal && (
+        <UnitConversionsManagerModal
+          onClose={(): void => setShowConversionsModal(false)}
+        />
+      )}
     </div>
   );
 };

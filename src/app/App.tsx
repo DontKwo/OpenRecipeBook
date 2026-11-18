@@ -10,7 +10,7 @@ import type {
   SavedMenu
 } from "../domain/recipe/types";
 import { BRAND } from "../config/brand";
-import { SAMPLE_RECIPES } from "../data/sampleRecipes";
+import { SAMPLE_RECIPES, DEFAULT_COLLECTIONS } from "../data/sampleRecipes";
 import {
   exportRecipeToJson,
   exportBackupZip,
@@ -202,7 +202,13 @@ function AppContent(): ReactElement {
       const storedIngredients = await db.userIngredients.toArray();
       setUserIngredients(storedIngredients);
 
-      const storedCollections = await db.collections.toArray();
+      let storedCollections = await db.collections.toArray();
+      if (storedCollections.length === 0) {
+        for (const col of DEFAULT_COLLECTIONS) {
+          await db.collections.put(col);
+        }
+        storedCollections = await db.collections.toArray();
+      }
       setCollections(storedCollections);
 
       const menuSetting = await db.settings.get("savedMenus");
@@ -841,6 +847,9 @@ function AppContent(): ReactElement {
             onNewRecipe={handleNewRecipe}
             onImportFile={(): void => setActiveTab("settings")}
             onLoadSamples={async (): Promise<void> => {
+              for (const col of DEFAULT_COLLECTIONS) {
+                await db.collections.put(col);
+              }
               for (const sample of SAMPLE_RECIPES) {
                 const saved = await saveRecipe(sample);
                 await writeRecipeToStorage(saved);

@@ -4,11 +4,11 @@ import {
   convertIngredientUnit,
   getAllUnitConversions,
   normalizeUnitKey,
-  VOLUME_UNITS,
-  WEIGHT_UNITS,
+  getEffectiveVolumeUnits,
+  getEffectiveWeightUnits,
   type SupportedUnit
 } from "../../domain/scaling/universalConverter";
-import { DENSITY_TABLE, findIngredientDensity } from "../../domain/scaling/density";
+import { getEffectiveDensityTable, findIngredientDensity } from "../../domain/scaling/density";
 import { ConvertIcon, CheckIcon } from "../../ui/icons";
 import { Dialog } from "../../ui/Dialog";
 import { Button } from "../../ui/Button";
@@ -35,15 +35,19 @@ export const QuickUnitConverterModal: FC<QuickUnitConverterModalProps> = ({
   const [toUnit, setToUnit] = useState<SupportedUnit>("tbsp");
   const [ingredientQuery, setIngredientQuery] = useState<string>(initialIngredient);
 
+  const effectiveDensityTable = useMemo(() => getEffectiveDensityTable(), []);
+  const volumeUnits = useMemo((): string[] => getEffectiveVolumeUnits(), []);
+  const weightUnits = useMemo((): string[] => getEffectiveWeightUnits(), []);
+
   const densityCategories = useMemo(() => {
     const groups: Record<string, { key: string; name: string; density: number }[]> = {};
-    for (const [key, record] of Object.entries(DENSITY_TABLE)) {
+    for (const [key, record] of Object.entries(effectiveDensityTable)) {
       const cat = record.category || "Other";
       if (!groups[cat]) groups[cat] = [];
       groups[cat].push({ key, name: record.name, density: record.gramsPerMl });
     }
     return groups;
-  }, []);
+  }, [effectiveDensityTable]);
 
   const conversion = useMemo(() => {
     return convertIngredientUnit(
@@ -147,12 +151,12 @@ export const QuickUnitConverterModal: FC<QuickUnitConverterModalProps> = ({
                 }}
               >
                 <optgroup label="Volume Units">
-                  {VOLUME_UNITS.map((u: string) => (
+                  {volumeUnits.map((u: string) => (
                     <option key={u} value={u}>{u}</option>
                   ))}
                 </optgroup>
                 <optgroup label="Weight Units">
-                  {WEIGHT_UNITS.map((u: string) => (
+                  {weightUnits.map((u: string) => (
                     <option key={u} value={u}>{u}</option>
                   ))}
                 </optgroup>
@@ -178,12 +182,12 @@ export const QuickUnitConverterModal: FC<QuickUnitConverterModalProps> = ({
               }}
             >
               <optgroup label="Volume Units">
-                {VOLUME_UNITS.map((u: string) => (
+                {volumeUnits.map((u: string) => (
                   <option key={u} value={u}>{u}</option>
                 ))}
               </optgroup>
               <optgroup label="Weight Units">
-                {WEIGHT_UNITS.map((u: string) => (
+                {weightUnits.map((u: string) => (
                   <option key={u} value={u}>{u}</option>
                 ))}
               </optgroup>
@@ -198,7 +202,7 @@ export const QuickUnitConverterModal: FC<QuickUnitConverterModalProps> = ({
           </label>
           <div style={{ display: "flex", gap: 6, flexDirection: "column" }}>
             <select
-              value={Object.values(DENSITY_TABLE).find((r) => r.name.toLowerCase() === ingredientQuery.toLowerCase())?.name || ""}
+              value={Object.values(effectiveDensityTable).find((r) => r.name.toLowerCase() === ingredientQuery.toLowerCase())?.name || ""}
               onChange={(e: ChangeEvent<HTMLSelectElement>): void => {
                 if (e.target.value) setIngredientQuery(e.target.value);
               }}

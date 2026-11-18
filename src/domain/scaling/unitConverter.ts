@@ -7,6 +7,8 @@ import {
   convertVolumeToGrams
 } from "./density";
 import { parseIngredient } from "./parseIngredient";
+import { getConversionConfig } from "./customConversions";
+import { convertIngredientUnit } from "./universalConverter";
 
 export type UnitSystem = "us" | "metric";
 
@@ -87,8 +89,25 @@ export function convertIngredientUnitSystem(
   const baseValue = quantity.kind === "single" ? quantity.value : quantity.max;
   const numericValue = baseValue * multiplier;
 
+  // Apply user custom conversion overrides if defined for this unit
+  const customConfig = getConversionConfig();
+  if (customConfig.units[canonicalUnit] || customConfig.units[rawUnit]) {
+    const targetOverrideUnit =
+      targetSystem === "metric"
+        ? customConfig.units[canonicalUnit]?.family === "weight" || canonicalUnit === "oz" || canonicalUnit === "lb"
+          ? "g"
+          : "ml"
+        : customConfig.units[canonicalUnit]?.family === "weight" || canonicalUnit === "g" || canonicalUnit === "kg"
+          ? "oz"
+          : "cup";
+    const res = convertIngredientUnit(numericValue, canonicalUnit, targetOverrideUnit, effective.name);
+    if (res.success) {
+      return formatConverted(res.value, targetOverrideUnit, effective, options);
+    }
+  }
+
   if (targetSystem === "metric") {
-    // Volume conversions
+    // FDA 21 CFR 101.9 metric household volume equivalents (1 tsp=5ml, 1 tbsp=15ml, 1 cup=240ml)
     if (canonicalUnit === "tsp") {
       const ml = Math.round(numericValue * 5);
       return formatConverted(ml, "ml", effective, options);
@@ -108,33 +127,35 @@ export function convertIngredientUnitSystem(
         if (density) {
           const grams = convertVolumeToGrams(ml, density.gramsPerMl);
           if (grams >= 1000) {
-            return formatConverted(Math.round((grams / 1000) * 10) / 10, "kg", effective, options);
+            return formatConverted(Math.round((grams / 1000) * 100) / 100, "kg", effective, options);
           }
           return formatConverted(grams, "g", effective, options);
         }
       }
       if (ml >= 1000) {
-        return formatConverted(Math.round((ml / 1000) * 10) / 10, "l", effective, options);
+        return formatConverted(Math.round((ml / 1000) * 100) / 100, "l", effective, options);
       }
       return formatConverted(ml, "ml", effective, options);
     }
     if (canonicalUnit === "pint") {
-      const ml = Math.round(numericValue * 473);
-      return formatConverted(Math.round((ml / 1000) * 10) / 10, "l", effective, options);
+      const ml = Math.round(numericValue * 473.176473);
+      if (ml >= 1000) {
+        return formatConverted(Math.round((ml / 1000) * 100) / 100, "l", effective, options);
+      }
+      return formatConverted(ml, "ml", effective, options);
     }
     if (canonicalUnit === "quart") {
-      const l = Math.round(numericValue * 0.946 * 10) / 10;
+      const l = Math.round(numericValue * 0.946352946 * 100) / 100;
       return formatConverted(l, "l", effective, options);
     }
     if (canonicalUnit === "gallon") {
-      const l = Math.round(numericValue * 3.785 * 10) / 10;
+      const l = Math.round(numericValue * 3.785411784 * 100) / 100;
       return formatConverted(l, "l", effective, options);
     }
 
-    // Weight conversions
+    // Weight conversions (NIST Handbook 44 exact definitions)
     if (canonicalUnit === "oz") {
-      const grams = Math.round(numericValue * 28.35);
-      // Round to nearest 5g above 100g for friendly kitchen scale measurements
+      const grams = Math.round(numericValue * 28.349523125);
       const roundedGrams = grams >= 100 ? Math.round(grams / 5) * 5 : grams;
       if (roundedGrams >= 1000) {
         return formatConverted(Math.round((roundedGrams / 1000) * 100) / 100, "kg", effective, options);
@@ -142,9 +163,9 @@ export function convertIngredientUnitSystem(
       return formatConverted(roundedGrams, "g", effective, options);
     }
     if (canonicalUnit === "lb") {
-      const grams = Math.round(numericValue * 453.59);
+      const grams = Math.round(numericValue * 453.59237);
       if (grams >= 1000) {
-        return formatConverted(Math.round((grams / 1000) * 10) / 10, "kg", effective, options);
+        return formatConverted(Math.round((grams / 1000) * 100) / 100, "kg", effective, options);
       }
       return formatConverted(grams, "g", effective, options);
     }
@@ -152,14 +173,14 @@ export function convertIngredientUnitSystem(
     // Metric -> US
     if (canonicalUnit === "g") {
       if (numericValue >= 450) {
-        const lbs = Math.round((numericValue / 453.59) * 4) / 4;
+        const lbs = Math.round((numericValue / 453.59237) * 4) / 4;
         return formatConverted(lbs, "lb", effective, options);
       }
-      const oz = Math.round((numericValue / 28.35) * 2) / 2;
+      const oz = Math.round((numericValue / 28.349523125) * 2) / 2;
       return formatConverted(oz, "oz", effective, options);
     }
     if (canonicalUnit === "kg") {
-      const lbs = Math.round(numericValue * 2.20462 * 10) / 10;
+      const lbs = Math.round(numericValue * 2.20462262 * 10) / 10;
       return formatConverted(lbs, "lb", effective, options);
     }
     if (canonicalUnit === "ml") {
@@ -175,7 +196,7 @@ export function convertIngredientUnitSystem(
       return formatConverted(tsp, "tsp", effective, options);
     }
     if (canonicalUnit === "l") {
-      const cups = Math.round(numericValue * 4.227 * 2) / 2;
+      const cups = Math.round(numericValue * 4.22675284 * 4) / 4;
       return formatConverted(cups, "cup", effective, options);
     }
   }

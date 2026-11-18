@@ -105,7 +105,7 @@ export function parsePlainTextRecipe(rawText: string): ParsedTextRecipe {
     }
 
     // Detect Servings/Yield
-    const servingsMatch = /^(?:servings?|yield|makes)\b[:\s]*(?:about\s*)?(\d+)/i.exec(line);
+    const servingsMatch = /^(?:servings?|yield|makes)\b[:\s]*(?:about\s*|makes\s*|serves\s*)?(\d+)/i.exec(line);
     if (servingsMatch) {
       servings = parseInt(servingsMatch[1], 10);
       continue;
@@ -130,8 +130,9 @@ export function parsePlainTextRecipe(rawText: string): ParsedTextRecipe {
       continue;
     }
 
-    // Check primary section headers
-    if (INGREDIENT_HEADER_REGEX.test(line)) {
+    // Check primary section headers (stripping markdown markers)
+    const cleanHeaderLine = line.replace(/^[#*_\-\s]+/, "").replace(/[#*_\-\s]+$/, "");
+    if (INGREDIENT_HEADER_REGEX.test(cleanHeaderLine)) {
       flushDirectionGroup();
       currentSection = "ingredients";
       hasExplicitIngredientHeader = true;
@@ -139,14 +140,14 @@ export function parsePlainTextRecipe(rawText: string): ParsedTextRecipe {
       continue;
     }
 
-    if (DIRECTION_HEADER_REGEX.test(line)) {
+    if (DIRECTION_HEADER_REGEX.test(cleanHeaderLine)) {
       flushIngredientGroup();
       currentSection = "directions";
       currentDirHeading = undefined;
       continue;
     }
 
-    if (NOTES_HEADER_REGEX.test(line)) {
+    if (NOTES_HEADER_REGEX.test(cleanHeaderLine)) {
       flushIngredientGroup();
       flushDirectionGroup();
       currentSection = "notes";

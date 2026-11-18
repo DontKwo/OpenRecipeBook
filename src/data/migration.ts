@@ -1,10 +1,10 @@
 import { db } from "./db";
-import { SAMPLE_RECIPES } from "./sampleRecipes";
+import { SAMPLE_RECIPES, DEFAULT_COLLECTIONS } from "./sampleRecipes";
 import { normalizeRecipe } from "../domain/recipe/normalize";
 import { saveRecipeVersion } from "../domain/recipe/versionHistory";
 import type { Recipe } from "../domain/recipe/types";
 
-export const CURRENT_SAMPLE_RECIPES_VERSION = 3;
+export const CURRENT_SAMPLE_RECIPES_VERSION = 4;
 
 export async function runRecipeCleanupMigration(): Promise<void> {
   const sampleVersionSetting = await db.settings.get("sampleRecipesVersion");
@@ -12,6 +12,14 @@ export async function runRecipeCleanupMigration(): Promise<void> {
 
   if (currentVersion >= CURRENT_SAMPLE_RECIPES_VERSION) {
     return;
+  }
+
+  // Seed default collections if not present
+  for (const col of DEFAULT_COLLECTIONS) {
+    const exists = await db.collections.get(col.id);
+    if (!exists) {
+      await db.collections.put(col);
+    }
   }
 
   const oldSampleIds = ["sample-pancakes", "sample-chili", "sample-pasta", "sample-cookies"];
@@ -28,8 +36,15 @@ export async function runRecipeCleanupMigration(): Promise<void> {
 
   for (const stored of allStored) {
     const seed = seedMap.get(stored.id);
-    if (seed && stored.updatedAt === seed.updatedAt) {
-      await db.recipes.put(normalizeRecipe(seed));
+    if (seed) {
+      // Sync default sample recipes to updated photos, folders, and non-favorite
+      const merged: Recipe = {
+        ...stored,
+        photoIds: seed.photoIds,
+        collectionIds: seed.collectionIds,
+        favorite: false
+      };
+      await db.recipes.put(normalizeRecipe(merged));
     } else {
       try {
         await saveRecipeVersion(stored, "Pre-migration backup");

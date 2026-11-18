@@ -1,13 +1,30 @@
 import type { Recipe, IngredientGroup, DirectionGroup, Step } from "../recipe/types";
 import { normalizeRecipe } from "../recipe/normalize";
 
+export function unescapeHtmlEntities(text: string): string {
+  return text
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&deg;/g, "°")
+    .replace(/&frac12;/g, "1/2")
+    .replace(/&frac14;/g, "1/4")
+    .replace(/&frac34;/g, "3/4")
+    .replace(/&frac13;/g, "1/3")
+    .replace(/&frac23;/g, "2/3")
+    .replace(/&#(\d+);/g, (_match: string, dec: string): string => String.fromCharCode(parseInt(dec, 10)));
+}
+
 export function parseIsoDuration(duration: string): number {
   if (!duration) return 0;
-  const match = /PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/i.exec(duration.trim());
+  const match = /P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/i.exec(duration.trim());
   if (!match) return 0;
-  const hours = parseInt(match[1] || "0", 10);
-  const minutes = parseInt(match[2] || "0", 10);
-  return hours * 60 + minutes;
+  const days = parseInt(match[1] || "0", 10);
+  const hours = parseInt(match[2] || "0", 10);
+  const minutes = parseInt(match[3] || "0", 10);
+  return days * 24 * 60 + hours * 60 + minutes;
 }
 
 export function parseSchemaRecipeJsonLd(jsonData: unknown): Recipe[] {
@@ -20,8 +37,8 @@ export function parseSchemaRecipeJsonLd(jsonData: unknown): Recipe[] {
     const isRecipe = type === "Recipe" || (Array.isArray(type) && type.includes("Recipe"));
 
     if (isRecipe) {
-      const title = String(obj.name || "Untitled Recipe");
-      const description = obj.description ? String(obj.description) : undefined;
+      const title = unescapeHtmlEntities(String(obj.name || "Untitled Recipe"));
+      const description = obj.description ? unescapeHtmlEntities(String(obj.description)) : undefined;
       const prepMinutes = obj.prepTime ? parseIsoDuration(String(obj.prepTime)) : undefined;
       const cookMinutes = obj.cookTime ? parseIsoDuration(String(obj.cookTime)) : undefined;
       const totalMinutes = obj.totalTime ? parseIsoDuration(String(obj.totalTime)) : undefined;
@@ -39,7 +56,7 @@ export function parseSchemaRecipeJsonLd(jsonData: unknown): Recipe[] {
 
       // Ingredients
       const rawIngredients = Array.isArray(obj.recipeIngredient)
-        ? obj.recipeIngredient.map(String)
+        ? obj.recipeIngredient.map((item) => unescapeHtmlEntities(String(item)))
         : [];
       const ingredientGroups: IngredientGroup[] = [
         {
@@ -58,22 +75,22 @@ export function parseSchemaRecipeJsonLd(jsonData: unknown): Recipe[] {
         for (let i = 0; i < instructions.length; i += 1) {
           const item = instructions[i];
           if (typeof item === "string") {
-            steps.push({ id: `step-${i + 1}`, text: item.trim() });
+            steps.push({ id: `step-${i + 1}`, text: unescapeHtmlEntities(item.trim()) });
           } else if (item && typeof item === "object") {
             const stepObj = item as Record<string, unknown>;
             if (stepObj["@type"] === "HowToStep" && stepObj.text) {
-              steps.push({ id: `step-${i + 1}`, text: String(stepObj.text).trim() });
+              steps.push({ id: `step-${i + 1}`, text: unescapeHtmlEntities(String(stepObj.text).trim()) });
             } else if (stepObj["@type"] === "HowToSection" && Array.isArray(stepObj.itemListElement)) {
               for (const subItem of stepObj.itemListElement as Record<string, unknown>[]) {
                 if (subItem && subItem.text) {
-                  steps.push({ id: `step-${steps.length + 1}`, text: String(subItem.text).trim() });
+                  steps.push({ id: `step-${steps.length + 1}`, text: unescapeHtmlEntities(String(subItem.text).trim()) });
                 }
               }
             }
           }
         }
       } else if (typeof instructions === "string") {
-        const lines = instructions.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+        const lines = instructions.split(/\r?\n/).map((l) => unescapeHtmlEntities(l.trim())).filter(Boolean);
         for (let i = 0; i < lines.length; i += 1) {
           steps.push({ id: `step-${i + 1}`, text: lines[i] });
         }

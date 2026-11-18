@@ -1,4 +1,5 @@
 import type { DictionaryIngredient } from "../recipe/types";
+import { getConversionConfig } from "./customConversions";
 
 export interface DensityRecord {
   name: string;
@@ -6,6 +7,7 @@ export interface DensityRecord {
   gramsPerMl: number;
   source: string;
   aliases?: string[];
+  isCustom?: boolean;
 }
 
 export const DENSITY_TABLE: Record<string, DensityRecord> = {
@@ -21,63 +23,63 @@ export const DENSITY_TABLE: Record<string, DensityRecord> = {
     name: "Bread Flour",
     category: "Flours & Starches",
     gramsPerMl: 0.54,
-    source: "USDA FoodData Central",
+    source: "King Arthur Baking Weight Chart",
     aliases: ["strong flour", "hard flour"]
   },
   "whole-wheat-flour": {
     name: "Whole Wheat Flour",
     category: "Flours & Starches",
     gramsPerMl: 0.51,
-    source: "USDA FoodData Central",
+    source: "King Arthur Baking Weight Chart",
     aliases: ["wholemeal flour", "graham flour"]
   },
   "cake-flour": {
     name: "Cake Flour",
     category: "Flours & Starches",
     gramsPerMl: 0.47,
-    source: "USDA FoodData Central",
-    aliases: ["pastry flour", "soft flour"]
+    source: "King Arthur Baking Weight Chart",
+    aliases: ["soft flour"]
   },
   "pastry-flour": {
     name: "Pastry Flour",
     category: "Flours & Starches",
     gramsPerMl: 0.49,
-    source: "USDA FoodData Central",
+    source: "King Arthur Baking Weight Chart",
     aliases: ["white pastry flour"]
   },
   "almond-flour": {
     name: "Almond Flour",
     category: "Flours & Starches",
-    gramsPerMl: 0.40,
-    source: "USDA FoodData Central",
+    gramsPerMl: 0.41,
+    source: "King Arthur Baking Weight Chart",
     aliases: ["almond meal", "ground almonds"]
   },
   "coconut-flour": {
     name: "Coconut Flour",
     category: "Flours & Starches",
     gramsPerMl: 0.54,
-    source: "USDA FoodData Central",
+    source: "King Arthur Baking Weight Chart",
     aliases: []
   },
   "rye-flour": {
     name: "Rye Flour",
     category: "Flours & Starches",
-    gramsPerMl: 0.43,
-    source: "USDA FoodData Central",
+    gramsPerMl: 0.45,
+    source: "King Arthur Baking Weight Chart",
     aliases: ["dark rye flour", "medium rye flour"]
   },
   "oat-flour": {
     name: "Oat Flour",
     category: "Flours & Starches",
     gramsPerMl: 0.39,
-    source: "USDA FoodData Central",
+    source: "King Arthur Baking Weight Chart",
     aliases: []
   },
   "tapioca-flour": {
     name: "Tapioca Starch / Flour",
     category: "Flours & Starches",
     gramsPerMl: 0.48,
-    source: "USDA FoodData Central",
+    source: "King Arthur Baking Weight Chart",
     aliases: ["tapioca flour", "tapioca starch", "cassava flour"]
   },
   cornstarch: {
@@ -85,13 +87,41 @@ export const DENSITY_TABLE: Record<string, DensityRecord> = {
     category: "Flours & Starches",
     gramsPerMl: 0.54,
     source: "USDA FoodData Central",
-    aliases: ["corn starch", "maizena"]
+    aliases: ["corn starch", "maizena", "cornflour"]
+  },
+  cornmeal: {
+    name: "Cornmeal / Polenta",
+    category: "Flours & Starches",
+    gramsPerMl: 0.61,
+    source: "USDA FoodData Central",
+    aliases: ["yellow cornmeal", "polenta", "fine cornmeal"]
+  },
+  "baking-mix": {
+    name: "Baking Mix (Bisquick)",
+    category: "Flours & Starches",
+    gramsPerMl: 0.51,
+    source: "USDA FoodData Central",
+    aliases: ["bisquick", "biscuit mix", "pancake mix"]
+  },
+  breadcrumbs: {
+    name: "Dry Breadcrumbs",
+    category: "Flours & Starches",
+    gramsPerMl: 0.46,
+    source: "USDA FoodData Central",
+    aliases: ["bread crumbs", "italian breadcrumbs"]
+  },
+  panko: {
+    name: "Panko Breadcrumbs",
+    category: "Flours & Starches",
+    gramsPerMl: 0.25,
+    source: "King Arthur Baking Weight Chart",
+    aliases: ["japanese breadcrumbs"]
   },
   "potato-starch": {
     name: "Potato Starch",
     category: "Flours & Starches",
     gramsPerMl: 0.64,
-    source: "USDA FoodData Central",
+    source: "King Arthur Baking Weight Chart",
     aliases: ["potato flour"]
   },
   arrowroot: {
@@ -104,15 +134,15 @@ export const DENSITY_TABLE: Record<string, DensityRecord> = {
   "cocoa-powder": {
     name: "Cocoa Powder (Natural)",
     category: "Flours & Starches",
-    gramsPerMl: 0.42,
-    source: "USDA FoodData Central",
-    aliases: ["unsweetened cocoa", "cacao powder", "cocoa"]
+    gramsPerMl: 0.36,
+    source: "King Arthur Baking Weight Chart",
+    aliases: ["unsweetened cocoa", "cacao powder", "cocoa", "unsweetened cocoa powder"]
   },
   "dutch-cocoa": {
     name: "Dutch-Process Cocoa",
     category: "Flours & Starches",
-    gramsPerMl: 0.44,
-    source: "USDA FoodData Central",
+    gramsPerMl: 0.38,
+    source: "King Arthur Baking Weight Chart",
     aliases: ["dutch cocoa", "alkalized cocoa"]
   },
 
@@ -127,8 +157,8 @@ export const DENSITY_TABLE: Record<string, DensityRecord> = {
   "brown-sugar": {
     name: "Brown Sugar (Packed)",
     category: "Sugars & Sweeteners",
-    gramsPerMl: 0.88,
-    source: "USDA FoodData Central",
+    gramsPerMl: 0.90,
+    source: "King Arthur Baking Weight Chart",
     aliases: ["brown sugar", "light brown sugar", "dark brown sugar", "packed brown sugar"]
   },
   "powdered-sugar": {
@@ -136,7 +166,7 @@ export const DENSITY_TABLE: Record<string, DensityRecord> = {
     category: "Sugars & Sweeteners",
     gramsPerMl: 0.50,
     source: "USDA FoodData Central",
-    aliases: ["confectioners sugar", "icing sugar", "10x sugar"]
+    aliases: ["confectioners sugar", "confectioner's sugar", "icing sugar", "10x sugar"]
   },
   honey: {
     name: "Honey",
@@ -148,7 +178,7 @@ export const DENSITY_TABLE: Record<string, DensityRecord> = {
   "maple-syrup": {
     name: "Maple Syrup",
     category: "Sugars & Sweeteners",
-    gramsPerMl: 1.37,
+    gramsPerMl: 1.33,
     source: "USDA FoodData Central",
     aliases: ["pure maple syrup", "pancake syrup"]
   },
@@ -162,9 +192,9 @@ export const DENSITY_TABLE: Record<string, DensityRecord> = {
   "corn-syrup": {
     name: "Corn Syrup",
     category: "Sugars & Sweeteners",
-    gramsPerMl: 1.40,
+    gramsPerMl: 1.39,
     source: "USDA FoodData Central",
-    aliases: ["light corn syrup", "karo syrup"]
+    aliases: ["light corn syrup", "dark corn syrup", "karo syrup"]
   },
   "agave-nectar": {
     name: "Agave Nectar",
@@ -177,7 +207,7 @@ export const DENSITY_TABLE: Record<string, DensityRecord> = {
     name: "Golden Syrup",
     category: "Sugars & Sweeteners",
     gramsPerMl: 1.43,
-    source: "USDA FoodData Central",
+    source: "FAO/INFOODS Density Database",
     aliases: ["lyle's golden syrup"]
   },
 
@@ -201,7 +231,7 @@ export const DENSITY_TABLE: Record<string, DensityRecord> = {
     category: "Fats & Oils",
     gramsPerMl: 0.92,
     source: "USDA FoodData Central",
-    aliases: ["vegetable oil", "canola oil", "sunflower oil", "neutral oil", "corn oil", "salad oil"]
+    aliases: ["vegetable oil", "canola oil", "sunflower oil", "neutral oil", "corn oil", "salad oil", "cooking oil"]
   },
   "coconut-oil": {
     name: "Coconut Oil",
@@ -220,7 +250,7 @@ export const DENSITY_TABLE: Record<string, DensityRecord> = {
   lard: {
     name: "Lard",
     category: "Fats & Oils",
-    gramsPerMl: 0.90,
+    gramsPerMl: 0.87,
     source: "USDA FoodData Central",
     aliases: ["pork lard", "rendered lard"]
   },
@@ -232,13 +262,13 @@ export const DENSITY_TABLE: Record<string, DensityRecord> = {
     aliases: ["toasted sesame oil"]
   },
 
-  // Dairy & Liquids
+  // Dairy, Cheeses & Liquids
   water: {
     name: "Water / Broth",
     category: "Dairy & Liquids",
     gramsPerMl: 1.00,
-    source: "Standard",
-    aliases: ["broth", "chicken broth", "beef broth", "vegetable broth", "stock", "coffee", "tea"]
+    source: "NIST / FAO INFOODS",
+    aliases: ["broth", "chicken broth", "beef broth", "vegetable broth", "stock", "coffee", "tea", "pan drippings"]
   },
   milk: {
     name: "Whole Milk",
@@ -257,7 +287,7 @@ export const DENSITY_TABLE: Record<string, DensityRecord> = {
   "heavy-cream": {
     name: "Heavy Cream",
     category: "Dairy & Liquids",
-    gramsPerMl: 1.00,
+    gramsPerMl: 1.01,
     source: "USDA FoodData Central",
     aliases: ["heavy whipping cream", "double cream", "whipping cream"]
   },
@@ -275,31 +305,38 @@ export const DENSITY_TABLE: Record<string, DensityRecord> = {
     source: "USDA FoodData Central",
     aliases: ["cultured buttermilk"]
   },
+  "coconut-milk": {
+    name: "Canned Coconut Milk",
+    category: "Dairy & Liquids",
+    gramsPerMl: 0.96,
+    source: "USDA FoodData Central",
+    aliases: ["full-fat coconut milk", "coconut cream"]
+  },
   "sour-cream": {
     name: "Sour Cream",
     category: "Dairy & Liquids",
-    gramsPerMl: 1.02,
+    gramsPerMl: 0.98,
     source: "USDA FoodData Central",
     aliases: ["creme fraiche"]
   },
   yogurt: {
     name: "Plain Yogurt",
     category: "Dairy & Liquids",
-    gramsPerMl: 1.06,
+    gramsPerMl: 1.04,
     source: "USDA FoodData Central",
     aliases: ["whole milk yogurt", "low fat yogurt", "curd"]
   },
   "greek-yogurt": {
     name: "Greek Yogurt",
     category: "Dairy & Liquids",
-    gramsPerMl: 1.15,
+    gramsPerMl: 1.06,
     source: "USDA FoodData Central",
     aliases: ["strained yogurt", "fage"]
   },
   "condensed-milk": {
     name: "Sweetened Condensed Milk",
     category: "Dairy & Liquids",
-    gramsPerMl: 1.30,
+    gramsPerMl: 1.29,
     source: "USDA FoodData Central",
     aliases: ["condensed milk"]
   },
@@ -310,12 +347,40 @@ export const DENSITY_TABLE: Record<string, DensityRecord> = {
     source: "USDA FoodData Central",
     aliases: []
   },
+  "cream-cheese": {
+    name: "Cream Cheese",
+    category: "Dairy & Liquids",
+    gramsPerMl: 0.98,
+    source: "USDA FoodData Central",
+    aliases: ["neufchatel cheese"]
+  },
+  "cheddar-cheese": {
+    name: "Shredded Cheddar Cheese",
+    category: "Dairy & Liquids",
+    gramsPerMl: 0.48,
+    source: "USDA FoodData Central",
+    aliases: ["cheddar cheese", "shredded cheese", "monterey jack cheese", "mozzarella cheese"]
+  },
+  "parmesan-cheese": {
+    name: "Grated Parmesan Cheese",
+    category: "Dairy & Liquids",
+    gramsPerMl: 0.42,
+    source: "USDA FoodData Central",
+    aliases: ["parmesan cheese", "parmigiano reggiano", "pecorino romano"]
+  },
+  "ricotta-cheese": {
+    name: "Ricotta Cheese",
+    category: "Dairy & Liquids",
+    gramsPerMl: 1.04,
+    source: "USDA FoodData Central",
+    aliases: ["whole milk ricotta", "cottage cheese"]
+  },
 
   // Leaveners, Salts & Spices
   salt: {
     name: "Table Salt",
     category: "Leaveners & Salts",
-    gramsPerMl: 1.20,
+    gramsPerMl: 1.22,
     source: "USDA FoodData Central",
     aliases: ["fine salt", "sea salt", "iodized salt"]
   },
@@ -324,49 +389,56 @@ export const DENSITY_TABLE: Record<string, DensityRecord> = {
     category: "Leaveners & Salts",
     gramsPerMl: 1.01,
     source: "USDA FoodData Central",
-    aliases: ["coarse salt", "morton kosher salt"]
+    aliases: ["coarse salt", "morton kosher salt", "kosher salt"]
   },
   "kosher-salt-diamond": {
     name: "Kosher Salt (Diamond Crystal)",
     category: "Leaveners & Salts",
     gramsPerMl: 0.58,
-    source: "USDA FoodData Central",
+    source: "King Arthur Baking Weight Chart",
     aliases: ["diamond crystal kosher salt", "diamond crystal"]
   },
   "baking-powder": {
     name: "Baking Powder",
     category: "Leaveners & Salts",
-    gramsPerMl: 0.90,
+    gramsPerMl: 0.93,
     source: "USDA FoodData Central",
     aliases: []
   },
   "baking-soda": {
     name: "Baking Soda",
     category: "Leaveners & Salts",
-    gramsPerMl: 0.90,
+    gramsPerMl: 0.93,
     source: "USDA FoodData Central",
-    aliases: ["bicarbonate of soda", "bicarb"]
+    aliases: ["bicarbonate of soda", "sodium bicarbonate"]
   },
   yeast: {
     name: "Active Dry Yeast",
     category: "Leaveners & Salts",
     gramsPerMl: 0.64,
-    source: "USDA FoodData Central",
+    source: "King Arthur Baking Weight Chart",
     aliases: ["dry yeast", "instant yeast", "rapid rise yeast"]
   },
   cinnamon: {
     name: "Ground Cinnamon",
     category: "Leaveners & Salts",
-    gramsPerMl: 0.56,
+    gramsPerMl: 0.53,
     source: "USDA FoodData Central",
     aliases: ["cinnamon"]
   },
   "black-pepper": {
     name: "Black Pepper (Ground)",
     category: "Leaveners & Salts",
-    gramsPerMl: 0.58,
+    gramsPerMl: 0.47,
     source: "USDA FoodData Central",
-    aliases: ["pepper", "ground black pepper"]
+    aliases: ["pepper", "ground black pepper", "cayenne pepper"]
+  },
+  "garlic-powder": {
+    name: "Garlic / Onion Powder",
+    category: "Leaveners & Salts",
+    gramsPerMl: 0.66,
+    source: "USDA FoodData Central",
+    aliases: ["onion powder", "chili powder", "paprika", "smoked paprika", "ground cumin"]
   },
 
   // Grains & Legumes
@@ -374,20 +446,20 @@ export const DENSITY_TABLE: Record<string, DensityRecord> = {
     name: "Rolled Oats (Old Fashioned)",
     category: "Grains & Legumes",
     gramsPerMl: 0.38,
-    source: "USDA FoodData Central",
+    source: "King Arthur Baking Weight Chart",
     aliases: ["oats", "old fashioned oats", "oatmeal"]
   },
   "quick-oats": {
     name: "Quick Oats",
     category: "Grains & Legumes",
-    gramsPerMl: 0.37,
+    gramsPerMl: 0.38,
     source: "USDA FoodData Central",
     aliases: ["instant oats", "quick-cooking oats"]
   },
   "steel-cut-oats": {
     name: "Steel-Cut Oats",
     category: "Grains & Legumes",
-    gramsPerMl: 0.75,
+    gramsPerMl: 0.72,
     source: "USDA FoodData Central",
     aliases: ["irish oats", "pinhead oats"]
   },
@@ -401,7 +473,7 @@ export const DENSITY_TABLE: Record<string, DensityRecord> = {
   "brown-rice": {
     name: "Brown Rice (Dry)",
     category: "Grains & Legumes",
-    gramsPerMl: 0.83,
+    gramsPerMl: 0.82,
     source: "USDA FoodData Central",
     aliases: ["whole grain rice"]
   },
@@ -422,14 +494,14 @@ export const DENSITY_TABLE: Record<string, DensityRecord> = {
   lentils: {
     name: "Dried Lentils",
     category: "Grains & Legumes",
-    gramsPerMl: 0.82,
+    gramsPerMl: 0.81,
     source: "USDA FoodData Central",
     aliases: ["brown lentils", "red lentils", "green lentils"]
   },
   "black-beans": {
     name: "Dried Black Beans",
     category: "Grains & Legumes",
-    gramsPerMl: 0.83,
+    gramsPerMl: 0.82,
     source: "USDA FoodData Central",
     aliases: ["black beans", "kidney beans", "pinto beans"]
   },
@@ -454,55 +526,62 @@ export const DENSITY_TABLE: Record<string, DensityRecord> = {
     category: "Nuts & Seeds",
     gramsPerMl: 0.60,
     source: "USDA FoodData Central",
-    aliases: ["sliced almonds", "whole almonds", "slivered almonds"]
+    aliases: ["sliced almonds", "whole almonds", "slivered almonds", "cashews"]
   },
   peanuts: {
     name: "Peanuts (Roasted)",
     category: "Nuts & Seeds",
-    gramsPerMl: 0.61,
+    gramsPerMl: 0.62,
     source: "USDA FoodData Central",
     aliases: ["roasted peanuts", "salted peanuts"]
   },
   "chia-seeds": {
     name: "Chia Seeds",
     category: "Nuts & Seeds",
-    gramsPerMl: 0.70,
+    gramsPerMl: 0.69,
     source: "USDA FoodData Central",
     aliases: []
   },
   "flax-seeds": {
     name: "Flax Seeds",
     category: "Nuts & Seeds",
-    gramsPerMl: 0.70,
+    gramsPerMl: 0.68,
     source: "USDA FoodData Central",
     aliases: ["linseed", "ground flaxseed"]
   },
   "chocolate-chips": {
     name: "Chocolate Chips",
     category: "Nuts & Seeds",
-    gramsPerMl: 0.71,
+    gramsPerMl: 0.72,
+    source: "King Arthur Baking Weight Chart",
+    aliases: ["semisweet chocolate chips", "mini chocolate chips", "dark chocolate chips", "white chocolate"]
+  },
+  "mini-marshmallows": {
+    name: "Mini Marshmallows",
+    category: "Nuts & Seeds",
+    gramsPerMl: 0.21,
     source: "USDA FoodData Central",
-    aliases: ["semisweet chocolate chips", "mini chocolate chips", "dark chocolate chips"]
+    aliases: ["marshmallows", "miniature marshmallows"]
   },
   "shredded-coconut": {
     name: "Shredded Coconut",
     category: "Nuts & Seeds",
-    gramsPerMl: 0.35,
-    source: "USDA FoodData Central",
+    gramsPerMl: 0.36,
+    source: "King Arthur Baking Weight Chart",
     aliases: ["desiccated coconut", "flaked coconut"]
   },
   "peanut-butter": {
     name: "Peanut Butter",
     category: "Nuts & Seeds",
-    gramsPerMl: 1.15,
+    gramsPerMl: 1.09,
     source: "USDA FoodData Central",
-    aliases: ["creamy peanut butter", "crunchy peanut butter", "nut butter"]
+    aliases: ["creamy peanut butter", "crunchy peanut butter", "almond butter", "tahini"]
   },
   nutella: {
     name: "Hazelnut Spread (Nutella)",
     category: "Nuts & Seeds",
     gramsPerMl: 1.25,
-    source: "USDA FoodData Central",
+    source: "FAO/INFOODS Density Database",
     aliases: ["nutella", "chocolate hazelnut spread"]
   },
 
@@ -510,14 +589,35 @@ export const DENSITY_TABLE: Record<string, DensityRecord> = {
   "soy-sauce": {
     name: "Soy Sauce",
     category: "Condiments & Flavorings",
+    gramsPerMl: 1.08,
+    source: "USDA FoodData Central",
+    aliases: ["tamari", "shoyu", "dark soy sauce", "worcestershire sauce"]
+  },
+  mayonnaise: {
+    name: "Mayonnaise",
+    category: "Condiments & Flavorings",
+    gramsPerMl: 0.94,
+    source: "USDA FoodData Central",
+    aliases: ["mayo"]
+  },
+  ketchup: {
+    name: "Ketchup / Barbecue Sauce",
+    category: "Condiments & Flavorings",
     gramsPerMl: 1.15,
     source: "USDA FoodData Central",
-    aliases: ["tamari", "shoyu", "dark soy sauce"]
+    aliases: ["barbecue sauce", "bbq sauce", "tomato ketchup"]
+  },
+  "dijon-mustard": {
+    name: "Mustard (Dijon / Yellow)",
+    category: "Condiments & Flavorings",
+    gramsPerMl: 1.05,
+    source: "USDA FoodData Central",
+    aliases: ["mustard", "yellow mustard", "whole grain mustard"]
   },
   "tomato-paste": {
     name: "Tomato Paste",
     category: "Condiments & Flavorings",
-    gramsPerMl: 1.15,
+    gramsPerMl: 1.11,
     source: "USDA FoodData Central",
     aliases: []
   },
@@ -533,7 +633,14 @@ export const DENSITY_TABLE: Record<string, DensityRecord> = {
     category: "Condiments & Flavorings",
     gramsPerMl: 1.01,
     source: "USDA FoodData Central",
-    aliases: ["cider vinegar", "acv"]
+    aliases: ["cider vinegar", "acv", "red wine vinegar", "rice vinegar"]
+  },
+  "balsamic-vinegar": {
+    name: "Balsamic Vinegar",
+    category: "Condiments & Flavorings",
+    gramsPerMl: 1.08,
+    source: "USDA FoodData Central",
+    aliases: ["aged balsamic vinegar"]
   },
   "white-vinegar": {
     name: "White Vinegar",
@@ -550,13 +657,42 @@ export const DENSITY_TABLE: Record<string, DensityRecord> = {
     aliases: ["fresh lemon juice", "lime juice"]
   },
   "vanilla-extract": {
-    name: "Vanilla Extract",
+    name: "Vanilla / Lemon Extract",
     category: "Condiments & Flavorings",
     gramsPerMl: 0.88,
     source: "USDA FoodData Central",
-    aliases: ["pure vanilla extract", "vanilla"]
+    aliases: ["pure vanilla extract", "vanilla", "lemon extract", "almond extract"]
   }
 };
+
+export function getEffectiveDensityTable(): Record<string, DensityRecord> {
+  const config = getConversionConfig();
+  const disabledSet = new Set(config.disabledDensities);
+  const merged: Record<string, DensityRecord> = {};
+
+  for (const [key, record] of Object.entries(DENSITY_TABLE)) {
+    if (!disabledSet.has(key)) {
+      merged[key] = record;
+    }
+  }
+
+  for (const [key, custom] of Object.entries(config.densities)) {
+    if (custom.disabled || disabledSet.has(key)) {
+      delete merged[key];
+      continue;
+    }
+    merged[key] = {
+      name: custom.name,
+      category: custom.category || "Custom",
+      gramsPerMl: custom.gramsPerMl,
+      source: custom.source || "User Override",
+      aliases: custom.aliases || [],
+      isCustom: true
+    };
+  }
+
+  return merged;
+}
 
 export function convertVolumeToGrams(volumeMl: number, gramsPerMl: number): number {
   return Math.round(volumeMl * gramsPerMl);
@@ -583,17 +719,42 @@ export function findIngredientDensity(
     return null;
   }
 
-  // Clean preparation notes and punctuation
   const clean = ingredientName
     .toLowerCase()
     .replace(/\(.*?\)/g, "")
     .replace(/[^a-z0-9\s-]/g, " ")
-    .replace(/\b(chopped|diced|minced|melted|softened|cold|warm|fresh|dried|crushed|sifted|packed|to taste)\b/g, "")
+    .replace(/\b(chopped|diced|minced|melted|softened|cold|warm|fresh|dried|crushed|sifted|packed|to taste|shredded|grated)\b/g, "")
+    .replace(/\s+/g, " ")
     .trim();
 
   if (!clean) return null;
 
-  // Check custom or built-in dictionary first
+  // Check user overrides / custom density definitions first
+  const config = getConversionConfig();
+  for (const [key, custom] of Object.entries(config.densities)) {
+    if (custom.disabled) continue;
+    const recName = custom.name.toLowerCase();
+    const keyName = key.replace(/-/g, " ");
+    if (clean === recName || clean === keyName || clean.includes(recName) || recName.includes(clean)) {
+      return {
+        gramsPerMl: custom.gramsPerMl,
+        source: custom.source || "User Override",
+        matchedName: custom.name
+      };
+    }
+    for (const alias of custom.aliases || []) {
+      const a = alias.toLowerCase();
+      if (a && (clean === a || clean.includes(a) || a.includes(clean))) {
+        return {
+          gramsPerMl: custom.gramsPerMl,
+          source: custom.source || "User Override",
+          matchedName: custom.name
+        };
+      }
+    }
+  }
+
+  // Check custom dictionary entries next
   if (extraDictionary && extraDictionary.length > 0) {
     const dictMatch = extraDictionary.find((item: DictionaryIngredient): boolean => {
       if (!item.gramsPerMl) return false;
@@ -614,8 +775,9 @@ export function findIngredientDensity(
     }
   }
 
-  // Check built-in density table
-  for (const [key, record] of Object.entries(DENSITY_TABLE)) {
+  // Check effective density table (built-in minus disabled + overrides)
+  const effectiveTable = getEffectiveDensityTable();
+  for (const [key, record] of Object.entries(effectiveTable)) {
     const recName = record.name.toLowerCase();
     const keyName = key.replace(/-/g, " ");
 
@@ -625,7 +787,8 @@ export function findIngredientDensity(
 
     if (record.aliases) {
       for (const alias of record.aliases) {
-        if (clean === alias || clean.includes(alias) || alias.includes(clean)) {
+        const a = alias.toLowerCase();
+        if (a && (clean === a || clean.includes(a) || a.includes(clean))) {
           return { gramsPerMl: record.gramsPerMl, source: record.source, matchedName: record.name };
         }
       }

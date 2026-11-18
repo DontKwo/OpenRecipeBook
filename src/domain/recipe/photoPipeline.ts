@@ -95,3 +95,23 @@ export async function processAndSavePhoto(
     height: heroHeight
   };
 }
+
+export function resolvePhotoUrl(photoId?: string): string | undefined {
+  if (!photoId) return undefined;
+  if (
+    photoId.startsWith("http://") ||
+    photoId.startsWith("https://") ||
+    photoId.startsWith("data:") ||
+    photoId.startsWith("blob:")
+  ) {
+    return photoId;
+  }
+
+  // Handle local bundled public recipe photo paths
+  if (photoId.startsWith("/recipe-photos/") || photoId.startsWith("./recipe-photos/") || photoId.startsWith("recipe-photos/")) {
+    const clean = photoId.replace(/^\.?\//, "");
+    return `./${clean}`;
+  }
+
+  return `/api/photos/${photoId}`;
+}

@@ -41,7 +41,7 @@ export function formatFractionalNumber(value: number, useVulgarFractions: boolea
 
   // Find matching cooking fraction within tolerance
   let closestFraction: CookingFraction | null = null;
-  let smallestDelta = 0.035;
+  let smallestDelta = 0.015;
 
   for (const fractionItem of COMMON_FRACTIONS) {
     const delta = Math.abs(fractionalPart - fractionItem.decimalValue);
@@ -202,4 +202,21 @@ export function formatQuantityValue(
     formattedQuantity,
     resolvedUnit
   };
+}
+
+export function parseScaleMultiplier(input: string): number | null {
+  const cleaned = input.trim().toLowerCase().replace(/x$/, "").trim();
+  if (!cleaned) return null;
+  if (cleaned.includes("/")) {
+    const parts = cleaned.split("/");
+    const num = parseFloat(parts[0]);
+    const den = parseFloat(parts[1]);
+    if (!isNaN(num) && !isNaN(den) && den !== 0) {
+      const val = num / den;
+      return val > 0 && val <= 50 ? Math.round(val * 100) / 100 : null;
+    }
+  }
+  const val = parseFloat(cleaned);
+  if (isNaN(val) || val <= 0 || val > 50) return null;
+  return Math.round(val * 100) / 100;
 }

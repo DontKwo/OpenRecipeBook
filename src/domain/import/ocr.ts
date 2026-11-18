@@ -4,8 +4,18 @@ export interface OcrParsedRecipe {
   directions: string[];
 }
 
+export function cleanOcrText(rawText: string): string {
+  return rawText
+    .replace(/\b[Il]\/([2-8])\b/g, "1/$1")
+    .replace(/\b([1-9])\s+[Il]\/([2-8])\b/g, "$1 1/$2")
+    .replace(/\b[Il]\s+(cups?|tbsp|tsp|oz|lb|cloves?|teaspoons?|tablespoons?)\b/gi, "1 $1")
+    .replace(/\bO\.(\d+)\b/g, "0.$1")
+    .replace(/^[|~*\u2022\-_]+\s*/gm, "");
+}
+
 export function splitOcrRecipeText(rawOcrText: string): OcrParsedRecipe {
-  const lines = rawOcrText
+  const cleanedText = cleanOcrText(rawOcrText);
+  const lines = cleanedText
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter(Boolean);

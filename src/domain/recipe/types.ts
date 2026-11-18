@@ -133,6 +133,18 @@ export interface Combo {
 
 export type UnitFamily = "volume" | "weight" | "count";
 
+export interface IngredientSubstitution {
+  targetIngredient: string;
+  substituteIngredient: string;
+  ratio: number;
+  amountNote?: string;
+  qualityGrade: "A+" | "A" | "B+" | "B" | "C" | "D";
+  why: string;
+  when: string;
+  how: string;
+  dietaryTags?: string[];
+}
+
 export interface DictionaryIngredient {
   id: string;
   name: string;
@@ -142,6 +154,7 @@ export interface DictionaryIngredient {
   unitFamily: UnitFamily;
   gramsPerMl?: number;
   densitySource?: string;
+  substitutions?: IngredientSubstitution[];
   user?: boolean;
 }
 
