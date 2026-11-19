@@ -1,634 +1,851 @@
-import { useState, useMemo, type FC, type ReactElement } from "react";
+import {
+  useState,
+  useMemo,
+  type FC,
+  type ReactElement,
+  type ChangeEvent
+} from "react";
 import type { Recipe, Collection } from "../../domain/recipe/types";
-import { CloseIcon, PrinterIcon } from "../../ui/icons";
+import {
+  generateCookbookHtml,
+  generateCookbookMarkdown,
+  generateCookbookText,
+  printCookbookDocument,
+  type CookbookOptions
+} from "../../domain/export/cookbookGenerator";
+import {
+  CloseIcon,
+  PrinterIcon,
+  DownloadIcon,
+  ChevronUp,
+  ChevronDown,
+  FolderIcon
+} from "../../ui/icons";
+import { Button, IconButton } from "../../ui/Button";
+import { useToast } from "../../ui/Toast";
 
 export interface CookbookBuilderModalProps {
   recipes: Recipe[];
   collections: Collection[];
+  initialCollectionId?: string;
   onClose: () => void;
 }
 
 export const CookbookBuilderModal: FC<CookbookBuilderModalProps> = ({
   recipes,
   collections,
+  initialCollectionId,
   onClose
 }): ReactElement => {
-  const [bookTitle, setBookTitle] = useState<string>("Family Recipe Cookbook");
-  const [bookSubtitle, setBookSubtitle] = useState<string>("Favorite recipes and kitchen traditions");
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set(recipes.map((r) => r.id)));
+  const { showToast } = useToast();
+
+  const initialFolder = collections.find((c) => c.id === initialCollectionId);
+
+  const [activeFolderId, setActiveFolderId] = useState<string>(initialCollectionId || "all");
+  const [bookTitle, setBookTitle] = useState<string>(
+    initialFolder ? `${initialFolder.name} Cookbook` : "My Recipe Collection"
+  );
+  const [bookSubtitle, setBookSubtitle] = useState<string>("Favorite kitchen recipes and traditions");
+  const [bookAuthor, setBookAuthor] = useState<string>("The Home Chef");
+
+  // Selection & Ordering
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => {
+    if (initialCollectionId) {
+      const folderRecs = recipes.filter((r) => r.collectionIds?.includes(initialCollectionId));
+      return new Set(folderRecs.map((r) => r.id));
+    }
+    return new Set(recipes.map((r) => r.id));
+  });
+
+  const [orderedRecipeIds, setOrderedRecipeIds] = useState<string[]>(() => {
+    if (initialCollectionId) {
+      return recipes
+        .filter((r) => r.collectionIds?.includes(initialCollectionId))
+        .map((r) => r.id);
+    }
+    return recipes.map((r) => r.id);
+  });
+
+  // Customization Options
   const [includeCover, setIncludeCover] = useState<boolean>(true);
   const [includeToc, setIncludeToc] = useState<boolean>(true);
   const [includeNotes, setIncludeNotes] = useState<boolean>(true);
-  const [filterCourse, setFilterCourse] = useState<string>("All");
-  const [filterCollection, setFilterCollection] = useState<string>("All");
+  const [includeNutrition, setIncludeNutrition] = useState<boolean>(true);
+  const [includePhotos, setIncludePhotos] = useState<boolean>(true);
+  const [twoColumnLayout, setTwoColumnLayout] = useState<boolean>(true);
+  const [pageBreakAfterRecipe, setPageBreakAfterRecipe] = useState<boolean>(true);
+  const [fontSize, setFontSize] = useState<"compact" | "standard" | "large">("standard");
+  const [searchFilter, setSearchFilter] = useState<string>("");
 
-  const filteredRecipes = useMemo(() => {
-    return recipes.filter((r) => {
-      const matchCourse = filterCourse === "All" || r.courses.includes(filterCourse);
-      const matchCollection = filterCollection === "All" || r.collectionIds.includes(filterCollection);
-      return matchCourse && matchCollection;
-    });
-  }, [recipes, filterCourse, filterCollection]);
+  const handleFolderChange = (e: ChangeEvent<HTMLSelectElement>): void => {
+    const fId = e.target.value;
+    setActiveFolderId(fId);
 
-  const selectedRecipes = useMemo(() => {
-    return recipes.filter((r) => selectedIds.has(r.id));
-  }, [recipes, selectedIds]);
+    if (fId === "all") {
+      setBookTitle("My Recipe Collection");
+      const allIds = recipes.map((r) => r.id);
+      setSelectedIds(new Set(allIds));
+      setOrderedRecipeIds(allIds);
+      showToast(`Selected all ${recipes.length} recipes`);
+    } else {
+      const folder = collections.find((c) => c.id === fId);
+      if (folder) {
+        setBookTitle(`${folder.name} Cookbook`);
+        const folderRecs = recipes.filter((r) => r.collectionIds?.includes(fId));
+        const fIds = folderRecs.map((r) => r.id);
+        setSelectedIds(new Set(fIds));
+        setOrderedRecipeIds(fIds);
+        showToast(`Selected ${fIds.length} recipes from "${folder.name}"`);
+      }
+    }
+  };
 
   const toggleRecipe = (id: string): void => {
-    const next = new Set(selectedIds);
-    if (next.has(id)) {
-      next.delete(id);
+    const nextSet = new Set(selectedIds);
+    if (nextSet.has(id)) {
+      nextSet.delete(id);
+      setOrderedRecipeIds((prev) => prev.filter((rId) => rId !== id));
     } else {
-      next.add(id);
+      nextSet.add(id);
+      setOrderedRecipeIds((prev) => [...prev, id]);
     }
-    setSelectedIds(next);
+    setSelectedIds(nextSet);
   };
 
   const selectAll = (): void => {
-    setSelectedIds(new Set(recipes.map((r) => r.id)));
+    const allIds = recipes.map((r) => r.id);
+    setSelectedIds(new Set(allIds));
+    setOrderedRecipeIds(allIds);
   };
 
   const selectNone = (): void => {
     setSelectedIds(new Set());
+    setOrderedRecipeIds([]);
   };
+
+  const moveRecipe = (index: number, direction: "up" | "down"): void => {
+    const targetIdx = direction === "up" ? index - 1 : index + 1;
+    if (targetIdx < 0 || targetIdx >= orderedRecipeIds.length) return;
+    const next = [...orderedRecipeIds];
+    const temp = next[index];
+    next[index] = next[targetIdx];
+    next[targetIdx] = temp;
+    setOrderedRecipeIds(next);
+  };
+
+  const sortAlphabetical = (): void => {
+    const sorted = [...orderedRecipeIds].sort((aId, bId) => {
+      const a = recipes.find((r) => r.id === aId)?.title || "";
+      const b = recipes.find((r) => r.id === bId)?.title || "";
+      return a.localeCompare(b);
+    });
+    setOrderedRecipeIds(sorted);
+    showToast("Sorted recipes A-Z");
+  };
+
+  const sortCourse = (): void => {
+    const sorted = [...orderedRecipeIds].sort((aId, bId) => {
+      const a = recipes.find((r) => r.id === aId)?.courses[0] || "Z";
+      const b = recipes.find((r) => r.id === bId)?.courses[0] || "Z";
+      return a.localeCompare(b);
+    });
+    setOrderedRecipeIds(sorted);
+    showToast("Sorted recipes by course");
+  };
+
+  const selectedRecipes: Recipe[] = useMemo(() => {
+    const recipeMap = new Map(recipes.map((r) => [r.id, r]));
+    const list: Recipe[] = [];
+    for (const id of orderedRecipeIds) {
+      if (selectedIds.has(id)) {
+        const found = recipeMap.get(id);
+        if (found) list.push(found);
+      }
+    }
+    return list;
+  }, [recipes, orderedRecipeIds, selectedIds]);
+
+  const currentOptions: CookbookOptions = useMemo(
+    () => ({
+      title: bookTitle.trim() || "My Cookbook",
+      subtitle: bookSubtitle.trim(),
+      author: bookAuthor.trim(),
+      includeCover,
+      includeToc,
+      includeNotes,
+      includeNutrition,
+      includePhotos,
+      twoColumnLayout,
+      pageBreakAfterRecipe,
+      fontSize
+    }),
+    [
+      bookTitle,
+      bookSubtitle,
+      bookAuthor,
+      includeCover,
+      includeToc,
+      includeNotes,
+      includeNutrition,
+      includePhotos,
+      twoColumnLayout,
+      pageBreakAfterRecipe,
+      fontSize
+    ]
+  );
 
   const handlePrint = (): void => {
-    window.print();
+    if (selectedRecipes.length === 0) {
+      showToast("Select at least 1 recipe to print");
+      return;
+    }
+    printCookbookDocument(selectedRecipes, currentOptions);
   };
 
-  const handleExportHtml = (): void => {
-    const htmlContent = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <title>${bookTitle}</title>
-  <style>
-    body { font-family: Georgia, serif; line-height: 1.5; color: #222; margin: 40px; }
-    h1, h2, h3 { font-family: Georgia, serif; }
-    .cover { text-align: center; padding-top: 100px; page-break-after: always; break-after: page; }
-    .toc { page-break-after: always; break-after: page; margin-bottom: 40px; }
-    .recipe { page-break-after: always; break-after: page; margin-bottom: 40px; }
-    .meta { color: #666; font-size: 0.95em; margin-bottom: 16px; }
-    .grid { display: flex; gap: 32px; }
-    .col { flex: 1; }
-    ul, ol { padding-left: 20px; }
-    li { margin-bottom: 6px; }
-    @media print {
-      body { margin: 0; }
+  const handleDownload = (format: "html" | "md" | "txt"): void => {
+    if (selectedRecipes.length === 0) {
+      showToast("Select at least 1 recipe to export");
+      return;
     }
-  </style>
-</head>
-<body>
-  ${includeCover ? `
-  <div class="cover">
-    <h1 style="font-size: 3rem; margin-bottom: 8px;">${bookTitle}</h1>
-    <p style="font-size: 1.3rem; color: #555;">${bookSubtitle}</p>
-    <p style="margin-top: 60px; font-size: 0.95rem; color: #888;">${selectedRecipes.length} recipes included</p>
-  </div>` : ""}
+    let content = "";
+    let mimeType = "";
+    let ext = "";
 
-  ${includeToc ? `
-  <div class="toc">
-    <h2>Table of Contents</h2>
-    <ol>
-      ${selectedRecipes.map((r) => `<li><strong>${r.title}</strong> (${r.courses.join(", ") || "General"})</li>`).join("")}
-    </ol>
-  </div>` : ""}
+    if (format === "html") {
+      content = generateCookbookHtml(selectedRecipes, currentOptions);
+      mimeType = "text/html;charset=utf-8";
+      ext = "html";
+    } else if (format === "md") {
+      content = generateCookbookMarkdown(selectedRecipes, currentOptions);
+      mimeType = "text/markdown;charset=utf-8";
+      ext = "md";
+    } else {
+      content = generateCookbookText(selectedRecipes, currentOptions);
+      mimeType = "text/plain;charset=utf-8";
+      ext = "txt";
+    }
 
-  ${selectedRecipes.map((r) => `
-  <div class="recipe">
-    <h2>${r.title}</h2>
-    <div class="meta">
-      ${r.courses.join(", ") ? `Course: ${r.courses.join(", ")} | ` : ""}
-      Servings: ${r.servings}
-      ${r.prepMinutes ? ` | Prep: ${r.prepMinutes} min` : ""}
-      ${r.cookMinutes ? ` | Cook: ${r.cookMinutes} min` : ""}
-    </div>
-    ${r.description ? `<p style="font-style: italic;">${r.description}</p>` : ""}
-    <div class="grid">
-      <div class="col">
-        <h3>Ingredients</h3>
-        ${r.ingredientGroups.map((g) => `
-          ${g.heading ? `<h4>${g.heading}</h4>` : ""}
-          <ul>${g.items.map((i) => `<li>${i.raw}</li>`).join("")}</ul>
-        `).join("")}
-      </div>
-      <div class="col">
-        <h3>Directions</h3>
-        ${r.directionGroups.map((g) => `
-          ${g.heading ? `<h4>${g.heading}</h4>` : ""}
-          <ol>${g.steps.map((s) => `<li>${s.text}</li>`).join("")}</ol>
-        `).join("")}
-      </div>
-    </div>
-    ${includeNotes && r.notes ? `<div style="margin-top: 20px;"><h3>Notes</h3><p>${r.notes}</p></div>` : ""}
-  </div>
-  `).join("")}
-</body>
-</html>`;
-
-    const blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
+    const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
+    const slug = currentOptions.title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
     link.href = url;
-    link.download = `${bookTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.html`;
+    link.download = `${slug}-cookbook.${ext}`;
     link.click();
     URL.revokeObjectURL(url);
+    showToast(`Exported ${currentOptions.title} as .${ext}`);
   };
+
+  const visibleRecipeIds = useMemo(() => {
+    if (!searchFilter.trim()) return orderedRecipeIds;
+    const q = searchFilter.toLowerCase().trim();
+    return orderedRecipeIds.filter((rId) => {
+      const r = recipes.find((item) => item.id === rId);
+      return r && r.title.toLowerCase().includes(q);
+    });
+  }, [orderedRecipeIds, recipes, searchFilter]);
 
   return (
     <div
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0, 0, 0, 0.6)",
+        background: "rgba(0, 0, 0, 0.65)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         zIndex: 2000,
         padding: "var(--space-4)"
       }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Cookbook Builder & Folder Printing"
     >
       <div
         style={{
-          background: "var(--bg)",
+          background: "var(--surface)",
           borderRadius: "var(--radius-lg)",
-          maxWidth: "1100px",
+          maxWidth: "1250px",
           width: "100%",
-          maxHeight: "92vh",
+          height: "92vh",
           display: "flex",
           flexDirection: "column",
           boxShadow: "var(--shadow-lg)",
-          overflow: "hidden"
+          overflow: "hidden",
+          border: "1px solid var(--border)"
         }}
       >
-        {/* Modal Header */}
+        {/* Top Header */}
         <div
-          className="no-print"
           style={{
-            padding: "var(--space-4) var(--space-6)",
+            padding: "var(--space-3) var(--space-5)",
             borderBottom: "1px solid var(--border)",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            background: "var(--surface)"
+            background: "var(--surface-alt)",
+            flexWrap: "wrap",
+            gap: "var(--space-2)"
           }}
         >
-          <div>
-            <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "1.4rem" }}>
-              Cookbook Builder
-            </h2>
-            <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
-              Assemble recipes into a printable book or PDF document with page breaks
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
+            <FolderIcon width={22} height={22} style={{ color: "var(--accent)" }} />
+            <div>
+              <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "1.25rem", margin: 0 }}>
+                Cookbook & Folder Print Studio
+              </h2>
+              <div style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
+                Assemble folders into print-ready books, reorder recipes, customize layout, and export to PDF
+              </div>
             </div>
           </div>
-          <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "center" }}>
-            <button
-              type="button"
+
+          <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", flexWrap: "wrap" }}>
+            <Button
+              variant="primary"
+              size="sm"
+              icon={<PrinterIcon width={16} height={16} />}
               onClick={handlePrint}
-              style={{
-                background: "var(--accent)",
-                color: "var(--accent-contrast)",
-                border: "none",
-                padding: "8px 18px",
-                borderRadius: "var(--radius-full)",
-                fontWeight: 600,
-                fontSize: "0.9rem",
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px"
-              }}
             >
-              <PrinterIcon width={16} height={16} /> Print / Save as PDF
-            </button>
-            <button
-              type="button"
-              onClick={handleExportHtml}
-              style={{
-                background: "var(--surface)",
-                color: "var(--text)",
-                border: "1px solid var(--border)",
-                padding: "8px 16px",
-                borderRadius: "var(--radius-full)",
-                fontWeight: 500,
-                fontSize: "0.9rem",
-                cursor: "pointer"
-              }}
+              Print / Save PDF ({selectedRecipes.length})
+            </Button>
+
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<DownloadIcon width={15} height={15} />}
+              onClick={(): void => handleDownload("html")}
             >
-              Export HTML
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                background: "none",
-                border: "none",
-                padding: "8px",
-                cursor: "pointer",
-                color: "var(--muted)"
-              }}
+              HTML
+            </Button>
+
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<DownloadIcon width={15} height={15} />}
+              onClick={(): void => handleDownload("md")}
+            >
+              Markdown
+            </Button>
+
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<DownloadIcon width={15} height={15} />}
+              onClick={(): void => handleDownload("txt")}
+            >
+              Text
+            </Button>
+
+            <IconButton
+              variant="ghost"
+              size="sm"
+              icon={<CloseIcon width={18} height={18} />}
               aria-label="Close"
-            >
-              <CloseIcon width={20} height={20} />
-            </button>
+              onClick={onClose}
+            />
           </div>
         </div>
 
-        {/* Modal Body: Split between controls & book preview */}
-        <div style={{ display: "flex", flex: 1, overflow: "auto", flexWrap: "wrap" }}>
-          {/* Controls Sidebar */}
+        {/* Studio Body: Left Configuration Panel, Right Document Preview */}
+        <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+          {/* Settings & Reordering Sidebar */}
           <div
-            className="no-print"
             style={{
-              width: "min(100%, 340px)",
-              flex: "1 1 min(100%, 320px)",
+              width: "380px",
+              minWidth: "320px",
               borderRight: "1px solid var(--border)",
               padding: "var(--space-4)",
               overflowY: "auto",
-              background: "var(--surface)",
               display: "flex",
               flexDirection: "column",
-              gap: "var(--space-4)"
+              gap: "var(--space-4)",
+              background: "var(--surface)"
             }}
           >
+            {/* Folder selection */}
             <div>
-              <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "4px" }}>
-                Book Title
+              <label
+                htmlFor="cookbook-folder"
+                style={{ display: "block", fontSize: "0.8125rem", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}
+              >
+                Folder / Source
+              </label>
+              <select
+                id="cookbook-folder"
+                value={activeFolderId}
+                onChange={handleFolderChange}
+                style={{
+                  width: "100%",
+                  padding: "8px 10px",
+                  borderRadius: "var(--radius-sm)",
+                  border: "1px solid var(--border)",
+                  background: "var(--surface-alt)",
+                  fontWeight: 600
+                }}
+              >
+                <option value="all">All Recipes ({recipes.length})</option>
+                {collections.map((col) => {
+                  const count = recipes.filter((r) => r.collectionIds?.includes(col.id)).length;
+                  return (
+                    <option key={col.id} value={col.id}>
+                      {col.name} ({count} recipes)
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            {/* Book Details */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <label
+                htmlFor="book-title-input"
+                style={{ fontSize: "0.8125rem", fontWeight: 700, textTransform: "uppercase" }}
+              >
+                Book Title & Author
               </label>
               <input
+                id="book-title-input"
                 type="text"
+                placeholder="Book title..."
                 value={bookTitle}
-                onChange={(e) => setBookTitle(e.target.value)}
+                onChange={(e): void => setBookTitle(e.target.value)}
                 style={{
-                  width: "100%",
-                  padding: "8px",
+                  padding: "6px 10px",
                   borderRadius: "var(--radius-sm)",
                   border: "1px solid var(--border)"
                 }}
               />
-            </div>
-
-            <div>
-              <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "4px" }}>
-                Subtitle
-              </label>
               <input
                 type="text"
+                placeholder="Subtitle (e.g. Holiday traditions)..."
                 value={bookSubtitle}
-                onChange={(e) => setBookSubtitle(e.target.value)}
+                onChange={(e): void => setBookSubtitle(e.target.value)}
                 style={{
-                  width: "100%",
-                  padding: "8px",
+                  padding: "6px 10px",
                   borderRadius: "var(--radius-sm)",
-                  border: "1px solid var(--border)"
+                  border: "1px solid var(--border)",
+                  fontSize: "0.875rem"
+                }}
+              />
+              <input
+                type="text"
+                placeholder="Author / Chef name..."
+                value={bookAuthor}
+                onChange={(e): void => setBookAuthor(e.target.value)}
+                style={{
+                  padding: "6px 10px",
+                  borderRadius: "var(--radius-sm)",
+                  border: "1px solid var(--border)",
+                  fontSize: "0.875rem"
                 }}
               />
             </div>
 
-            <div>
-              <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "6px" }}>
-                Sections to Include
-              </label>
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "0.9rem" }}>
-                <label style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <input
-                    type="checkbox"
-                    checked={includeCover}
-                    onChange={(e) => setIncludeCover(e.target.checked)}
-                  />
-                  Cover Page
-                </label>
-                <label style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <input
-                    type="checkbox"
-                    checked={includeToc}
-                    onChange={(e) => setIncludeToc(e.target.checked)}
-                  />
-                  Table of Contents
-                </label>
-                <label style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <input
-                    type="checkbox"
-                    checked={includeNotes}
-                    onChange={(e) => setIncludeNotes(e.target.checked)}
-                  />
-                  Cook's Notes
-                </label>
-              </div>
-            </div>
-
-            <div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                <label style={{ fontSize: "0.85rem", fontWeight: 600 }}>
-                  Recipes ({selectedIds.size} of {recipes.length})
-                </label>
-                <div style={{ display: "flex", gap: "6px", fontSize: "0.8rem" }}>
-                  <button
+            {/* Recipe Order & Reordering Section */}
+            <div style={{ borderTop: "1px solid var(--border)", paddingTop: "var(--space-3)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <span style={{ fontSize: "0.8125rem", fontWeight: 700, textTransform: "uppercase" }}>
+                  Recipe Order ({selectedRecipes.length})
+                </span>
+                <div style={{ display: "flex", gap: 4 }}>
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={sortAlphabetical}
+                    style={{ padding: "2px 6px", fontSize: "0.75rem" }}
+                  >
+                    A-Z
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={sortCourse}
+                    style={{ padding: "2px 6px", fontSize: "0.75rem" }}
+                  >
+                    Course
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
                     onClick={selectAll}
-                    style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", padding: 0 }}
+                    style={{ padding: "2px 6px", fontSize: "0.75rem" }}
                   >
                     All
-                  </button>
-                  <span>|</span>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="sm"
                     onClick={selectNone}
-                    style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", padding: 0 }}
+                    style={{ padding: "2px 6px", fontSize: "0.75rem" }}
                   >
                     None
-                  </button>
+                  </Button>
                 </div>
               </div>
 
-              <select
-                value={filterCourse}
-                onChange={(e) => setFilterCourse(e.target.value)}
+              {/* Search candidate filter */}
+              <input
+                type="text"
+                placeholder="Filter recipes..."
+                value={searchFilter}
+                onChange={(e): void => setSearchFilter(e.target.value)}
                 style={{
                   width: "100%",
-                  padding: "6px",
-                  marginBottom: "8px",
+                  padding: "4px 8px",
+                  fontSize: "0.8125rem",
+                  marginBottom: 6,
                   borderRadius: "var(--radius-sm)",
-                  border: "1px solid var(--border)",
-                  fontSize: "0.85rem"
+                  border: "1px solid var(--border)"
                 }}
-              >
-                <option value="All">All Courses</option>
-                <option value="Breakfast">Breakfast</option>
-                <option value="Lunch">Lunch</option>
-                <option value="Dinner">Dinner</option>
-                <option value="Dessert">Dessert</option>
-                <option value="Snack">Snack</option>
-                <option value="Drink">Drink</option>
-              </select>
-
-              {collections.length > 0 && (
-                <select
-                  value={filterCollection}
-                  onChange={(e) => setFilterCollection(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "6px",
-                    marginBottom: "8px",
-                    borderRadius: "var(--radius-sm)",
-                    border: "1px solid var(--border)",
-                    fontSize: "0.85rem"
-                  }}
-                >
-                  <option value="All">All Collections</option>
-                  {collections.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              )}
+              />
 
               <div
                 style={{
-                  maxHeight: "260px",
+                  maxHeight: "220px",
                   overflowY: "auto",
                   border: "1px solid var(--border)",
                   borderRadius: "var(--radius-sm)",
-                  padding: "4px"
+                  padding: "4px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 2
                 }}
               >
-                {filteredRecipes.map((r) => (
-                  <label
-                    key={r.id}
+                {visibleRecipeIds.map((rId) => {
+                  const r = recipes.find((item) => item.id === rId);
+                  if (!r) return null;
+                  const isChecked = selectedIds.has(rId);
+                  const realIdx = orderedRecipeIds.indexOf(rId);
+
+                  return (
+                    <div
+                      key={rId}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "4px 6px",
+                        borderRadius: "var(--radius-sm)",
+                        background: isChecked ? "var(--surface-alt)" : "transparent",
+                        borderBottom: "1px solid var(--border-subtle)",
+                        fontSize: "0.8125rem"
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={(): void => toggleRecipe(rId)}
+                      />
+                      <span
+                        style={{
+                          flex: 1,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          textDecoration: isChecked ? "none" : "line-through",
+                          opacity: isChecked ? 1 : 0.5
+                        }}
+                      >
+                        {realIdx + 1}. {r.title}
+                      </span>
+
+                      <div style={{ display: "flex", gap: 2 }}>
+                        <button
+                          type="button"
+                          disabled={realIdx <= 0}
+                          onClick={(): void => moveRecipe(realIdx, "up")}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            cursor: realIdx <= 0 ? "default" : "pointer",
+                            opacity: realIdx <= 0 ? 0.25 : 0.8,
+                            padding: 2
+                          }}
+                          aria-label={`Move ${r.title} up`}
+                        >
+                          <ChevronUp width={14} height={14} />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={realIdx < 0 || realIdx >= orderedRecipeIds.length - 1}
+                          onClick={(): void => moveRecipe(realIdx, "down")}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            cursor: realIdx < 0 || realIdx >= orderedRecipeIds.length - 1 ? "default" : "pointer",
+                            opacity: realIdx < 0 || realIdx >= orderedRecipeIds.length - 1 ? 0.25 : 0.8,
+                            padding: 2
+                          }}
+                          aria-label={`Move ${r.title} down`}
+                        >
+                          <ChevronDown width={14} height={14} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Layout & Print Customization Options */}
+            <div style={{ borderTop: "1px solid var(--border)", paddingTop: "var(--space-3)" }}>
+              <span style={{ fontSize: "0.8125rem", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: 6 }}>
+                Layout & Content Options
+              </span>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: "0.875rem" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={includeCover}
+                    onChange={(e): void => setIncludeCover(e.target.checked)}
+                  />
+                  Cover Page
+                </label>
+
+                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={includeToc}
+                    onChange={(e): void => setIncludeToc(e.target.checked)}
+                  />
+                  Table of Contents
+                </label>
+
+                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={includePhotos}
+                    onChange={(e): void => setIncludePhotos(e.target.checked)}
+                  />
+                  Include Recipe Photos
+                </label>
+
+                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={includeNotes}
+                    onChange={(e): void => setIncludeNotes(e.target.checked)}
+                  />
+                  Include Cook&apos;s Notes
+                </label>
+
+                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={includeNutrition}
+                    onChange={(e): void => setIncludeNutrition(e.target.checked)}
+                  />
+                  Include Nutrition Facts
+                </label>
+
+                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={twoColumnLayout}
+                    onChange={(e): void => setTwoColumnLayout(e.target.checked)}
+                  />
+                  2-Column Layout (Ingredients Left)
+                </label>
+
+                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={pageBreakAfterRecipe}
+                    onChange={(e): void => setPageBreakAfterRecipe(e.target.checked)}
+                  />
+                  Start Each Recipe on Fresh Page
+                </label>
+
+                <div style={{ marginTop: 4 }}>
+                  <label htmlFor="cookbook-font-size" style={{ display: "block", fontSize: "0.75rem", color: "var(--muted)", marginBottom: 2 }}>
+                    Typography Size
+                  </label>
+                  <select
+                    id="cookbook-font-size"
+                    value={fontSize}
+                    onChange={(e): void => setFontSize(e.target.value as "compact" | "standard" | "large")}
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      padding: "6px 8px",
-                      fontSize: "0.85rem",
-                      cursor: "pointer",
-                      borderBottom: "1px solid var(--border-subtle)"
+                      width: "100%",
+                      padding: "4px 8px",
+                      borderRadius: "var(--radius-sm)",
+                      border: "1px solid var(--border)",
+                      fontSize: "0.8125rem"
                     }}
                   >
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.has(r.id)}
-                      onChange={() => toggleRecipe(r.id)}
-                    />
-                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {r.title}
-                    </span>
-                  </label>
-                ))}
+                    <option value="standard">Standard Print (11pt)</option>
+                    <option value="large">Large Print / Accessible (13pt)</option>
+                    <option value="compact">Compact / Paper Saver (9.5pt)</option>
+                  </select>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Document Preview Pane */}
           <div
-            id="cookbook-print-area"
             style={{
               flex: 1,
               overflowY: "auto",
               padding: "var(--space-8)",
-              background: "var(--bg)"
+              background: "var(--bg)",
+              display: "flex",
+              justifyContent: "center"
             }}
           >
-            {/* Cover Page */}
-            {includeCover && (
-              <div
-                className="page-break"
-                style={{
-                  minHeight: "450px",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  textAlign: "center",
-                  border: "2px solid var(--border)",
-                  borderRadius: "var(--radius-md)",
-                  padding: "var(--space-8)",
-                  marginBottom: "var(--space-8)",
-                  background: "var(--surface)"
-                }}
-              >
-                <h1
-                  style={{
-                    fontFamily: "var(--font-serif)",
-                    fontSize: "2.8rem",
-                    marginBottom: "var(--space-3)",
-                    color: "var(--text)"
-                  }}
-                >
-                  {bookTitle}
-                </h1>
-                <p style={{ fontSize: "1.2rem", color: "var(--muted)", maxWidth: "500px" }}>
-                  {bookSubtitle}
-                </p>
-                <div style={{ marginTop: "var(--space-8)", fontSize: "0.9rem", color: "var(--muted)" }}>
-                  {selectedRecipes.length} curated recipes
-                </div>
-              </div>
-            )}
-
-            {/* Table of Contents */}
-            {includeToc && (
-              <div
-                className="page-break"
-                style={{
-                  padding: "var(--space-6)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "var(--radius-md)",
-                  marginBottom: "var(--space-8)",
-                  background: "var(--surface)"
-                }}
-              >
-                <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "1.8rem", marginBottom: "var(--space-4)" }}>
-                  Table of Contents
-                </h2>
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  {selectedRecipes.map((r, index) => (
-                    <div
-                      key={r.id}
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        paddingBottom: "4px",
-                        borderBottom: "1px dotted var(--border)",
-                        fontSize: "0.95rem"
-                      }}
-                    >
-                      <span>
-                        {index + 1}. {r.title}
-                      </span>
-                      <span style={{ color: "var(--muted)" }}>
-                        {r.courses.join(", ") || "General"}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Recipe Pages */}
-            {selectedRecipes.map((r) => (
-              <div
-                key={r.id}
-                className="page-break avoid-break"
-                style={{
-                  padding: "var(--space-6)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "var(--radius-md)",
-                  marginBottom: "var(--space-8)",
-                  background: "var(--surface)"
-                }}
-              >
-                <h2
-                  style={{
-                    fontFamily: "var(--font-serif)",
-                    fontSize: "2rem",
-                    marginBottom: "var(--space-2)"
-                  }}
-                >
-                  {r.title}
-                </h2>
+            <div
+              style={{
+                maxWidth: "760px",
+                width: "100%",
+                background: "var(--surface)",
+                padding: "var(--space-8)",
+                boxShadow: "var(--shadow-md)",
+                borderRadius: "var(--radius-sm)",
+                border: "1px solid var(--border)",
+                boxSizing: "border-box"
+              }}
+            >
+              {/* Preview Cover */}
+              {includeCover && (
                 <div
                   style={{
+                    minHeight: "360px",
                     display: "flex",
-                    gap: "var(--space-4)",
-                    color: "var(--muted)",
-                    fontSize: "0.9rem",
-                    marginBottom: "var(--space-4)",
-                    paddingBottom: "var(--space-3)",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    textAlign: "center",
+                    borderBottom: "2px dashed var(--border)",
+                    paddingBottom: "var(--space-8)",
+                    marginBottom: "var(--space-8)"
+                  }}
+                >
+                  <span style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.15em", color: "var(--muted)" }}>
+                    OpenRecipeBook Collection
+                  </span>
+                  <h1 style={{ fontFamily: "var(--font-serif)", fontSize: "2.4rem", margin: "12px 0 6px 0", color: "var(--accent)" }}>
+                    {currentOptions.title}
+                  </h1>
+                  {currentOptions.subtitle && (
+                    <p style={{ fontStyle: "italic", color: "var(--muted)", margin: "0 0 16px 0" }}>
+                      {currentOptions.subtitle}
+                    </p>
+                  )}
+                  <div style={{ width: "60px", height: "2px", background: "#ca6531", margin: "12px auto" }} />
+                  {currentOptions.author && (
+                    <p style={{ fontWeight: 600, fontSize: "0.9375rem", margin: "0 0 4px 0" }}>
+                      Curated by {currentOptions.author}
+                    </p>
+                  )}
+                  <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: 0 }}>
+                    {selectedRecipes.length} Recipes &bull; Ready to Print
+                  </p>
+                </div>
+              )}
+
+              {/* Preview Table of Contents */}
+              {includeToc && (
+                <div style={{ borderBottom: "1px solid var(--border)", paddingBottom: "var(--space-6)", marginBottom: "var(--space-6)" }}>
+                  <h3 style={{ fontFamily: "var(--font-serif)", fontSize: "1.3rem", margin: "0 0 12px 0" }}>
+                    Table of Contents
+                  </h3>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {selectedRecipes.map((r, idx) => (
+                      <div key={r.id} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.875rem" }}>
+                        <span>
+                          <strong>{idx + 1}.</strong> {r.title}
+                        </span>
+                        <span style={{ color: "var(--muted)", fontStyle: "italic" }}>
+                          {r.courses.join(", ") || "General"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Preview Recipe Pages */}
+              {selectedRecipes.map((r) => (
+                <article
+                  key={r.id}
+                  style={{
+                    paddingBottom: "var(--space-8)",
+                    marginBottom: "var(--space-8)",
                     borderBottom: "1px solid var(--border)"
                   }}
                 >
-                  <span>Servings: {r.servings}</span>
-                  {r.prepMinutes && <span>Prep: {r.prepMinutes} min</span>}
-                  {r.cookMinutes && <span>Cook: {r.cookMinutes} min</span>}
-                  {r.courses.length > 0 && <span>Course: {r.courses.join(", ")}</span>}
-                </div>
-
-                {r.description && (
-                  <p style={{ fontStyle: "italic", marginBottom: "var(--space-4)", color: "var(--muted)" }}>
-                    {r.description}
-                  </p>
-                )}
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-6)" }}>
-                  {/* Ingredients */}
-                  <div>
-                    <h3
-                      style={{
-                        fontSize: "1.1rem",
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.05em",
-                        marginBottom: "var(--space-3)"
-                      }}
-                    >
-                      Ingredients
-                    </h3>
-                    {r.ingredientGroups.map((group, gIdx) => (
-                      <div key={gIdx} style={{ marginBottom: "var(--space-3)" }}>
-                        {group.heading && (
-                          <div style={{ fontWeight: 600, fontSize: "0.95rem", marginBottom: "4px" }}>
-                            {group.heading}
-                          </div>
-                        )}
-                        <ul style={{ paddingLeft: "20px", margin: 0 }}>
-                          {group.items.map((item) => (
-                            <li key={item.id} style={{ marginBottom: "4px", fontSize: "0.95rem" }}>
-                              {item.raw}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))}
+                  <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "1.6rem", margin: "0 0 4px 0" }}>
+                    {r.title}
+                  </h2>
+                  {r.description && (
+                    <p style={{ fontStyle: "italic", color: "var(--muted)", fontSize: "0.9rem", margin: "0 0 8px 0" }}>
+                      {r.description}
+                    </p>
+                  )}
+                  <div style={{ fontSize: "0.8125rem", color: "var(--muted)", marginBottom: "12px", borderBottom: "1px solid var(--border)", paddingBottom: 4 }}>
+                    <span>Servings: {r.servings}</span>
+                    {r.prepMinutes && <span> &bull; Prep: {r.prepMinutes}m</span>}
+                    {r.cookMinutes && <span> &bull; Cook: {r.cookMinutes}m</span>}
+                    {r.courses.length > 0 && <span> &bull; {r.courses.join(", ")}</span>}
                   </div>
 
-                  {/* Directions */}
-                  <div>
-                    <h3
-                      style={{
-                        fontSize: "1.1rem",
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.05em",
-                        marginBottom: "var(--space-3)"
-                      }}
-                    >
-                      Directions
-                    </h3>
-                    {r.directionGroups.map((group, gIdx) => (
-                      <div key={gIdx} style={{ marginBottom: "var(--space-3)" }}>
-                        {group.heading && (
-                          <div style={{ fontWeight: 600, fontSize: "0.95rem", marginBottom: "4px" }}>
-                            {group.heading}
-                          </div>
-                        )}
-                        <ol style={{ paddingLeft: "20px", margin: 0 }}>
-                          {group.steps.map((step) => (
-                            <li key={step.id} style={{ marginBottom: "8px", fontSize: "0.95rem" }}>
-                              {step.text}
-                            </li>
-                          ))}
-                        </ol>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {includeNotes && r.notes && (
                   <div
                     style={{
-                      marginTop: "var(--space-4)",
-                      paddingTop: "var(--space-3)",
-                      borderTop: "1px solid var(--border)",
-                      fontSize: "0.9rem"
+                      display: twoColumnLayout ? "grid" : "flex",
+                      gridTemplateColumns: twoColumnLayout ? "1fr 1.3fr" : undefined,
+                      flexDirection: twoColumnLayout ? undefined : "column",
+                      gap: "var(--space-6)"
                     }}
                   >
-                    <strong>Cook's Notes:</strong> {r.notes}
+                    <div>
+                      <h4 style={{ textTransform: "uppercase", fontSize: "0.8125rem", letterSpacing: "0.05em", color: "var(--accent)", margin: "0 0 6px 0" }}>
+                        Ingredients
+                      </h4>
+                      {r.ingredientGroups.map((g, gIdx) => (
+                        <div key={gIdx} style={{ marginBottom: 6 }}>
+                          {g.heading && <strong style={{ fontSize: "0.8125rem" }}>{g.heading}</strong>}
+                          <ul style={{ paddingLeft: "18px", margin: "2px 0 0 0", fontSize: "0.875rem" }}>
+                            {g.items.map((i) => (
+                              <li key={i.id} style={{ marginBottom: 2 }}>{i.raw}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div>
+                      <h4 style={{ textTransform: "uppercase", fontSize: "0.8125rem", letterSpacing: "0.05em", color: "var(--accent)", margin: "0 0 6px 0" }}>
+                        Directions
+                      </h4>
+                      {r.directionGroups.map((g, gIdx) => (
+                        <div key={gIdx} style={{ marginBottom: 6 }}>
+                          {g.heading && <strong style={{ fontSize: "0.8125rem" }}>{g.heading}</strong>}
+                          <ol style={{ paddingLeft: "18px", margin: "2px 0 0 0", fontSize: "0.875rem" }}>
+                            {g.steps.map((s) => (
+                              <li key={s.id} style={{ marginBottom: 4 }}>
+                                {s.text}
+                                {s.note && <em style={{ color: "var(--muted)" }}> ({s.note})</em>}
+                              </li>
+                            ))}
+                          </ol>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                )}
-              </div>
-            ))}
+
+                  {includeNotes && r.notes && (
+                    <div style={{ marginTop: "12px", paddingTop: "8px", borderTop: "1px dashed var(--border)", fontSize: "0.85rem", color: "var(--text)" }}>
+                      <strong>Cook&apos;s Notes:</strong> {r.notes}
+                    </div>
+                  )}
+                </article>
+              ))}
+            </div>
           </div>
         </div>
       </div>

@@ -82,22 +82,37 @@ export const CookModeView: FC<CookModeViewProps> = ({
   useEffect(() => {
     if (activeTimers.length === 0) return;
 
+    const playTimerChime = (): void => {
+      try {
+        const AudioCtx =
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const now = ctx.currentTime;
+        const notes = [523.25, 659.25, 783.99, 1046.5];
+        notes.forEach((freq: number, idx: number): void => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(freq, now + idx * 0.16);
+          gain.gain.setValueAtTime(0.2, now + idx * 0.16);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.16 + 0.35);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now + idx * 0.16);
+          osc.stop(now + idx * 0.16 + 0.38);
+        });
+      } catch {
+        // Ignore audio context errors
+      }
+    };
+
     const intervalId = window.setInterval((): void => {
       setActiveTimers((prev: ActiveTimer[]): ActiveTimer[] => {
         return prev.map((timer: ActiveTimer): ActiveTimer => {
           if (timer.remainingSeconds <= 1) {
-            try {
-              const audioCtx = new (window.AudioContext ||
-                (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
-              const osc = audioCtx.createOscillator();
-              osc.type = "sine";
-              osc.frequency.setValueAtTime(880, audioCtx.currentTime);
-              osc.connect(audioCtx.destination);
-              osc.start();
-              osc.stop(audioCtx.currentTime + 0.6);
-            } catch {
-              // Audio context not available
-            }
+            playTimerChime();
             return { ...timer, remainingSeconds: 0 };
           }
           return { ...timer, remainingSeconds: timer.remainingSeconds - 1 };
@@ -311,6 +326,32 @@ export const CookModeView: FC<CookModeViewProps> = ({
               ))}
             </div>
           )}
+
+          {/* Manual Quick Timers */}
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center", marginTop: "var(--space-3)", alignItems: "center" }}>
+            <span style={{ fontSize: "0.75rem", textTransform: "uppercase", fontWeight: 700, color: "var(--muted)", marginRight: 4 }}>
+              Quick Timers:
+            </span>
+            {[1, 3, 5, 10, 15].map((mins) => (
+              <button
+                key={mins}
+                type="button"
+                onClick={(): void => startTimer({ label: `${mins}m Timer`, seconds: mins * 60 })}
+                style={{
+                  background: "var(--surface-alt)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--radius-full)",
+                  padding: "3px 10px",
+                  fontSize: "0.8125rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  color: "var(--text)"
+                }}
+              >
+                +{mins}m
+              </button>
+            ))}
+          </div>
         </div>
       </main>
 

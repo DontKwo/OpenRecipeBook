@@ -571,12 +571,23 @@ export const SettingsView: FC<SettingsViewProps> = ({
 
       {/* About */}
       <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>About {BRAND.appName}</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-4)", marginBottom: "var(--space-3)" }}>
+          <img
+            src="./icon.png"
+            width={56}
+            height={56}
+            alt="OpenRecipeBook Logo"
+            style={{ borderRadius: "10px", boxShadow: "var(--shadow-sm)", objectFit: "contain" }}
+          />
+          <div>
+            <h2 className={styles.sectionTitle} style={{ margin: 0 }}>About {BRAND.appName}</h2>
+            <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: "4px 0 0" }}>
+              Package ID: <code>{BRAND.packageId}</code> · Version 0.1.0
+            </p>
+          </div>
+        </div>
         <p className={styles.sectionText}>
           {BRAND.tagline}. Free, local-first open-source cookbook under the MIT License.
-        </p>
-        <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: 0 }}>
-          Package ID: <code>{BRAND.packageId}</code> · Version 0.1.0
         </p>
       </section>
 

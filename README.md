@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo.png" alt="OpenRecipeBook Logo" width="220" />
+</p>
+
 # OpenRecipeBook
 
 OpenRecipeBook is a free, open-source personal cookbook application for Windows PC and Android. It provides a local-first recipe keeper modeled on commercial cookbook apps, without subscriptions, accounts, or paywalls.

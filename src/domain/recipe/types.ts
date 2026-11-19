@@ -110,6 +110,7 @@ export interface ShoppingItem {
   aisle: string;
   checked: boolean;
   recipeId?: string;
+  inPantry?: boolean;
 }
 
 export interface ShoppingList {

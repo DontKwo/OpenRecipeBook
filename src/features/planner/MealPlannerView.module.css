@@ -211,3 +211,15 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.mealCardDragging {
+  opacity: 0.35;
+  transform: scale(0.96);
+  border: 1px dashed var(--accent);
+}
+
+.slotBoxDropTarget {
+  border-color: var(--accent) !important;
+  background-color: var(--surface-alt) !important;
+  outline: 2px dashed var(--accent);
+}

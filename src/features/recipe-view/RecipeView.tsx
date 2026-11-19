@@ -24,6 +24,7 @@ import { parseScaleMultiplier } from "../../domain/scaling/formatQuantity";
 import { convertIngredientUnit } from "../../domain/scaling/universalConverter";
 import { getSubstitutionsForIngredient } from "../../domain/ingredients/substitutions";
 import { parseIngredient } from "../../domain/scaling/parseIngredient";
+import { printRecipeDocument } from "../../domain/export/printRecipe";
 import {
   ArrowLeft,
   EditIcon,
@@ -260,7 +261,7 @@ export const RecipeView: FC<RecipeViewProps> = ({
       id: "print-recipe",
       label: "Print",
       icon: <PrinterIcon width={18} height={18} />,
-      onClick: (): void => window.print()
+      onClick: (): void => printRecipeDocument(recipe)
     },
     {
       id: "duplicate-recipe",

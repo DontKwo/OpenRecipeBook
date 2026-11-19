@@ -28,6 +28,7 @@ import {
   UploadIcon,
   TrashIcon,
   BookOpenIcon,
+  ChefHatIcon,
   XIcon
 } from "../../ui/icons";
 import { Button, IconButton } from "../../ui/Button";
@@ -39,6 +40,7 @@ import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { FolderManagerModal } from "../collections/FolderManagerModal";
 import { AddRecipesToFolderModal } from "../collections/AddRecipesToFolderModal";
 import { RecipeFilterModal } from "./RecipeFilterModal";
+import { useToast } from "../../ui/Toast";
 import styles from "./RecipeLibrary.module.css";
 
 export interface RecipeLibraryProps {
@@ -57,7 +59,7 @@ export interface RecipeLibraryProps {
   onImportFile: () => void;
   onLoadSamples: () => void;
   onToggleFavorite: (recipeId: string) => void;
-  onOpenCookbookBuilder?: () => void;
+  onOpenCookbookBuilder?: (collectionId?: string) => void;
   onBatchDelete?: (recipeIds: string[]) => void;
   onBatchTag?: (recipeIds: string[], tag: string) => void;
   onBatchExport?: (recipeIds: string[]) => void;
@@ -82,6 +84,7 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
   onOpenCookbookBuilder,
   onBatchDelete
 }): ReactElement => {
+  const { showToast } = useToast();
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedCourse, setSelectedCourse] = useState<string>("");
   const [onlyFavorites, setOnlyFavorites] = useState<boolean>(false);
@@ -219,6 +222,18 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
     setIsMultiSelectMode(false);
   };
 
+  const handleSurpriseMe = (): void => {
+    const pool = filteredRecipes.length > 0 ? filteredRecipes : recipes;
+    if (pool.length === 0) {
+      showToast("No recipes available to pick from");
+      return;
+    }
+    const randomIndex = Math.floor(Math.random() * pool.length);
+    const chosen = pool[randomIndex];
+    onSelectRecipe(chosen.id);
+    showToast(`Picked "${chosen.title}"!`);
+  };
+
   if (recipes.length === 0) {
     return (
       <div style={{ textAlign: "center", padding: "var(--space-8) var(--space-4)", maxWidth: "480px", margin: "0 auto" }}>
@@ -332,6 +347,16 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
                 aria-label="Filters"
               >
                 {activeFilterCount > 0 ? `Filters (${activeFilterCount})` : "Filters"}
+              </Button>
+
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<ChefHatIcon width={15} height={15} />}
+                onClick={handleSurpriseMe}
+                title="Pick a random recipe"
+              >
+                Surprise Me
               </Button>
 
               {onOpenStorageModal && (
@@ -504,6 +529,17 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
             >
               Manage Folders
             </Button>
+            {onOpenCookbookBuilder && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                icon={<PrinterIcon width={15} height={15} />}
+                onClick={(): void => onOpenCookbookBuilder(activeCollection.id)}
+              >
+                Print Folder
+              </Button>
+            )}
             <Button
               type="button"
               variant="ghost"

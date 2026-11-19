@@ -1,10 +1,12 @@
 import {
   useState,
   useMemo,
+  useRef,
   type FC,
   type ReactElement,
   type ChangeEvent,
-  type FormEvent
+  type FormEvent,
+  type DragEvent
 } from "react";
 import type { MealPlanEntry, Recipe, SavedMenu, SavedMenuItem } from "../../domain/recipe/types";
 import {
@@ -103,6 +105,11 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
   const [showSaveWeekModal, setShowSaveWeekModal] = useState<boolean>(false);
   const [newMenuName, setNewMenuName] = useState<string>("");
   const [deletingMenu, setDeletingMenu] = useState<SavedMenu | null>(null);
+
+  // Drag and Drop & horizontal edge auto-scroll state
+  const weekGridWrapperRef = useRef<HTMLDivElement | null>(null);
+  const [draggedMealId, setDraggedMealId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ date: string; slot: string } | null>(null);
 
   // Recipe lookup map
   const recipeMap = useMemo((): Map<string, Recipe> => {
@@ -231,6 +238,53 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
     showToast(`Duplicated meal to ${moveSlot}`);
   };
 
+  const scoreRecipeForSlot = (recipe: Recipe, slot: string): number => {
+    const normSlot = slot.toLowerCase();
+    let score = 0;
+    const title = recipe.title.toLowerCase();
+    const courses = (recipe.courses || []).map((c: string): string => c.toLowerCase());
+    const tags = (recipe.tags || []).map((t: string): string => t.toLowerCase());
+    const collections = (recipe.collectionIds || []).map((c: string): string => c.toLowerCase());
+    const allText = `${title} ${courses.join(" ")} ${tags.join(" ")} ${collections.join(" ")}`;
+
+    if (normSlot.includes("breakfast") || normSlot.includes("brunch")) {
+      if (courses.includes("breakfast") || tags.includes("breakfast")) score += 30;
+      if (courses.includes("brunch") || tags.includes("brunch")) score += 20;
+      if (collections.some((c: string): boolean => c.includes("bread") || c.includes("drink"))) score += 15;
+      if (/\b(toast|egg|eggs|pancake|pancakes|waffle|waffles|oat|oats|oatmeal|bacon|sausage|roll|rolls|bread|muffin|muffins|bagel|smoothie|tea|coffee)\b/i.test(allText)) {
+        score += 20;
+      }
+      if (/\b(turkey|gravy|roast|hot chicken|tortilla soup|casserole)\b/i.test(allText)) {
+        score -= 30;
+      }
+    } else if (normSlot.includes("lunch")) {
+      if (courses.includes("lunch") || tags.includes("lunch")) score += 30;
+      if (courses.includes("soup") || tags.includes("soup") || title.includes("soup")) score += 20;
+      if (courses.includes("salad") || tags.includes("salad") || title.includes("salad")) score += 20;
+      if (courses.includes("sandwich") || tags.includes("sandwich")) score += 20;
+      if (/\b(queso|mac|wrap|bowl|burger|taco|soup|salad|rice|side|dip)\b/i.test(allText)) score += 15;
+    } else if (normSlot.includes("dinner")) {
+      if (courses.includes("dinner") || tags.includes("dinner")) score += 30;
+      if (courses.includes("main") || courses.includes("mains") || tags.includes("main")) score += 25;
+      if (courses.includes("entree") || tags.includes("entree")) score += 20;
+      if (/\b(chicken|turkey|potatoes|beef|pork|steak|roast|pasta|curry|salmon|fish|chili|mac)\b/i.test(allText)) score += 15;
+      if (courses.includes("dessert") || tags.includes("dessert") || title.includes("bars") || title.includes("loaf")) {
+        score -= 35;
+      }
+    } else if (normSlot.includes("snack")) {
+      if (courses.includes("snack") || tags.includes("snack")) score += 30;
+      if (courses.includes("appetizer") || courses.includes("appetizers") || tags.includes("appetizer")) score += 20;
+      if (courses.includes("dessert") || courses.includes("desserts") || tags.includes("dessert")) score += 20;
+      if (courses.includes("drinks") || tags.includes("drink") || tags.includes("drinks")) score += 20;
+      if (/\b(bars|cookie|cookies|dip|queso|chips|tea|drink|bite|bites|snack|bread|loaf)\b/i.test(allText)) score += 15;
+      if (/\b(turkey|roast|hot chicken)\b/i.test(allText)) score -= 25;
+    }
+
+    if (recipe.favorite) score += 5;
+    if (recipe.rating) score += recipe.rating;
+    return score;
+  };
+
   const handleSuggestPlan = (): void => {
     if (recipes.length === 0) return;
 
@@ -241,27 +295,20 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
     const newEntries: MealPlanEntry[] = [];
 
     for (const day of weekDays) {
-      for (const slot of ["Dinner", "Lunch", "Breakfast"]) {
+      for (const slot of slots) {
         const key = `${day.dateStr}__${slot}`;
         if (existingKeys.has(key)) continue;
 
-        let candidates = recipes.filter(
-          (r: Recipe): boolean => r.courses.includes(slot) && !usedRecipeIds.has(r.id)
-        );
-        if (candidates.length === 0) {
-          candidates = recipes.filter((r: Recipe): boolean => !usedRecipeIds.has(r.id));
-        }
-        if (candidates.length === 0) {
-          candidates = [...recipes];
+        let available = recipes.filter((r: Recipe): boolean => !usedRecipeIds.has(r.id));
+        if (available.length === 0) {
+          available = [...recipes];
         }
 
-        candidates.sort((a: Recipe, b: Recipe): number => {
-          if (a.favorite && !b.favorite) return -1;
-          if (!a.favorite && b.favorite) return 1;
-          return (b.rating || 0) - (a.rating || 0);
+        available.sort((a: Recipe, b: Recipe): number => {
+          return scoreRecipeForSlot(b, slot) - scoreRecipeForSlot(a, slot);
         });
 
-        const picked = candidates[0];
+        const picked = available[0];
         if (picked) {
           usedRecipeIds.add(picked.id);
           const entry: MealPlanEntry = {
@@ -285,8 +332,86 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
           onSaveEntry(entry);
         }
       }
-      showToast(`Scheduled ${newEntries.length} meals for this week`);
+      showToast(`Scheduled ${newEntries.length} slot-matched meals for this week`);
     }
+  };
+
+  const handleCopyPreviousWeek = (): void => {
+    const prevWeekMonday = new Date(currentWeekStart);
+    prevWeekMonday.setDate(prevWeekMonday.getDate() - 7);
+    const prevWeekEntries = filterEntriesForWeek(entries, prevWeekMonday);
+
+    if (prevWeekEntries.length === 0) {
+      showToast("No meals found in the previous week to copy");
+      return;
+    }
+
+    const newEntries: MealPlanEntry[] = prevWeekEntries.map((oldEntry: MealPlanEntry): MealPlanEntry => {
+      const oldDate = new Date(`${oldEntry.date}T00:00:00`);
+      const newDate = new Date(oldDate);
+      newDate.setDate(newDate.getDate() + 7);
+      const newDateStr = newDate.toISOString().split("T")[0];
+
+      return {
+        ...oldEntry,
+        id: `meal-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        date: newDateStr
+      };
+    });
+
+    if (onSaveMultipleEntries) {
+      onSaveMultipleEntries(newEntries);
+    } else {
+      for (const entry of newEntries) {
+        onSaveEntry(entry);
+      }
+    }
+    showToast(`Copied ${newEntries.length} meals from previous week`);
+  };
+
+  const handleDragOverWrapper = (e: DragEvent<HTMLDivElement>): void => {
+    const wrapper = weekGridWrapperRef.current;
+    if (!wrapper) return;
+    const rect = wrapper.getBoundingClientRect();
+    const mouseX = e.clientX;
+    const threshold = 75;
+
+    if (mouseX < rect.left + threshold) {
+      const intensity = Math.max(6, Math.min(24, Math.round((rect.left + threshold - mouseX) / 3)));
+      wrapper.scrollLeft -= intensity;
+    } else if (mouseX > rect.right - threshold) {
+      const intensity = Math.max(6, Math.min(24, Math.round((mouseX - (rect.right - threshold)) / 3)));
+      wrapper.scrollLeft += intensity;
+    }
+  };
+
+  const handleDropMeal = (targetDate: string, targetSlot: string): void => {
+    if (!draggedMealId) return;
+    const entry = entries.find((e: MealPlanEntry): boolean => e.id === draggedMealId);
+    if (!entry) {
+      setDraggedMealId(null);
+      setDropTarget(null);
+      return;
+    }
+
+    if (entry.date === targetDate && entry.slot === targetSlot) {
+      setDraggedMealId(null);
+      setDropTarget(null);
+      return;
+    }
+
+    const updated: MealPlanEntry = {
+      ...entry,
+      date: targetDate,
+      slot: targetSlot
+    };
+    onSaveEntry(updated);
+    setDraggedMealId(null);
+    setDropTarget(null);
+
+    const recipe = entry.recipeId ? recipeMap.get(entry.recipeId) : undefined;
+    const title = recipe ? recipe.title : entry.freeText || "Meal";
+    showToast(`Moved "${title}" to ${targetSlot}`);
   };
 
   const handleOpenSaveWeekModal = (): void => {
@@ -485,6 +610,12 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
                   disabled: recipes.length === 0
                 },
                 {
+                  id: "copy-prev",
+                  icon: <CopyIcon width={16} height={16} />,
+                  label: "Copy Previous Week",
+                  onClick: handleCopyPreviousWeek
+                },
+                {
                   id: "menus",
                   icon: <BookOpenIcon width={16} height={16} />,
                   label: `Saved Meal Plans (${savedMenus.length})`,
@@ -504,7 +635,11 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
 
       {/* Week Grid Mode */}
       {viewMode === "week" && (
-        <div className={styles.weekGridWrapper}>
+        <div
+          ref={weekGridWrapperRef}
+          className={styles.weekGridWrapper}
+          onDragOver={handleDragOverWrapper}
+        >
           <div className={styles.weekGrid}>
             {weekDays.map((day) => {
               const dayEntries = currentWeekEntries.filter((e: MealPlanEntry): boolean => e.date === day.dateStr);
@@ -521,21 +656,55 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
                   <div className={styles.daySlots}>
                     {slots.map((slotName: string): ReactElement => {
                       const slotEntries = dayEntries.filter((e: MealPlanEntry): boolean => e.slot === slotName);
+                      const isDropActive = dropTarget?.date === day.dateStr && dropTarget?.slot === slotName;
 
                       return (
-                        <div key={slotName} className={styles.slotBox}>
+                        <div
+                          key={slotName}
+                          className={`${styles.slotBox} ${isDropActive ? styles.slotBoxDropTarget : ""}`}
+                          onDragOver={(e): void => {
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = "move";
+                            handleDragOverWrapper(e);
+                          }}
+                          onDragEnter={(e): void => {
+                            e.preventDefault();
+                            setDropTarget({ date: day.dateStr, slot: slotName });
+                          }}
+                          onDragLeave={(e): void => {
+                            if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                            if (dropTarget?.date === day.dateStr && dropTarget?.slot === slotName) {
+                              setDropTarget(null);
+                            }
+                          }}
+                          onDrop={(e): void => {
+                            e.preventDefault();
+                            handleDropMeal(day.dateStr, slotName);
+                          }}
+                        >
                           <span className={styles.slotLabel}>{slotName}</span>
 
                           {slotEntries.map((entry: MealPlanEntry): ReactElement => {
                             const recipe = entry.recipeId ? recipeMap.get(entry.recipeId) : undefined;
                             const title = recipe ? recipe.title : entry.freeText || "Custom Meal";
+                            const isDragging = draggedMealId === entry.id;
 
                             return (
                               <div
                                 key={entry.id}
-                                className={styles.mealCard}
+                                className={`${styles.mealCard} ${isDragging ? styles.mealCardDragging : ""}`}
+                                draggable={true}
+                                onDragStart={(e): void => {
+                                  e.dataTransfer.setData("text/plain", entry.id);
+                                  e.dataTransfer.effectAllowed = "move";
+                                  setDraggedMealId(entry.id);
+                                }}
+                                onDragEnd={(): void => {
+                                  setDraggedMealId(null);
+                                  setDropTarget(null);
+                                }}
                                 onClick={(): void => handleOpenMealDetail(entry)}
-                                title="Click to move, duplicate, or delete"
+                                title="Drag to move to another day/slot, or click to edit"
                               >
                                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, fontWeight: 500 }}>
                                   {title} {entry.multiplier !== 1 && `(${entry.multiplier}x)`}

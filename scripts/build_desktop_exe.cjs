@@ -43,6 +43,7 @@ function getDesktopHostCSharpSource() {
   return `using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.IO;
 using System.IO.Compression;
 using System.Net;
@@ -255,6 +256,18 @@ namespace OpenRecipeBookHost
             using (Form keeper = new Form())
             {
                 keeper.Text = "OpenRecipeBook Desktop Host";
+                try
+                {
+                    byte[] icoBytes;
+                    if (Assets.TryGetValue("favicon.ico", out icoBytes))
+                    {
+                        using (MemoryStream ms = new MemoryStream(icoBytes))
+                        {
+                            keeper.Icon = new Icon(ms);
+                        }
+                    }
+                }
+                catch { }
                 keeper.Width = 420;
                 keeper.Height = 160;
                 keeper.StartPosition = FormStartPosition.CenterScreen;
@@ -834,12 +847,21 @@ function buildDesktopExe() {
 
   fs.writeFileSync(CS_FILE, getDesktopHostCSharpSource(), "utf8");
 
+  const icoPath = path.join(BUILD_DIR, "app.ico");
+  if (!fs.existsSync(icoPath)) {
+    const publicIco = path.join(ROOT_DIR, "public", "favicon.ico");
+    if (fs.existsSync(publicIco)) {
+      fs.copyFileSync(publicIco, icoPath);
+    }
+  }
+
   const cscPath = findCscPath();
   const cscArgs = [
     "/nologo",
     "/optimize+",
     "/target:winexe",
     `/out:${EXE_PRIMARY}`,
+    ...(fs.existsSync(icoPath) ? [`/win32icon:${icoPath}`] : []),
     `/resource:${ASSETS_ZIP},app-assets.zip`,
     "/reference:System.dll",
     "/reference:System.Core.dll",

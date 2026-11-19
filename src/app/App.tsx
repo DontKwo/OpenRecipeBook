@@ -3,6 +3,7 @@ import { db } from "../data/db";
 import type {
   Recipe,
   ShoppingList,
+  ShoppingItem,
   MealPlanEntry,
   Combo,
   DictionaryIngredient,
@@ -90,6 +91,7 @@ function AppContent(): ReactElement {
   const [activeCollectionId, setActiveCollectionId] = useState<string | null>(null);
   const [showUserIngredientsModal, setShowUserIngredientsModal] = useState<boolean>(false);
   const [showCookbookModal, setShowCookbookModal] = useState<boolean>(false);
+  const [cookbookInitialCollectionId, setCookbookInitialCollectionId] = useState<string | undefined>(undefined);
   const [showStorageModal, setShowStorageModal] = useState<boolean>(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState<boolean>(false);
   const [emptyTrashConfirmOpen, setEmptyTrashConfirmOpen] = useState<boolean>(false);
@@ -653,6 +655,29 @@ function AppContent(): ReactElement {
     setActiveTab("shopping");
   };
 
+  const handleAddTotalsToShoppingList = async (
+    totals: { text: string; aisle: string; quantity?: number; unit?: string }[]
+  ): Promise<void> => {
+    const primaryList = shoppingLists[0] || createDefaultShoppingList("Groceries");
+    const newItems: ShoppingItem[] = totals.map((t) => ({
+      id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      text: t.text,
+      aisle: t.aisle || "Other",
+      checked: false,
+      quantity: t.quantity ? { kind: "single", value: t.quantity } : undefined,
+      unit: t.unit
+    }));
+    const merged = mergeShoppingItems(primaryList.items, newItems);
+    const updated = { ...primaryList, items: merged };
+    await db.shoppingLists.put(updated);
+    await persistMetadataToStorage();
+    setShoppingLists((prev: ShoppingList[]): ShoppingList[] =>
+      prev.map((l: ShoppingList): ShoppingList => (l.id === updated.id ? updated : l))
+    );
+    showToast(`Added ${totals.length} combined ingredients to ${primaryList.name}`);
+    setActiveTab("shopping");
+  };
+
   const handleConfirmImport = async (
     selected: Recipe[],
     duplicateAction: "skip" | "replace" | "keepBoth"
@@ -693,7 +718,13 @@ function AppContent(): ReactElement {
       {/* Desktop Left Sidebar (>= 1024px) */}
       <aside className={styles.sidebar}>
         <div className={styles.brand}>
-          <BookOpenIcon className={styles.brandIcon} width={24} height={24} />
+          <img
+            src="./icon.png"
+            width={28}
+            height={28}
+            alt="OpenRecipeBook"
+            style={{ borderRadius: "6px", objectFit: "contain" }}
+          />
           <span>{BRAND.appName}</span>
         </div>
 
@@ -767,7 +798,13 @@ function AppContent(): ReactElement {
       {/* Tablet Icon Rail (768px - 1023px) */}
       <aside className={styles.iconRail}>
         <div className={styles.railBrand}>
-          <BookOpenIcon width={24} height={24} />
+          <img
+            src="./icon.png"
+            width={28}
+            height={28}
+            alt="OpenRecipeBook"
+            style={{ borderRadius: "6px", objectFit: "contain" }}
+          />
         </div>
 
         <Button
@@ -857,7 +894,10 @@ function AppContent(): ReactElement {
               await refreshAllData();
             }}
             onToggleFavorite={handleToggleFavorite}
-            onOpenCookbookBuilder={(): void => setShowCookbookModal(true)}
+            onOpenCookbookBuilder={(colId?: string): void => {
+              setCookbookInitialCollectionId(colId);
+              setShowCookbookModal(true);
+            }}
             onBatchDelete={handleBatchDelete}
             onBatchTag={handleBatchTag}
             onBatchExport={handleBatchExport}
@@ -914,7 +954,9 @@ function AppContent(): ReactElement {
         {activeTab === "totals" && (
           <IngredientTotalsView
             recipes={recipes}
+            collections={collections}
             combos={combos}
+            onAddTotalsToShoppingList={handleAddTotalsToShoppingList}
             onSaveCombo={async (combo: Combo): Promise<void> => {
               await db.combos.put(combo);
               await persistMetadataToStorage();
@@ -1176,7 +1218,11 @@ function AppContent(): ReactElement {
         <CookbookBuilderModal
           recipes={recipes}
           collections={collections}
-          onClose={(): void => setShowCookbookModal(false)}
+          initialCollectionId={cookbookInitialCollectionId}
+          onClose={(): void => {
+            setShowCookbookModal(false);
+            setCookbookInitialCollectionId(undefined);
+          }}
         />
       )}
 

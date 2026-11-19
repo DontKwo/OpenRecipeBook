@@ -7,7 +7,7 @@ import {
   sortAisleGroups,
   reorderAisles
 } from "../../domain/shopping/shoppingService";
-import { PlusIcon, SearchIcon, MoreIcon, ChevronUp, ChevronDown, CheckIcon } from "../../ui/icons";
+import { PlusIcon, SearchIcon, MoreIcon, ChevronUp, ChevronDown, CheckIcon, XIcon } from "../../ui/icons";
 import { Button, IconButton } from "../../ui/Button";
 import { Menu } from "../../ui/Menu";
 import { Dialog } from "../../ui/Dialog";
@@ -77,6 +77,21 @@ export const ShoppingListView: FC<ShoppingListViewProps> = ({
       },
       undoLabel: "Undo"
     });
+  };
+
+  const handleTogglePantry = (itemId: string): void => {
+    if (!currentList) return;
+    const targetItem = currentList.items.find((i: ShoppingItem): boolean => i.id === itemId);
+    if (!targetItem) return;
+    const nextInPantry = !targetItem.inPantry;
+    const updated = currentList.items.map((item: ShoppingItem): ShoppingItem => {
+      if (item.id === itemId) {
+        return { ...item, inPantry: nextInPantry, checked: nextInPantry ? false : item.checked };
+      }
+      return item;
+    });
+    onSaveList({ ...currentList, items: updated });
+    showToast(nextInPantry ? `Moved "${targetItem.text}" to Pantry` : `Moved "${targetItem.text}" to Grocery List`);
   };
 
   const handleMoveItemToList = (itemId: string, targetListId: string): void => {
@@ -241,9 +256,17 @@ export const ShoppingListView: FC<ShoppingListViewProps> = ({
     });
   }, [currentList, itemFilterQuery]);
 
+  const pantryItems = useMemo((): ShoppingItem[] => {
+    return displayedItems.filter((i: ShoppingItem): boolean => Boolean(i.inPantry));
+  }, [displayedItems]);
+
+  const activeGroceryItems = useMemo((): ShoppingItem[] => {
+    return displayedItems.filter((i: ShoppingItem): boolean => !i.inPantry);
+  }, [displayedItems]);
+
   const sortedAisleSections = useMemo((): Array<{ aisle: string; items: ShoppingItem[] }> => {
     const rawGroups: Record<string, ShoppingItem[]> = {};
-    for (const item of displayedItems) {
+    for (const item of activeGroceryItems) {
       const aisle = item.aisle || "Other";
       if (!rawGroups[aisle]) {
         rawGroups[aisle] = [];
@@ -299,6 +322,17 @@ export const ShoppingListView: FC<ShoppingListViewProps> = ({
           >
             <PlusIcon width={14} height={14} /> New
           </Button>
+
+          {checkedCount > 0 && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={handleClearChecked}
+            >
+              Clear Checked ({checkedCount})
+            </Button>
+          )}
 
           <Menu
             trigger={
@@ -467,6 +501,11 @@ export const ShoppingListView: FC<ShoppingListViewProps> = ({
                           onClick: (): void => handleStartInlineEdit(item)
                         },
                         {
+                          id: `pantry-${item.id}`,
+                          label: item.inPantry ? "Move to Grocery List" : "I Have This (Pantry)",
+                          onClick: (): void => handleTogglePantry(item.id)
+                        },
+                        {
                           id: `aisle-${item.id}`,
                           label: "Change Aisle",
                           onClick: (): void => setAislePickerItem(item)
@@ -495,6 +534,66 @@ export const ShoppingListView: FC<ShoppingListViewProps> = ({
           </div>
         );
       })}
+
+      {/* Pantry / Already Have Section */}
+      {pantryItems.length > 0 && (
+        <div
+          style={{
+            marginTop: "var(--space-6)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-md)",
+            background: "var(--surface-alt)",
+            padding: "var(--space-4)"
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+            <h3 style={{ margin: 0, fontSize: "0.9375rem", fontWeight: 700, color: "var(--muted)" }}>
+              Pantry Staples &bull; Already Have ({pantryItems.length})
+            </h3>
+            <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+              Excluded from grocery trip
+            </span>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            {pantryItems.map((item) => (
+              <div
+                key={item.id}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "6px 10px",
+                  background: "var(--surface)",
+                  borderRadius: "var(--radius-sm)",
+                  border: "1px solid var(--border)"
+                }}
+              >
+                <span style={{ color: "var(--muted)", textDecoration: "line-through", fontSize: "0.875rem" }}>
+                  {item.text}
+                </span>
+                <div style={{ display: "flex", gap: "4px" }}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    style={{ fontSize: "0.75rem", padding: "2px 8px" }}
+                    onClick={(): void => handleTogglePantry(item.id)}
+                  >
+                    Need to Buy &uarr;
+                  </Button>
+                  <IconButton
+                    icon={<XIcon width={14} height={14} />}
+                    size="sm"
+                    aria-label={`Delete ${item.text}`}
+                    onClick={(): void => handleDeleteItem(item.id)} // # noqa: 81
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* New List Dialog */}
       <Dialog

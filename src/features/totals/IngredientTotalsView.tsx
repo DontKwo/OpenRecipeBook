@@ -1,10 +1,10 @@
 import { useState, useMemo, type FC, type ReactElement, type FormEvent } from "react";
-import type { Recipe, Combo } from "../../domain/recipe/types";
+import type { Recipe, Combo, Collection } from "../../domain/recipe/types";
 import { computeIngredientTotals, type TotalsSelectionItem } from "../../domain/ingredients/totals";
 import { parseIngredient } from "../../domain/scaling/parseIngredient";
 import { BUILT_IN_INGREDIENTS } from "../../data/defaultIngredients";
 import { QuickUnitConverterModal } from "../recipe-view/QuickUnitConverterModal";
-import { ConvertIcon, XIcon, PlusIcon, MinusIcon } from "../../ui/icons";
+import { ConvertIcon, XIcon, PlusIcon, MinusIcon, ShoppingCartIcon, FolderIcon } from "../../ui/icons";
 import { Button, IconButton } from "../../ui/Button";
 import { RecipePicker } from "../../ui/RecipePicker";
 import { Dialog } from "../../ui/Dialog";
@@ -20,16 +20,22 @@ interface ActiveConversionTarget {
 
 export interface IngredientTotalsViewProps {
   recipes: Recipe[];
+  collections?: Collection[];
   combos?: Combo[];
   onSaveCombo?: (combo: Combo) => void;
   onDeleteCombo?: (comboId: string) => void;
+  onAddTotalsToShoppingList?: (
+    totals: { text: string; aisle: string; quantity?: number; unit?: string }[]
+  ) => void;
 }
 
 export const IngredientTotalsView: FC<IngredientTotalsViewProps> = ({
   recipes,
+  collections = [],
   combos = [],
   onSaveCombo,
-  onDeleteCombo
+  onDeleteCombo,
+  onAddTotalsToShoppingList
 }): ReactElement => {
   const { showToast } = useToast();
 
@@ -37,6 +43,7 @@ export const IngredientTotalsView: FC<IngredientTotalsViewProps> = ({
   const [expandedTraces, setExpandedTraces] = useState<Record<string, boolean>>({});
   const [newComboName, setNewComboName] = useState<string>("");
   const [showSaveComboModal, setShowSaveComboModal] = useState<boolean>(false);
+  const [showFolderModal, setShowFolderModal] = useState<boolean>(false);
   const [comboToDelete, setComboToDelete] = useState<Combo | null>(null);
   const [activeConverter, setActiveConverter] = useState<ActiveConversionTarget | null>(null);
   const [showPicker, setShowPicker] = useState<boolean>(false);
@@ -61,11 +68,49 @@ export const IngredientTotalsView: FC<IngredientTotalsViewProps> = ({
   };
 
   const handleSelectRecipeFromPicker = (recipe: Recipe): void => {
-    setSelectedMultipliers((prev: Record<string, number>): Record<string, number> => ({
-      ...prev,
-      [recipe.id]: (prev[recipe.id] || 0) + 1
-    }));
+    setSelectedMultipliers((prev: Record<string, number>): Record<string, number> => {
+      if (prev[recipe.id]) {
+        return prev;
+      }
+      return {
+        ...prev,
+        [recipe.id]: 1
+      };
+    });
     setShowPicker(false);
+  };
+
+  const handleAddFolder = (collectionId: string): void => {
+    const folderRecs = recipes.filter((r) => r.collectionIds?.includes(collectionId));
+    if (folderRecs.length === 0) {
+      showToast("This folder has no recipes");
+      return;
+    }
+    let addedCount = 0;
+    setSelectedMultipliers((prev) => {
+      const next = { ...prev };
+      for (const r of folderRecs) {
+        if (!next[r.id]) {
+          next[r.id] = 1;
+          addedCount++;
+        }
+      }
+      return next;
+    });
+    setShowFolderModal(false);
+    const folder = collections.find((c) => c.id === collectionId);
+    showToast(`Added ${addedCount} recipes from "${folder?.name || "Folder"}"`);
+  };
+
+  const handleAddToShoppingList = (): void => {
+    if (totalsResult.items.length === 0 || !onAddTotalsToShoppingList) return;
+    const items = totalsResult.items.map((item) => ({
+      text: `${item.totalDisplay} ${item.displayName}`,
+      aisle: item.aisle || "Other",
+      quantity: undefined,
+      unit: undefined
+    }));
+    onAddTotalsToShoppingList(items);
   };
 
   const selectionItems: TotalsSelectionItem[] = useMemo(() => {
@@ -206,6 +251,15 @@ export const IngredientTotalsView: FC<IngredientTotalsViewProps> = ({
               type="button"
               variant="secondary"
               size="sm"
+              icon={<FolderIcon width={14} height={14} />}
+              onClick={(): void => setShowFolderModal(true)}
+            >
+              Add Folder
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
               onClick={(): void => setShowPicker(!showPicker)}
             >
               <PlusIcon width={14} height={14} /> Add Recipe
@@ -278,6 +332,17 @@ export const IngredientTotalsView: FC<IngredientTotalsViewProps> = ({
             <h2 className={styles.sectionTitle}>
               Combined Ingredients ({totalsResult.items.length})
             </h2>
+            {onAddTotalsToShoppingList && (
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                icon={<ShoppingCartIcon width={15} height={15} />}
+                onClick={handleAddToShoppingList}
+              >
+                Add Totals to Shopping List ({totalsResult.items.length})
+              </Button>
+            )}
           </div>
 
           <div className={styles.totalsGrid}>
@@ -404,6 +469,64 @@ export const IngredientTotalsView: FC<IngredientTotalsViewProps> = ({
           </div>
         </form>
       </Dialog>
+
+      {/* Add Folder Modal */}
+      {showFolderModal && (
+        <Dialog
+          isOpen={true}
+          onClose={(): void => setShowFolderModal(false)}
+          title="Add Folder to Totals"
+        >
+          <p style={{ color: "var(--muted)", margin: "0 0 12px 0", fontSize: "0.875rem" }}>
+            Select a folder to aggregate all its recipes without duplicate additions.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "320px", overflowY: "auto", padding: "4px" }}>
+            {collections.length === 0 ? (
+              <p style={{ color: "var(--muted)", textAlign: "center", margin: "16px 0" }}>No folders created yet.</p>
+            ) : (
+              collections.map((col) => {
+                const count = recipes.filter((r) => r.collectionIds?.includes(col.id)).length;
+                return (
+                  <button
+                    key={col.id}
+                    type="button"
+                    onClick={(): void => handleAddFolder(col.id)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "10px 14px",
+                      borderRadius: "var(--radius-md)",
+                      border: "1px solid var(--border)",
+                      background: "var(--surface-alt)",
+                      cursor: "pointer",
+                      textAlign: "left"
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <FolderIcon width={18} height={18} style={{ color: "var(--accent)" }} />
+                      <div>
+                        <div style={{ fontWeight: 600, color: "var(--text)" }}>{col.name}</div>
+                        <div style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>{count} recipes</div>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--accent)" }}>Add &rarr;</span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "16px" }}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={(): void => setShowFolderModal(false)}
+            >
+              Cancel
+            </Button>
+          </div>
+        </Dialog>
+      )}
 
       {/* Delete Combo Confirm */}
       <ConfirmDialog
