@@ -52,7 +52,6 @@ export interface RecipeLibraryProps {
   onDeleteCollection?: (collectionId: string) => Promise<void> | void;
   onBatchAssignCollection?: (recipeIds: string[], collectionId: string) => void;
   onSaveFolderRecipes?: (collectionId: string, selectedRecipeIds: string[]) => Promise<void> | void;
-  onOpenStorageModal?: () => void;
   onUpdateRecipe?: (recipe: Recipe) => void;
   onSelectRecipe: (recipeId: string) => void;
   onNewRecipe: () => void;
@@ -75,7 +74,6 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
   onDeleteCollection,
   onBatchAssignCollection,
   onSaveFolderRecipes,
-  onOpenStorageModal,
   onSelectRecipe,
   onNewRecipe,
   onImportFile,
@@ -259,16 +257,6 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
           >
             Add a Recipe
           </Button>
-          {onOpenStorageModal && (
-            <Button
-              type="button"
-              variant="secondary"
-              icon={<FolderIcon width={16} height={16} />}
-              onClick={onOpenStorageModal}
-            >
-              Open Recipe Storage Folder
-            </Button>
-          )}
           <Button
             type="button"
             variant="ghost"
@@ -358,18 +346,6 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
               >
                 Surprise Me
               </Button>
-
-              {onOpenStorageModal && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  icon={<FolderIcon width={15} height={15} />}
-                  onClick={onOpenStorageModal}
-                  aria-label="Recipe storage folder"
-                >
-                  Storage
-                </Button>
-              )}
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
@@ -405,16 +381,6 @@ export const RecipeLibrary: FC<RecipeLibraryProps> = ({
                   />
                 }
                 items={[
-                  ...(onOpenStorageModal
-                    ? [
-                        {
-                          id: "storage",
-                          icon: <FolderIcon width={16} height={16} />,
-                          label: "Recipe Storage Folder",
-                          onClick: onOpenStorageModal
-                        }
-                      ]
-                    : []),
                   ...(onOpenCookbookBuilder
                     ? [
                         {

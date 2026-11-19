@@ -65,7 +65,7 @@ function createMockRecipe(id: string, title: string, course = "Dinner"): Recipe 
 }
 
 describe("Single Recipe Print Document", () => {
-  it("generates valid standalone HTML with meta and ingredients", () => {
+  it("generates valid standalone HTML with meta, ingredients, and print toolbar", () => {
     const recipe = createMockRecipe("test-1", "Fluffy Dinner Rolls", "Breads");
     const html = getRecipePrintHtml(recipe);
 
@@ -76,6 +76,9 @@ describe("Single Recipe Print Document", () => {
     expect(html).toContain("2 cups all-purpose flour");
     expect(html).toContain("Whisk flour and salt together");
     expect(html).toContain("Best served warm with salted butter.");
+    expect(html).toContain("print-toolbar");
+    expect(html).toContain("Save as PDF");
+    expect(html).toContain("window.print()");
   });
 });
 
@@ -100,7 +103,7 @@ describe("Cookbook Builder Generator", () => {
     createMockRecipe("rec-3", "Turkey Gravy", "Sauces")
   ];
 
-  it("generates complete HTML with cover, toc, and recipe sections", () => {
+  it("generates complete HTML with cover, toc, recipe sections, and print toolbar", () => {
     const html = generateCookbookHtml(recipes, sampleOptions);
 
     expect(html).toContain("Thanksgiving Feast Cookbook");
@@ -111,6 +114,9 @@ describe("Cookbook Builder Generator", () => {
     expect(html).toContain("Gordon Ramsay Potatoes");
     expect(html).toContain("Turkey Gravy");
     expect(html).toContain("page-break");
+    expect(html).toContain("print-toolbar");
+    expect(html).toContain("Save as PDF");
+    expect(html).toContain("window.print()");
   });
 
   it("generates clean Markdown cookbook", () => {

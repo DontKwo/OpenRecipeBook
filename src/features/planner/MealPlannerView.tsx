@@ -2,6 +2,7 @@ import {
   useState,
   useMemo,
   useRef,
+  useEffect,
   type FC,
   type ReactElement,
   type ChangeEvent,
@@ -17,8 +18,10 @@ import {
 import {
   calculateWeekMonday,
   createMealPlanEntry,
-  filterEntriesForWeek
+  filterEntriesForWeek,
+  matchesSlotCategory
 } from "../../domain/planner/plannerService";
+import { resolvePhotoUrl } from "../../domain/recipe/photoPipeline";
 import {
   ChevronLeft,
   ChevronRight,
@@ -29,7 +32,10 @@ import {
   MoreIcon,
   BookOpenIcon,
   BookmarkIcon,
-  CopyIcon
+  CopyIcon,
+  ChefHatIcon,
+  ClockIcon,
+  StarIcon
 } from "../../ui/icons";
 import { Button, IconButton } from "../../ui/Button";
 import { SegmentedControl } from "../../ui/SegmentedControl";
@@ -110,6 +116,48 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
   const weekGridWrapperRef = useRef<HTMLDivElement | null>(null);
   const [draggedMealId, setDraggedMealId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{ date: string; slot: string } | null>(null);
+  const autoScrollRafRef = useRef<number | null>(null);
+  const dragMouseXRef = useRef<number | null>(null);
+
+  const stopAutoScroll = (): void => {
+    if (autoScrollRafRef.current !== null) {
+      cancelAnimationFrame(autoScrollRafRef.current);
+      autoScrollRafRef.current = null;
+    }
+    dragMouseXRef.current = null;
+  };
+
+  const startAutoScroll = (): void => {
+    if (autoScrollRafRef.current !== null) return;
+
+    const tick = (): void => {
+      const wrapper = weekGridWrapperRef.current;
+      const mouseX = dragMouseXRef.current;
+      if (wrapper && mouseX !== null) {
+        const rect = wrapper.getBoundingClientRect();
+        const threshold = 120;
+
+        if (mouseX > rect.right - threshold) {
+          const dist = Math.min(threshold, mouseX - (rect.right - threshold));
+          const speed = Math.max(5, Math.round((dist / threshold) * 24));
+          wrapper.scrollLeft += speed;
+        } else if (mouseX < rect.left + threshold) {
+          const dist = Math.min(threshold, (rect.left + threshold) - mouseX);
+          const speed = Math.max(5, Math.round((dist / threshold) * 24));
+          wrapper.scrollLeft -= speed;
+        }
+      }
+      autoScrollRafRef.current = requestAnimationFrame(tick);
+    };
+
+    autoScrollRafRef.current = requestAnimationFrame(tick);
+  };
+
+  useEffect(() => {
+    return (): void => {
+      stopAutoScroll();
+    };
+  }, []);
 
   // Recipe lookup map
   const recipeMap = useMemo((): Map<string, Recipe> => {
@@ -123,7 +171,7 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
 
   // 7 days of current week
   const weekDays = useMemo(() => {
-    const days: { dateStr: string; label: string; dayName: string; isToday: boolean }[] = [];
+    const days: { dateStr: string; label: string; dayName: string; isToday: boolean; dateNumber: number }[] = [];
     const todayStr = new Date().toISOString().split("T")[0];
     for (let index = 0; index < 7; index += 1) {
       const d = new Date(currentWeekStart);
@@ -131,7 +179,7 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
       const dateStr = d.toISOString().split("T")[0];
       const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
       const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-      days.push({ dateStr, label, dayName, isToday: dateStr === todayStr });
+      days.push({ dateStr, label, dayName, isToday: dateStr === todayStr, dateNumber: d.getDate() });
     }
     return days;
   }, [currentWeekStart]);
@@ -238,77 +286,60 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
     showToast(`Duplicated meal to ${moveSlot}`);
   };
 
-  const scoreRecipeForSlot = (recipe: Recipe, slot: string): number => {
-    const normSlot = slot.toLowerCase();
-    let score = 0;
-    const title = recipe.title.toLowerCase();
-    const courses = (recipe.courses || []).map((c: string): string => c.toLowerCase());
-    const tags = (recipe.tags || []).map((t: string): string => t.toLowerCase());
-    const collections = (recipe.collectionIds || []).map((c: string): string => c.toLowerCase());
-    const allText = `${title} ${courses.join(" ")} ${tags.join(" ")} ${collections.join(" ")}`;
-
-    if (normSlot.includes("breakfast") || normSlot.includes("brunch")) {
-      if (courses.includes("breakfast") || tags.includes("breakfast")) score += 30;
-      if (courses.includes("brunch") || tags.includes("brunch")) score += 20;
-      if (collections.some((c: string): boolean => c.includes("bread") || c.includes("drink"))) score += 15;
-      if (/\b(toast|egg|eggs|pancake|pancakes|waffle|waffles|oat|oats|oatmeal|bacon|sausage|roll|rolls|bread|muffin|muffins|bagel|smoothie|tea|coffee)\b/i.test(allText)) {
-        score += 20;
-      }
-      if (/\b(turkey|gravy|roast|hot chicken|tortilla soup|casserole)\b/i.test(allText)) {
-        score -= 30;
-      }
-    } else if (normSlot.includes("lunch")) {
-      if (courses.includes("lunch") || tags.includes("lunch")) score += 30;
-      if (courses.includes("soup") || tags.includes("soup") || title.includes("soup")) score += 20;
-      if (courses.includes("salad") || tags.includes("salad") || title.includes("salad")) score += 20;
-      if (courses.includes("sandwich") || tags.includes("sandwich")) score += 20;
-      if (/\b(queso|mac|wrap|bowl|burger|taco|soup|salad|rice|side|dip)\b/i.test(allText)) score += 15;
-    } else if (normSlot.includes("dinner")) {
-      if (courses.includes("dinner") || tags.includes("dinner")) score += 30;
-      if (courses.includes("main") || courses.includes("mains") || tags.includes("main")) score += 25;
-      if (courses.includes("entree") || tags.includes("entree")) score += 20;
-      if (/\b(chicken|turkey|potatoes|beef|pork|steak|roast|pasta|curry|salmon|fish|chili|mac)\b/i.test(allText)) score += 15;
-      if (courses.includes("dessert") || tags.includes("dessert") || title.includes("bars") || title.includes("loaf")) {
-        score -= 35;
-      }
-    } else if (normSlot.includes("snack")) {
-      if (courses.includes("snack") || tags.includes("snack")) score += 30;
-      if (courses.includes("appetizer") || courses.includes("appetizers") || tags.includes("appetizer")) score += 20;
-      if (courses.includes("dessert") || courses.includes("desserts") || tags.includes("dessert")) score += 20;
-      if (courses.includes("drinks") || tags.includes("drink") || tags.includes("drinks")) score += 20;
-      if (/\b(bars|cookie|cookies|dip|queso|chips|tea|drink|bite|bites|snack|bread|loaf)\b/i.test(allText)) score += 15;
-      if (/\b(turkey|roast|hot chicken)\b/i.test(allText)) score -= 25;
+  const renderSlotIcon = (slotName: string): ReactElement => {
+    const norm = slotName.toLowerCase();
+    if (norm.includes("breakfast") || norm.includes("brunch")) {
+      return <BookOpenIcon width={13} height={13} />;
     }
-
-    if (recipe.favorite) score += 5;
-    if (recipe.rating) score += recipe.rating;
-    return score;
+    if (norm.includes("lunch")) {
+      return <ClockIcon width={13} height={13} />;
+    }
+    if (norm.includes("dinner") || norm.includes("supper")) {
+      return <ChefHatIcon width={13} height={13} />;
+    }
+    return <StarIcon width={13} height={13} />;
   };
 
   const handleSuggestPlan = (): void => {
-    if (recipes.length === 0) return;
+    if (recipes.length === 0) {
+      showToast("No recipes available to plan");
+      return;
+    }
 
-    const existingKeys = new Set(currentWeekEntries.map((e: MealPlanEntry): string => `${e.date}__${e.slot}`));
+    const existingKeys = new Set(
+      currentWeekEntries.map((e: MealPlanEntry): string => `${e.date}__${e.slot}`)
+    );
     const usedRecipeIds = new Set(
       currentWeekEntries.map((e: MealPlanEntry): string | undefined => e.recipeId).filter(Boolean)
     );
     const newEntries: MealPlanEntry[] = [];
+    const unfilledSlots: string[] = [];
 
     for (const day of weekDays) {
       for (const slot of slots) {
         const key = `${day.dateStr}__${slot}`;
         if (existingKeys.has(key)) continue;
 
-        let available = recipes.filter((r: Recipe): boolean => !usedRecipeIds.has(r.id));
-        if (available.length === 0) {
-          available = [...recipes];
+        const matchingRecipes = recipes.filter((r: Recipe): boolean => matchesSlotCategory(r, slot));
+        if (matchingRecipes.length === 0) {
+          if (!unfilledSlots.includes(slot)) {
+            unfilledSlots.push(slot);
+          }
+          continue;
         }
 
-        available.sort((a: Recipe, b: Recipe): number => {
-          return scoreRecipeForSlot(b, slot) - scoreRecipeForSlot(a, slot);
+        let candidatePool = matchingRecipes.filter((r: Recipe): boolean => !usedRecipeIds.has(r.id));
+        if (candidatePool.length === 0) {
+          candidatePool = [...matchingRecipes];
+        }
+
+        candidatePool.sort((a: Recipe, b: Recipe): number => {
+          const scoreA = (a.favorite ? 10 : 0) + (a.rating || 0);
+          const scoreB = (b.favorite ? 10 : 0) + (b.rating || 0);
+          return scoreB - scoreA;
         });
 
-        const picked = available[0];
+        const picked = candidatePool[0];
         if (picked) {
           usedRecipeIds.add(picked.id);
           const entry: MealPlanEntry = {
@@ -332,7 +363,19 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
           onSaveEntry(entry);
         }
       }
-      showToast(`Scheduled ${newEntries.length} slot-matched meals for this week`);
+      if (unfilledSlots.length > 0) {
+        showToast(
+          `Suggested ${newEntries.length} tagged meals. (Tag recipes with ${unfilledSlots.join(", ")} to fill open slots)`
+        );
+      } else {
+        showToast(`Suggested full plan with ${newEntries.length} tag-matched meals`);
+      }
+    } else {
+      if (unfilledSlots.length > 0) {
+        showToast(`Could not suggest plan: no recipes tagged for ${unfilledSlots.join(", ")}`);
+      } else {
+        showToast("All slots for this week are already filled");
+      }
     }
   };
 
@@ -370,24 +413,20 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
   };
 
   const handleDragOverWrapper = (e: DragEvent<HTMLDivElement>): void => {
-    const wrapper = weekGridWrapperRef.current;
-    if (!wrapper) return;
-    const rect = wrapper.getBoundingClientRect();
-    const mouseX = e.clientX;
-    const threshold = 75;
-
-    if (mouseX < rect.left + threshold) {
-      const intensity = Math.max(6, Math.min(24, Math.round((rect.left + threshold - mouseX) / 3)));
-      wrapper.scrollLeft -= intensity;
-    } else if (mouseX > rect.right - threshold) {
-      const intensity = Math.max(6, Math.min(24, Math.round((mouseX - (rect.right - threshold)) / 3)));
-      wrapper.scrollLeft += intensity;
-    }
+    dragMouseXRef.current = e.clientX;
+    startAutoScroll();
   };
 
-  const handleDropMeal = (targetDate: string, targetSlot: string): void => {
-    if (!draggedMealId) return;
-    const entry = entries.find((e: MealPlanEntry): boolean => e.id === draggedMealId);
+  const handleDropMeal = (draggedId: string | null, targetDate: string, targetSlot: string): void => {
+    stopAutoScroll();
+    const idToMove = draggedId || draggedMealId;
+    if (!idToMove) {
+      setDraggedMealId(null);
+      setDropTarget(null);
+      return;
+    }
+
+    const entry = entries.find((e: MealPlanEntry): boolean => e.id === idToMove);
     if (!entry) {
       setDraggedMealId(null);
       setDropTarget(null);
@@ -639,6 +678,9 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
           ref={weekGridWrapperRef}
           className={styles.weekGridWrapper}
           onDragOver={handleDragOverWrapper}
+          style={{
+            scrollSnapType: draggedMealId ? "none" : undefined
+          }}
         >
           <div className={styles.weekGrid}>
             {weekDays.map((day) => {
@@ -649,7 +691,9 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
                   {/* Day Header */}
                   <div className={`${styles.dayHeader} ${day.isToday ? styles.todayHeader : ""}`}>
                     <span className={styles.dayName}>{day.dayName}</span>
-                    <span className={styles.dayDate}>{day.label}</span>
+                    <div className={`${styles.dateBadge} ${day.isToday ? styles.dateBadgeToday : ""}`}>
+                      {day.dateNumber}
+                    </div>
                   </div>
 
                   {/* Day Slots */}
@@ -679,15 +723,25 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
                           }}
                           onDrop={(e): void => {
                             e.preventDefault();
-                            handleDropMeal(day.dateStr, slotName);
+                            const mealId =
+                              e.dataTransfer.getData("application/x-openrecipebook-meal") ||
+                              e.dataTransfer.getData("text/plain") ||
+                              draggedMealId;
+                            handleDropMeal(mealId, day.dateStr, slotName);
                           }}
                         >
-                          <span className={styles.slotLabel}>{slotName}</span>
+                          <div className={styles.slotHeaderRow}>
+                            <span className={styles.slotIconBadge}>{renderSlotIcon(slotName)}</span>
+                            <span className={styles.slotLabel}>{slotName}</span>
+                          </div>
 
                           {slotEntries.map((entry: MealPlanEntry): ReactElement => {
                             const recipe = entry.recipeId ? recipeMap.get(entry.recipeId) : undefined;
                             const title = recipe ? recipe.title : entry.freeText || "Custom Meal";
                             const isDragging = draggedMealId === entry.id;
+                            const photoUrl = recipe?.photoIds?.[0]
+                              ? resolvePhotoUrl(recipe.photoIds[0])
+                              : undefined;
 
                             return (
                               <div
@@ -695,20 +749,51 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
                                 className={`${styles.mealCard} ${isDragging ? styles.mealCardDragging : ""}`}
                                 draggable={true}
                                 onDragStart={(e): void => {
+                                  e.dataTransfer.setData("application/x-openrecipebook-meal", entry.id);
                                   e.dataTransfer.setData("text/plain", entry.id);
                                   e.dataTransfer.effectAllowed = "move";
                                   setDraggedMealId(entry.id);
+                                  dragMouseXRef.current = e.clientX;
+                                  startAutoScroll();
                                 }}
                                 onDragEnd={(): void => {
+                                  stopAutoScroll();
                                   setDraggedMealId(null);
                                   setDropTarget(null);
                                 }}
                                 onClick={(): void => handleOpenMealDetail(entry)}
                                 title="Drag to move to another day/slot, or click to edit"
                               >
-                                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, fontWeight: 500 }}>
-                                  {title} {entry.multiplier !== 1 && `(${entry.multiplier}x)`}
-                                </span>
+                                {photoUrl ? (
+                                  <img
+                                    src={photoUrl}
+                                    alt=""
+                                    className={styles.mealThumb}
+                                    onError={(e): void => {
+                                      (e.target as HTMLElement).style.display = "none";
+                                    }}
+                                  />
+                                ) : (
+                                  <div className={styles.mealThumbFallback}>
+                                    {renderSlotIcon(slotName)}
+                                  </div>
+                                )}
+
+                                <div className={styles.mealInfo}>
+                                  <div className={styles.mealTitle}>{title}</div>
+                                  <div className={styles.mealMeta}>
+                                    {entry.multiplier !== 1 && (
+                                      <span className={styles.multiplierBadge}>
+                                        {entry.multiplier}x
+                                      </span>
+                                    )}
+                                    {recipe?.totalMinutes ? (
+                                      <span className={styles.timeBadge}>
+                                        {recipe.totalMinutes}m
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                </div>
                               </div>
                             );
                           })}
@@ -750,8 +835,10 @@ export const MealPlannerView: FC<MealPlannerViewProps> = ({
                   setViewMode("week");
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontWeight: calDay.isToday ? 800 : 600, fontSize: "0.8125rem", color: calDay.isToday ? "var(--accent)" : "var(--text)" }}>
+                <div className={styles.monthCellHeader}>
+                  <span
+                    className={`${styles.monthDateBadge} ${calDay.isToday ? styles.monthDateBadgeToday : ""}`}
+                  >
                     {calDay.dayNumber}
                   </span>
                   <span style={{ fontSize: "0.6875rem", color: "var(--muted)" }}>

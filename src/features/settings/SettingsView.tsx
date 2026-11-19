@@ -6,7 +6,6 @@ import { Button, IconButton } from "../../ui/Button";
 import { applyThemeAndAccent } from "../../styles/themeManager";
 import { TRUSTED_CONVERSION_SOURCES } from "../../domain/scaling/customConversions";
 import { UnitConversionsManagerModal } from "./UnitConversionsManagerModal";
-import { CloudBackupModal } from "./CloudBackupModal";
 import {
   FileSystemFolderBackupDestination,
   clearStoredDirectoryHandle,
@@ -53,7 +52,6 @@ export const SettingsView: FC<SettingsViewProps> = ({
     return saved.startsWith("#") ? saved : "#3d7250";
   });
   const [showConversionsModal, setShowConversionsModal] = useState<boolean>(false);
-  const [showCloudModal, setShowCloudModal] = useState<boolean>(false);
   const [storageInfo, setStorageInfo] = useState<StorageLocationInfo | null>(null);
   const [folderStatus, setFolderStatus] = useState<string | null>(null);
   const [folderName, setFolderName] = useState<string | null>(null);
@@ -345,7 +343,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
               {folderName ? (
                 <>
                   <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--accent)" }}>
-                    Connected: {folderName}
+                    Linked Folder: {folderName}
                   </span>
                   <Button
                     type="button"
@@ -370,9 +368,10 @@ export const SettingsView: FC<SettingsViewProps> = ({
                   type="button"
                   variant="secondary"
                   size="sm"
-                  onClick={(): void => setShowCloudModal(true)}
+                  icon={<FolderIcon width={16} height={16} />}
+                  onClick={handlePickFolder}
                 >
-                  Choose Backup Folder
+                  Link Synced Folder
                 </Button>
               )}
             </div>
@@ -590,14 +589,6 @@ export const SettingsView: FC<SettingsViewProps> = ({
           {BRAND.tagline}. Free, local-first open-source cookbook under the MIT License.
         </p>
       </section>
-
-      <CloudBackupModal
-        isOpen={showCloudModal}
-        onClose={(): void => setShowCloudModal(false)}
-        currentFolderName={folderName}
-        onPickLocalFolder={handlePickFolder}
-        onDisconnectFolder={handleDisconnectFolder}
-      />
 
       {showConversionsModal && (
         <UnitConversionsManagerModal

@@ -5,6 +5,7 @@
   max-width: 1400px;
   margin: 0 auto;
   padding: var(--space-4);
+  padding-bottom: calc(108px + var(--safe-bottom, 0px));
   box-sizing: border-box;
   gap: var(--space-4);
 }
@@ -82,35 +83,59 @@
   flex-direction: column;
   background-color: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   overflow: hidden;
-  min-height: 480px;
+  min-height: 520px;
   scroll-snap-align: start;
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--duration-fast);
+}
+
+.dayColumn:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
 }
 
 .dayHeader {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  padding: var(--space-2);
+  justify-content: space-between;
+  padding: 8px 12px;
   background-color: var(--surface-alt);
   border-bottom: 1px solid var(--border);
 }
 
 .dayName {
   font-weight: 700;
-  font-size: 0.9375rem;
-  color: var(--text);
-}
-
-.dayDate {
   font-size: 0.8125rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   color: var(--muted);
 }
 
-.todayHeader {
-  background-color: var(--accent-light, var(--surface-alt));
+.dateBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.dateBadgeToday {
+  background: var(--accent);
+  color: #ffffff;
   border-color: var(--accent);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.todayHeader {
+  background-color: color-mix(in srgb, var(--accent) 8%, var(--surface-alt));
+  border-bottom-color: var(--accent);
 }
 
 .daySlots {
@@ -124,13 +149,30 @@
 .slotBox {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+  padding: 6px;
+  border-radius: var(--radius-md);
+  background-color: var(--surface-alt);
+  border: 1px solid transparent;
+  transition: all var(--duration-fast);
+}
+
+.slotHeaderRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 2px;
+}
+
+.slotIconBadge {
+  font-size: 0.875rem;
+  line-height: 1;
 }
 
 .slotLabel {
   font-size: 0.6875rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   font-weight: 700;
   color: var(--muted);
 }
@@ -138,36 +180,111 @@
 .mealCard {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  background-color: var(--surface-alt);
+  gap: 8px;
+  background-color: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   padding: 6px 8px;
-  font-size: 0.8125rem;
-  cursor: pointer;
-  gap: 6px;
+  cursor: grab;
+  user-select: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: transform var(--duration-fast), border-color var(--duration-fast), box-shadow var(--duration-fast);
+  overflow: hidden;
 }
 
 .mealCard:hover {
   border-color: var(--accent);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+}
+
+.mealCard:active {
+  cursor: grabbing;
+}
+
+.mealThumb {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  flex-shrink: 0;
+  background-color: var(--surface-alt);
+}
+
+.mealThumbFallback {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--surface-alt) 0%, color-mix(in srgb, var(--accent) 15%, var(--surface)) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.125rem;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+}
+
+.mealInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.mealTitle {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.mealMeta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.multiplierBadge {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--accent);
+  background-color: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-radius: var(--radius-full);
+  padding: 1px 6px;
+}
+
+.timeBadge {
+  font-size: 0.6875rem;
+  color: var(--muted);
+  font-weight: 500;
 }
 
 .addSlotBtn {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 4px;
   padding: 6px;
-  background: transparent;
+  background: var(--surface);
   border: 1px dashed var(--border);
   border-radius: var(--radius-sm);
   color: var(--muted);
   font-size: 0.75rem;
+  font-weight: 500;
   cursor: pointer;
+  transition: all var(--duration-fast);
 }
 
 .addSlotBtn:hover {
   border-color: var(--accent);
   color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
 }
 
 /* Month Grid */
@@ -187,6 +304,7 @@
   padding: var(--space-2);
   gap: 4px;
   cursor: pointer;
+  transition: border-color var(--duration-fast);
 }
 
 .monthCell:hover {
@@ -196,6 +314,28 @@
 .monthCellToday {
   border-color: var(--accent);
   outline: 2px solid var(--accent);
+}
+
+.monthCellHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.monthDateBadge {
+  font-weight: 700;
+  font-size: 0.8125rem;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+}
+
+.monthDateBadgeToday {
+  background-color: var(--accent);
+  color: #ffffff;
 }
 
 .monthMealDot {
@@ -220,6 +360,6 @@
 
 .slotBoxDropTarget {
   border-color: var(--accent) !important;
-  background-color: var(--surface-alt) !important;
+  background-color: color-mix(in srgb, var(--accent) 10%, var(--surface-alt)) !important;
   outline: 2px dashed var(--accent);
 }

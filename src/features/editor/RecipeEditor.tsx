@@ -57,7 +57,8 @@ interface DraftState {
   servings: number;
   prepMinutes?: number;
   cookMinutes?: number;
-  course: string;
+  courses: string[];
+  tags?: string[];
   selectedCollectionIds: string[];
   notes: string;
   rating: RecipeRating;
@@ -137,7 +138,14 @@ export const RecipeEditor: FC<RecipeEditorProps> = ({
   const [servings, setServings] = useState<number>(initialRecipe?.servings || 4);
   const [prepMinutes, setPrepMinutes] = useState<number | undefined>(initialRecipe?.prepMinutes);
   const [cookMinutes, setCookMinutes] = useState<number | undefined>(initialRecipe?.cookMinutes);
-  const [course, setCourse] = useState<string>(initialRecipe?.courses[0] || "Dinner");
+  const [courses, setCourses] = useState<string[]>(() => {
+    if (initialRecipe?.courses && initialRecipe.courses.length > 0) {
+      return [...initialRecipe.courses];
+    }
+    return ["Dinner"];
+  });
+  const [tags, setTags] = useState<string[]>(initialRecipe?.tags || []);
+  const [customTagInput, setCustomTagInput] = useState<string>("");
   const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>(initialRecipe?.collectionIds || []);
   const [notes, setNotes] = useState<string>(initialRecipe?.notes || "");
   const [rating, setRating] = useState<RecipeRating>(initialRecipe?.rating || 0);
@@ -178,7 +186,14 @@ export const RecipeEditor: FC<RecipeEditorProps> = ({
         setServings(parsed.servings);
         setPrepMinutes(parsed.prepMinutes);
         setCookMinutes(parsed.cookMinutes);
-        setCourse(parsed.course);
+        if (parsed.courses && parsed.courses.length > 0) {
+          setCourses(parsed.courses);
+        } else if ((parsed as unknown as { course?: string }).course) {
+          setCourses([(parsed as unknown as { course: string }).course]);
+        }
+        if (parsed.tags && parsed.tags.length > 0) {
+          setTags(parsed.tags);
+        }
         setSelectedCollectionIds(parsed.selectedCollectionIds);
         setNotes(parsed.notes);
         setRating(parsed.rating);
@@ -206,7 +221,8 @@ export const RecipeEditor: FC<RecipeEditorProps> = ({
       servings,
       prepMinutes,
       cookMinutes,
-      course,
+      courses,
+      tags,
       selectedCollectionIds,
       notes,
       rating,
@@ -227,7 +243,8 @@ export const RecipeEditor: FC<RecipeEditorProps> = ({
     servings,
     prepMinutes,
     cookMinutes,
-    course,
+    courses,
+    tags,
     selectedCollectionIds,
     notes,
     rating,
@@ -243,7 +260,8 @@ export const RecipeEditor: FC<RecipeEditorProps> = ({
     if (recipe.servings) setServings(recipe.servings);
     if (recipe.prepMinutes !== undefined) setPrepMinutes(recipe.prepMinutes);
     if (recipe.cookMinutes !== undefined) setCookMinutes(recipe.cookMinutes);
-    if (recipe.courses && recipe.courses.length > 0) setCourse(recipe.courses[0]);
+    if (recipe.courses && recipe.courses.length > 0) setCourses(recipe.courses);
+    if (recipe.tags && recipe.tags.length > 0) setTags(recipe.tags);
     if (recipe.sourceUrl) setSourceUrl(recipe.sourceUrl);
     if (recipe.sourceName) setSourceName(recipe.sourceName);
     if (recipe.notes) setNotes(recipe.notes);
@@ -578,10 +596,10 @@ export const RecipeEditor: FC<RecipeEditorProps> = ({
       directionGroups,
       notes: notes.trim() || undefined,
       cookLog: initialRecipe?.cookLog || [],
-      courses: course ? [course] : ["Dinner"],
+      courses: courses.length > 0 ? courses : ["Dinner"],
       categories: initialRecipe?.categories || [],
       collectionIds: selectedCollectionIds,
-      tags: initialRecipe?.tags || [],
+      tags: tags,
       rating,
       favorite: initialRecipe?.favorite || false,
       photoIds: initialRecipe?.photoIds || [],
@@ -743,21 +761,86 @@ export const RecipeEditor: FC<RecipeEditorProps> = ({
               }
             />
           </div>
-          <div className={styles.metaField}>
-            <label className={styles.label} htmlFor="recipe-course">Course</label>
-            <select
-              id="recipe-course"
-              className={styles.input}
-              value={course}
-              onChange={(e: ChangeEvent<HTMLSelectElement>): void => setCourse(e.target.value)}
-            >
-              <option value="Breakfast">Breakfast</option>
-              <option value="Lunch">Lunch</option>
-              <option value="Dinner">Dinner</option>
-              <option value="Dessert">Dessert</option>
-              <option value="Snack">Snack</option>
-              <option value="Drink">Drink</option>
-            </select>
+          <div className={styles.metaField} style={{ gridColumn: "1 / -1" }}>
+            <label className={styles.label}>Meal Categories & Slots</label>
+            <div className={styles.tagChipRow}>
+              {(["Breakfast", "Lunch", "Dinner", "Snack", "Dessert", "Appetizer", "Side Dish", "Drink"] as const).map(
+                (cat: string): ReactElement => {
+                  const isSelected = courses.some((c: string): boolean => c.toLowerCase() === cat.toLowerCase());
+
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      className={`${styles.tagToggleChip} ${isSelected ? styles.tagToggleChipActive : ""}`}
+                      onClick={(): void => {
+                        if (isSelected) {
+                          setCourses(courses.filter((c: string): boolean => c.toLowerCase() !== cat.toLowerCase()));
+                        } else {
+                          setCourses([...courses, cat]);
+                        }
+                      }}
+                    >
+                      <span>{cat}</span>
+                      {isSelected ? <CheckIcon width={12} height={12} /> : <span>+</span>}
+                    </button>
+                  );
+                }
+              )}
+            </div>
+
+            {/* Custom tags */}
+            {tags.length > 0 && (
+              <div className={styles.tagChipRow} style={{ marginTop: 6 }}>
+                {tags.map((t: string): ReactElement => (
+                  <span key={t} className={styles.customTagChip}>
+                    #{t}
+                    <button
+                      type="button"
+                      className={styles.tagRemoveBtn}
+                      onClick={(): void => setTags(tags.filter((item: string): boolean => item !== t))}
+                      aria-label={`Remove tag ${t}`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div className={styles.addTagRow}>
+              <input
+                type="text"
+                className={styles.addTagInput}
+                placeholder="Add custom tag (e.g. quick, holiday)..."
+                value={customTagInput}
+                onChange={(e: ChangeEvent<HTMLInputElement>): void => setCustomTagInput(e.target.value)}
+                onKeyDown={(e): void => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    const trimmed = customTagInput.trim().toLowerCase();
+                    if (trimmed && !tags.includes(trimmed)) {
+                      setTags([...tags, trimmed]);
+                      setCustomTagInput("");
+                    }
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={(): void => {
+                  const trimmed = customTagInput.trim().toLowerCase();
+                  if (trimmed && !tags.includes(trimmed)) {
+                    setTags([...tags, trimmed]);
+                    setCustomTagInput("");
+                  }
+                }}
+              >
+                Add Tag
+              </Button>
+            </div>
           </div>
           <div className={styles.metaField}>
             <label className={styles.label} htmlFor="recipe-rating">Rating</label>

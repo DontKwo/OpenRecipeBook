@@ -20,6 +20,7 @@ import { appendRecipeNote } from "../../domain/recipe/recipeModifier";
 import { calculateRecipeNutrition } from "../../domain/nutrition/nutritionCalculator";
 import { BUILT_IN_INGREDIENTS } from "../../data/defaultIngredients";
 import { resolvePhotoUrl } from "../../domain/recipe/photoPipeline";
+import { getCoursePlaceholder } from "../../domain/recipe/placeholders";
 import { parseScaleMultiplier } from "../../domain/scaling/formatQuantity";
 import { convertIngredientUnit } from "../../domain/scaling/universalConverter";
 import { getSubstitutionsForIngredient } from "../../domain/ingredients/substitutions";
@@ -44,7 +45,8 @@ import {
   HistoryIcon,
   DownloadIcon,
   TrashIcon,
-  CheckIcon
+  CheckIcon,
+  BookOpenIcon
 } from "../../ui/icons";
 import { Button, IconButton } from "../../ui/Button";
 import { SegmentedControl } from "../../ui/SegmentedControl";
@@ -70,6 +72,7 @@ export interface RecipeViewProps {
   onToggleFavorite: () => void;
   onOpenCookMode: (multiplier?: number) => void;
   onAddToShoppingList: () => void;
+  onPrintRecipe?: (recipeId: string) => void;
   onUpdateRecipe: (updatedRecipe: Recipe) => Promise<void>;
   onDuplicateRecipe: (clonedRecipe: Recipe) => Promise<void>;
   onSaveCollection: (collection: Collection) => Promise<void>;
@@ -86,11 +89,13 @@ export const RecipeView: FC<RecipeViewProps> = ({
   onToggleFavorite,
   onOpenCookMode,
   onAddToShoppingList,
+  onPrintRecipe,
   onUpdateRecipe,
   onDuplicateRecipe,
   onSaveCollection
 }): ReactElement => {
   const { showToast } = useToast();
+  const [heroImageFailed, setHeroImageFailed] = useState<boolean>(false);
   const [multiplier, setMultiplier] = useState<number>(1);
   const [scaleInputText, setScaleInputText] = useState<string>("1x");
   const [unitSystem, setUnitSystem] = useState<"US" | "Metric">("US");
@@ -259,9 +264,15 @@ export const RecipeView: FC<RecipeViewProps> = ({
     },
     {
       id: "print-recipe",
-      label: "Print",
+      label: "Print & PDF Preview",
       icon: <PrinterIcon width={18} height={18} />,
-      onClick: (): void => printRecipeDocument(recipe)
+      onClick: (): void => {
+        if (onPrintRecipe) {
+          onPrintRecipe(recipe.id);
+        } else {
+          printRecipeDocument(recipe);
+        }
+      }
     },
     {
       id: "duplicate-recipe",
@@ -377,16 +388,26 @@ export const RecipeView: FC<RecipeViewProps> = ({
 
       {/* Hero Section */}
       <section className={styles.hero}>
-        {recipe.photoIds?.[0] ? (
+        {recipe.photoIds?.[0] && !heroImageFailed ? (
           <img
             src={resolvePhotoUrl(recipe.photoIds[0])}
             alt={recipe.title}
             className={styles.heroImage}
-            onError={(e): void => {
-              (e.target as HTMLElement).style.display = "none";
-            }}
+            onError={(): void => setHeroImageFailed(true)}
           />
-        ) : null}
+        ) : (
+          <div
+            className={styles.heroFallback}
+            style={{ background: getCoursePlaceholder(recipe.courses?.[0]).gradient }}
+          >
+            <div
+              className={styles.heroPlaceholderSvg}
+              dangerouslySetInnerHTML={{
+                __html: getCoursePlaceholder(recipe.courses?.[0]).svgContent
+              }}
+            />
+          </div>
+        )}
 
         <div className={styles.heroGradient}>
           <h1 className={styles.heroTitle}>{recipe.title}</h1>
@@ -413,6 +434,60 @@ export const RecipeView: FC<RecipeViewProps> = ({
           aria-label="Recipe photo gallery"
           onClick={(): void => showToast("Photo gallery")}
         />
+      </section>
+
+      {/* Meal Category Slot Tagging Bar */}
+      <section className={styles.mealSlotStrip} aria-label="Meal slot categories">
+        <span className={styles.mealSlotStripLabel}>Meal Slots:</span>
+        {(["Breakfast", "Lunch", "Dinner", "Snack"] as const).map((slotName: string): ReactElement => {
+          const isSlotActive = (recipe.courses || []).some(
+            (c: string): boolean => c.toLowerCase() === slotName.toLowerCase()
+          ) || (recipe.categories || []).some(
+            (c: string): boolean => c.toLowerCase() === slotName.toLowerCase()
+          ) || (recipe.tags || []).some(
+            (t: string): boolean => t.toLowerCase() === slotName.toLowerCase()
+          );
+
+          const renderCategoryIcon = (): ReactElement => {
+            if (slotName === "Breakfast") return <BookOpenIcon width={13} height={13} />;
+            if (slotName === "Lunch") return <ClockIcon width={13} height={13} />;
+            if (slotName === "Dinner") return <ChefHatIcon width={13} height={13} />;
+            return <StarIcon width={13} height={13} />;
+          };
+
+          return (
+            <button
+              key={slotName}
+              type="button"
+              className={`${styles.mealSlotChip} ${isSlotActive ? styles.mealSlotChipActive : ""}`}
+              onClick={async (): Promise<void> => {
+                const currentCourses = recipe.courses || [];
+                let nextCourses: string[];
+                if (isSlotActive) {
+                  nextCourses = currentCourses.filter(
+                    (c: string): boolean => c.toLowerCase() !== slotName.toLowerCase()
+                  );
+                  showToast(`Removed "${slotName}" tag`);
+                } else {
+                  nextCourses = [...currentCourses, slotName];
+                  showToast(`Tagged as "${slotName}"`);
+                }
+                await onUpdateRecipe({
+                  ...recipe,
+                  courses: nextCourses,
+                  updatedAt: new Date().toISOString()
+                });
+              }}
+              title={`Click to ${isSlotActive ? "remove" : "add"} ${slotName} tag`}
+            >
+              <span>{renderCategoryIcon()}</span>
+              <span>{slotName}</span>
+              <span className={styles.slotChipStatus}>
+                {isSlotActive ? <CheckIcon width={11} height={11} /> : "+"}
+              </span>
+            </button>
+          );
+        })}
       </section>
 
       {/* Meta Strip */}
@@ -1063,27 +1138,13 @@ export const RecipeView: FC<RecipeViewProps> = ({
         </div>
       </main>
 
-      {/* Mobile Sticky Bottom Bar: Scale + Cook Mode CTA */}
+      {/* Mobile Sticky Bottom Bar: Cook Mode CTA */}
       <div className={styles.mobileStickyBar}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)" }}>
-            Scale:
-          </span>
-          <SegmentedControl
-            value={multiplier}
-            onChange={setMultiplier}
-            options={[
-              { value: 0.5, label: "0.5x" },
-              { value: 1, label: "1x" },
-              { value: 2, label: "2x" }
-            ]}
-          />
-        </div>
-
         <Button
           variant="primary"
           icon={<ChefHatIcon width={18} height={18} />}
           onClick={(): void => onOpenCookMode(multiplier)}
+          style={{ width: "100%", justifyContent: "center" }}
         >
           Cook Mode
         </Button>

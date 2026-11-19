@@ -5,7 +5,7 @@
   min-height: 100dvh;
   background-color: var(--bg);
   color: var(--text);
-  padding-bottom: calc(var(--space-12) + 60px);
+  padding-bottom: calc(var(--space-12) + 60px + var(--safe-bottom, 0px));
 }
 
 @media (min-width: 1024px) {
@@ -69,6 +69,81 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.heroFallback {
+  grid-area: hero-stack;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.heroPlaceholderSvg {
+  width: 96px;
+  height: 96px;
+  color: rgba(255, 255, 255, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.heroPlaceholderSvg svg {
+  width: 100%;
+  height: 100%;
+}
+
+.mealSlotStrip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background-color: var(--surface-alt);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.mealSlotStripLabel {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-right: 4px;
+}
+
+.mealSlotChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color var(--duration-fast), background-color var(--duration-fast);
+}
+
+.mealSlotChip:hover {
+  border-color: var(--accent);
+  background-color: var(--surface-alt);
+}
+
+.mealSlotChipActive {
+  background-color: color-mix(in srgb, var(--accent) 15%, var(--surface));
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.slotChipStatus {
+  font-size: 0.75rem;
+  font-weight: 700;
+  opacity: 0.8;
 }
 
 .heroGradient {

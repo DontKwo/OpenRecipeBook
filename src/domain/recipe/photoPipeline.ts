@@ -113,5 +113,10 @@ export function resolvePhotoUrl(photoId?: string): string | undefined {
     return `./${clean}`;
   }
 
+  if (photoId.endsWith(".png") || photoId.endsWith(".jpg") || photoId.endsWith(".jpeg") || photoId.endsWith(".webp")) {
+    const filename = photoId.replace(/^[/\\]+/, "");
+    return `./recipe-photos/${filename}`;
+  }
+
   return `/api/photos/${photoId}`;
 }

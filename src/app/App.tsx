@@ -92,6 +92,7 @@ function AppContent(): ReactElement {
   const [showUserIngredientsModal, setShowUserIngredientsModal] = useState<boolean>(false);
   const [showCookbookModal, setShowCookbookModal] = useState<boolean>(false);
   const [cookbookInitialCollectionId, setCookbookInitialCollectionId] = useState<string | undefined>(undefined);
+  const [cookbookInitialRecipeId, setCookbookInitialRecipeId] = useState<string | undefined>(undefined);
   const [showStorageModal, setShowStorageModal] = useState<boolean>(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState<boolean>(false);
   const [emptyTrashConfirmOpen, setEmptyTrashConfirmOpen] = useState<boolean>(false);
@@ -163,6 +164,30 @@ function AppContent(): ReactElement {
           await writeRecipeToStorage(sample);
         }
         allStored = await db.recipes.toArray();
+      } else {
+        // Sync photoIds and sample courses for bundled sample recipes
+        const sampleMap = new Map(SAMPLE_RECIPES.map((s: Recipe): [string, Recipe] => [s.id, s]));
+        for (const recipe of allStored) {
+          const sample = sampleMap.get(recipe.id);
+          if (sample) {
+            let updated = false;
+            if (!recipe.photoIds || recipe.photoIds.length === 0) {
+              recipe.photoIds = sample.photoIds;
+              updated = true;
+            }
+            if (sample.courses && sample.courses.length > 0) {
+              const currentCourses = new Set(recipe.courses || []);
+              const missing = sample.courses.filter((c: string): boolean => !currentCourses.has(c));
+              if (missing.length > 0) {
+                recipe.courses = [...(recipe.courses || []), ...missing];
+                updated = true;
+              }
+            }
+            if (updated) {
+              await db.recipes.put(recipe);
+            }
+          }
+        }
       }
 
       const active: Recipe[] = [];
@@ -263,6 +288,9 @@ function AppContent(): ReactElement {
     };
 
     const handleDragOver = (e: DragEvent): void => {
+      const types = e.dataTransfer?.types ? Array.from(e.dataTransfer.types) : [];
+      const isFileDrop = types.includes("Files") && !types.includes("application/x-openrecipebook-meal");
+      if (!isFileDrop) return;
       e.preventDefault();
       setIsDraggingOver(true);
     };
@@ -274,6 +302,12 @@ function AppContent(): ReactElement {
     };
 
     const handleDrop = async (e: DragEvent): Promise<void> => {
+      const types = e.dataTransfer?.types ? Array.from(e.dataTransfer.types) : [];
+      const isFileDrop = types.includes("Files") && !types.includes("application/x-openrecipebook-meal");
+      if (!isFileDrop) {
+        setIsDraggingOver(false);
+        return;
+      }
       e.preventDefault();
       setIsDraggingOver(false);
       const droppedFiles = e.dataTransfer?.files;
@@ -878,7 +912,6 @@ function AppContent(): ReactElement {
             onDeleteCollection={handleDeleteCollection}
             onBatchAssignCollection={handleBatchAssignCollection}
             onSaveFolderRecipes={handleSetCollectionRecipes}
-            onOpenStorageModal={(): void => setShowStorageModal(true)}
             onUpdateRecipe={handlePersistRecipe}
             onSelectRecipe={handleSelectRecipe}
             onNewRecipe={handleNewRecipe}
@@ -934,6 +967,10 @@ function AppContent(): ReactElement {
             }}
             onAddToShoppingList={(): void => {
               void handleAddRecipeToShoppingList(activeRecipe);
+            }}
+            onPrintRecipe={(recipeId: string): void => {
+              setCookbookInitialRecipeId(recipeId);
+              setShowCookbookModal(true);
             }}
             onUpdateRecipe={handlePersistRecipe}
             onDuplicateRecipe={handleDuplicateRecipe}
@@ -1219,9 +1256,11 @@ function AppContent(): ReactElement {
           recipes={recipes}
           collections={collections}
           initialCollectionId={cookbookInitialCollectionId}
+          initialRecipeId={cookbookInitialRecipeId}
           onClose={(): void => {
             setShowCookbookModal(false);
             setCookbookInitialCollectionId(undefined);
+            setCookbookInitialRecipeId(undefined);
           }}
         />
       )}

@@ -185,7 +185,8 @@ export const SAMPLE_RECIPES: Recipe[] = [
     "cookLog": [],
     "courses": [
       "Dessert",
-      "Breakfast"
+      "Breakfast",
+      "Snack"
     ],
     "categories": [
       "Baking",
@@ -365,7 +366,8 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "cookLog": [],
     "courses": [
-      "Dessert"
+      "Dessert",
+      "Snack"
     ],
     "categories": [
       "Baking",
@@ -619,7 +621,9 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "cookLog": [],
     "courses": [
-      "Dinner"
+      "Dinner",
+      "Lunch",
+      "Side Dish"
     ],
     "categories": [
       "Potatoes",
@@ -737,7 +741,9 @@ export const SAMPLE_RECIPES: Recipe[] = [
     "notes": "- When I make this recipe I use chicken breasts that are about 1 inch thick. If you use thinner chicken breasts, be sure to decrease the bake time accordingly.",
     "cookLog": [],
     "courses": [
-      "Dinner"
+      "Dinner",
+      "Lunch",
+      "Side Dish"
     ],
     "categories": [
       "Poultry",
@@ -859,7 +865,9 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "cookLog": [],
     "courses": [
-      "Dinner"
+      "Dinner",
+      "Lunch",
+      "Side Dish"
     ],
     "categories": [
       "Pasta",
@@ -998,7 +1006,9 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "cookLog": [],
     "courses": [
-      "Dinner"
+      "Dinner",
+      "Lunch",
+      "Side Dish"
     ],
     "categories": [
       "Poultry",
@@ -1104,7 +1114,8 @@ export const SAMPLE_RECIPES: Recipe[] = [
     "cookLog": [],
     "courses": [
       "Appetizer",
-      "Snack"
+      "Snack",
+      "Breakfast"
     ],
     "categories": [
       "Dips & Sauces"
@@ -1180,7 +1191,9 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "cookLog": [],
     "courses": [
-      "Side Dish"
+      "Side Dish",
+      "Lunch",
+      "Dinner"
     ],
     "categories": [
       "Grains & Rice"
@@ -1272,7 +1285,9 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "cookLog": [],
     "courses": [
-      "Side Dish"
+      "Side Dish",
+      "Lunch",
+      "Dinner"
     ],
     "categories": [
       "Potatoes",
@@ -1400,7 +1415,10 @@ export const SAMPLE_RECIPES: Recipe[] = [
     "cookLog": [],
     "courses": [
       "Side Dish",
-      "Baking"
+      "Baking",
+      "Breakfast",
+      "Snack",
+      "Dinner"
     ],
     "categories": [
       "Breads & Rolls"
@@ -1747,7 +1765,9 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "cookLog": [],
     "courses": [
-      "Side Dish"
+      "Side Dish",
+      "Lunch",
+      "Dinner"
     ],
     "categories": [
       "Vegetables"
@@ -1831,7 +1851,8 @@ export const SAMPLE_RECIPES: Recipe[] = [
     "cookLog": [],
     "courses": [
       "Appetizer",
-      "Snack"
+      "Snack",
+      "Breakfast"
     ],
     "categories": [
       "Appetizers"
@@ -1982,6 +2003,8 @@ export const SAMPLE_RECIPES: Recipe[] = [
     "cookLog": [],
     "courses": [
       "Baking",
+      "Breakfast",
+      "Snack",
       "Side Dish"
     ],
     "categories": [
@@ -2069,7 +2092,10 @@ export const SAMPLE_RECIPES: Recipe[] = [
     ],
     "cookLog": [],
     "courses": [
-      "Beverages"
+      "Beverages",
+      "Drinks",
+      "Snack",
+      "Breakfast"
     ],
     "categories": [
       "Tea & Drinks"
@@ -2281,7 +2307,10 @@ export const SAMPLE_RECIPES: Recipe[] = [
     "cookLog": [],
     "courses": [
       "Side Dish",
-      "Baking"
+      "Baking",
+      "Breakfast",
+      "Snack",
+      "Dinner"
     ],
     "categories": [
       "Breads & Rolls"

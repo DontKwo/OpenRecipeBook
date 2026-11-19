@@ -219,6 +219,90 @@
   border-color: var(--accent);
 }
 
+.tagChipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.tagToggleChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background-color: var(--surface);
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color var(--duration-fast), background-color var(--duration-fast);
+}
+
+.tagToggleChip:hover {
+  border-color: var(--accent);
+}
+
+.tagToggleChipActive {
+  background-color: color-mix(in srgb, var(--accent) 15%, var(--surface));
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.customTagChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background-color: var(--surface-alt);
+  border: 1px solid var(--border);
+  font-size: 0.75rem;
+  color: var(--text);
+}
+
+.tagRemoveBtn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.875rem;
+  padding: 0 2px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.tagRemoveBtn:hover {
+  color: #e74c3c;
+}
+
+.addTagRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.addTagInput {
+  flex: 1;
+  max-width: 240px;
+  font-size: 0.8125rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: 4px 12px;
+  background: var(--surface);
+  color: var(--text);
+  outline: none;
+}
+
+.addTagInput:focus {
+  border-color: var(--accent);
+}
+
 .sectionActions {
   display: flex;
   gap: var(--space-2);

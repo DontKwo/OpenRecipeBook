@@ -5,7 +5,8 @@ import {
   moveMealPlanEntry,
   copyMealPlanEntry,
   filterEntriesForWeek,
-  filterEntriesForMonth
+  filterEntriesForMonth,
+  matchesSlotCategory
 } from "../src/domain/planner/plannerService";
 import type { MealPlanEntry } from "../src/domain/recipe/types";
 
@@ -142,5 +143,62 @@ describe("Meal Planner Service & Move/Copy Operations", (): void => {
     expect(restoredEntries[0].date).toBe("2026-11-23");
     expect(restoredEntries[1].date).toBe("2026-11-24");
     expect(restoredEntries[2].date).toBe("2026-11-27");
+  });
+
+  it("strictly filters recipes by meal slot category and tags", (): void => {
+    const breakfastRecipe = {
+      id: "rec-pancakes",
+      title: "Buttermilk Pancakes",
+      courses: ["Breakfast"],
+      tags: ["quick", "fluffy"]
+    };
+
+    const dinnerRecipe = {
+      id: "rec-turkey",
+      title: "Slow Cooker Turkey Breast",
+      courses: ["Dinner"],
+      tags: ["holiday", "poultry"]
+    };
+
+    const snackRecipe = {
+      id: "rec-avalanche",
+      title: "Avalanche Bars",
+      courses: ["Dessert", "Snack"],
+      tags: ["sweet", "no-bake"]
+    };
+
+    // Breakfast slot
+    expect(matchesSlotCategory(breakfastRecipe, "Breakfast")).toBe(true);
+    expect(matchesSlotCategory(dinnerRecipe, "Breakfast")).toBe(false);
+    expect(matchesSlotCategory(snackRecipe, "Breakfast")).toBe(false);
+
+    // Lunch slot
+    const lunchRecipe = {
+      id: "rec-soup",
+      title: "Tortilla Soup",
+      courses: ["Lunch", "Dinner"],
+      tags: ["mexican"]
+    };
+    expect(matchesSlotCategory(lunchRecipe, "Lunch")).toBe(true);
+    expect(matchesSlotCategory(breakfastRecipe, "Lunch")).toBe(false);
+
+    // Dinner slot
+    expect(matchesSlotCategory(dinnerRecipe, "Dinner")).toBe(true);
+    expect(matchesSlotCategory(lunchRecipe, "Dinner")).toBe(true);
+    expect(matchesSlotCategory(breakfastRecipe, "Dinner")).toBe(false);
+
+    // Snack slot
+    expect(matchesSlotCategory(snackRecipe, "Snack")).toBe(true);
+    expect(matchesSlotCategory(snackRecipe, "Snacks")).toBe(true);
+    expect(matchesSlotCategory(dinnerRecipe, "Snack")).toBe(false);
+
+    // Custom user slot (e.g. "Pre-Workout")
+    const workoutRecipe = {
+      id: "rec-smoothie",
+      title: "Protein Smoothie",
+      tags: ["pre-workout", "energy"]
+    };
+    expect(matchesSlotCategory(workoutRecipe, "Pre-Workout")).toBe(true);
+    expect(matchesSlotCategory(dinnerRecipe, "Pre-Workout")).toBe(false);
   });
 });

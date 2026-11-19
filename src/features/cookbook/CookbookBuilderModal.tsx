@@ -6,6 +6,7 @@ import {
   type ChangeEvent
 } from "react";
 import type { Recipe, Collection } from "../../domain/recipe/types";
+import { resolvePhotoUrl } from "../../domain/recipe/photoPipeline";
 import {
   generateCookbookHtml,
   generateCookbookMarkdown,
@@ -28,6 +29,7 @@ export interface CookbookBuilderModalProps {
   recipes: Recipe[];
   collections: Collection[];
   initialCollectionId?: string;
+  initialRecipeId?: string;
   onClose: () => void;
 }
 
@@ -35,21 +37,37 @@ export const CookbookBuilderModal: FC<CookbookBuilderModalProps> = ({
   recipes,
   collections,
   initialCollectionId,
+  initialRecipeId,
   onClose
 }): ReactElement => {
   const { showToast } = useToast();
 
+  const isSingleRecipeMode = Boolean(initialRecipeId);
+  const singleRecipe = useMemo(
+    () => (initialRecipeId ? recipes.find((r) => r.id === initialRecipeId) : undefined),
+    [recipes, initialRecipeId]
+  );
   const initialFolder = collections.find((c) => c.id === initialCollectionId);
 
-  const [activeFolderId, setActiveFolderId] = useState<string>(initialCollectionId || "all");
-  const [bookTitle, setBookTitle] = useState<string>(
-    initialFolder ? `${initialFolder.name} Cookbook` : "My Recipe Collection"
+  const [activeFolderId, setActiveFolderId] = useState<string>(
+    initialRecipeId ? "single" : initialCollectionId || "all"
   );
-  const [bookSubtitle, setBookSubtitle] = useState<string>("Favorite kitchen recipes and traditions");
+  const [bookTitle, setBookTitle] = useState<string>(() => {
+    if (singleRecipe) return singleRecipe.title;
+    if (initialFolder) return `${initialFolder.name} Cookbook`;
+    return "My Recipe Collection";
+  });
+  const [bookSubtitle, setBookSubtitle] = useState<string>(() => {
+    if (singleRecipe) return singleRecipe.description || "";
+    return "Favorite kitchen recipes and traditions";
+  });
   const [bookAuthor, setBookAuthor] = useState<string>("The Home Chef");
 
   // Selection & Ordering
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => {
+    if (initialRecipeId) {
+      return new Set([initialRecipeId]);
+    }
     if (initialCollectionId) {
       const folderRecs = recipes.filter((r) => r.collectionIds?.includes(initialCollectionId));
       return new Set(folderRecs.map((r) => r.id));
@@ -58,6 +76,9 @@ export const CookbookBuilderModal: FC<CookbookBuilderModalProps> = ({
   });
 
   const [orderedRecipeIds, setOrderedRecipeIds] = useState<string[]>(() => {
+    if (initialRecipeId) {
+      return [initialRecipeId];
+    }
     if (initialCollectionId) {
       return recipes
         .filter((r) => r.collectionIds?.includes(initialCollectionId))
@@ -67,13 +88,13 @@ export const CookbookBuilderModal: FC<CookbookBuilderModalProps> = ({
   });
 
   // Customization Options
-  const [includeCover, setIncludeCover] = useState<boolean>(true);
-  const [includeToc, setIncludeToc] = useState<boolean>(true);
+  const [includeCover, setIncludeCover] = useState<boolean>(!isSingleRecipeMode);
+  const [includeToc, setIncludeToc] = useState<boolean>(!isSingleRecipeMode);
   const [includeNotes, setIncludeNotes] = useState<boolean>(true);
   const [includeNutrition, setIncludeNutrition] = useState<boolean>(true);
   const [includePhotos, setIncludePhotos] = useState<boolean>(true);
   const [twoColumnLayout, setTwoColumnLayout] = useState<boolean>(true);
-  const [pageBreakAfterRecipe, setPageBreakAfterRecipe] = useState<boolean>(true);
+  const [pageBreakAfterRecipe, setPageBreakAfterRecipe] = useState<boolean>(!isSingleRecipeMode);
   const [fontSize, setFontSize] = useState<"compact" | "standard" | "large">("standard");
   const [searchFilter, setSearchFilter] = useState<string>("");
 
@@ -202,6 +223,15 @@ export const CookbookBuilderModal: FC<CookbookBuilderModalProps> = ({
     printCookbookDocument(selectedRecipes, currentOptions);
   };
 
+  const handleSavePdf = (): void => {
+    if (selectedRecipes.length === 0) {
+      showToast("Select at least 1 recipe to save as PDF");
+      return;
+    }
+    showToast("Print dialog opening: In destination, choose 'Save as PDF'");
+    printCookbookDocument(selectedRecipes, currentOptions);
+  };
+
   const handleDownload = (format: "html" | "md" | "txt"): void => {
     if (selectedRecipes.length === 0) {
       showToast("Select at least 1 recipe to export");
@@ -292,46 +322,59 @@ export const CookbookBuilderModal: FC<CookbookBuilderModalProps> = ({
             <FolderIcon width={22} height={22} style={{ color: "var(--accent)" }} />
             <div>
               <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "1.25rem", margin: 0 }}>
-                Cookbook & Folder Print Studio
+                {isSingleRecipeMode ? "Recipe Print & PDF Studio" : "Cookbook & Folder Print Studio"}
               </h2>
               <div style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
-                Assemble folders into print-ready books, reorder recipes, customize layout, and export to PDF
+                {isSingleRecipeMode
+                  ? "Customize layout, typography, and preview, then print or export to PDF"
+                  : "Assemble folders into print-ready books, reorder recipes, customize layout, and export to PDF"}
               </div>
             </div>
           </div>
 
           <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", flexWrap: "wrap" }}>
             <Button
+              type="button"
               variant="primary"
               size="sm"
               icon={<PrinterIcon width={16} height={16} />}
               onClick={handlePrint}
             >
-              Print / Save PDF ({selectedRecipes.length})
+              Print ({selectedRecipes.length})
             </Button>
 
             <Button
+              type="button"
               variant="secondary"
               size="sm"
               icon={<DownloadIcon width={15} height={15} />}
+              onClick={handleSavePdf}
+            >
+              Save as PDF
+            </Button>
+
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
               onClick={(): void => handleDownload("html")}
             >
               HTML
             </Button>
 
             <Button
+              type="button"
               variant="secondary"
               size="sm"
-              icon={<DownloadIcon width={15} height={15} />}
               onClick={(): void => handleDownload("md")}
             >
               Markdown
             </Button>
 
             <Button
+              type="button"
               variant="secondary"
               size="sm"
-              icon={<DownloadIcon width={15} height={15} />}
               onClick={(): void => handleDownload("txt")}
             >
               Text
@@ -413,7 +456,10 @@ export const CookbookBuilderModal: FC<CookbookBuilderModalProps> = ({
                 style={{
                   padding: "6px 10px",
                   borderRadius: "var(--radius-sm)",
-                  border: "1px solid var(--border)"
+                  border: "1px solid var(--border)",
+                  background: "var(--surface-alt)",
+                  color: "var(--text)",
+                  outline: "none"
                 }}
               />
               <input
@@ -425,6 +471,9 @@ export const CookbookBuilderModal: FC<CookbookBuilderModalProps> = ({
                   padding: "6px 10px",
                   borderRadius: "var(--radius-sm)",
                   border: "1px solid var(--border)",
+                  background: "var(--surface-alt)",
+                  color: "var(--text)",
+                  outline: "none",
                   fontSize: "0.875rem"
                 }}
               />
@@ -437,6 +486,9 @@ export const CookbookBuilderModal: FC<CookbookBuilderModalProps> = ({
                   padding: "6px 10px",
                   borderRadius: "var(--radius-sm)",
                   border: "1px solid var(--border)",
+                  background: "var(--surface-alt)",
+                  color: "var(--text)",
+                  outline: "none",
                   fontSize: "0.875rem"
                 }}
               />
@@ -496,11 +548,15 @@ export const CookbookBuilderModal: FC<CookbookBuilderModalProps> = ({
                 onChange={(e): void => setSearchFilter(e.target.value)}
                 style={{
                   width: "100%",
-                  padding: "4px 8px",
+                  padding: "5px 8px",
                   fontSize: "0.8125rem",
                   marginBottom: 6,
                   borderRadius: "var(--radius-sm)",
-                  border: "1px solid var(--border)"
+                  border: "1px solid var(--border)",
+                  background: "var(--surface-alt)",
+                  color: "var(--text)",
+                  outline: "none",
+                  boxSizing: "border-box"
                 }}
               />
 
@@ -562,6 +618,7 @@ export const CookbookBuilderModal: FC<CookbookBuilderModalProps> = ({
                           style={{
                             background: "none",
                             border: "none",
+                            color: "var(--muted)",
                             cursor: realIdx <= 0 ? "default" : "pointer",
                             opacity: realIdx <= 0 ? 0.25 : 0.8,
                             padding: 2
@@ -577,6 +634,7 @@ export const CookbookBuilderModal: FC<CookbookBuilderModalProps> = ({
                           style={{
                             background: "none",
                             border: "none",
+                            color: "var(--muted)",
                             cursor: realIdx < 0 || realIdx >= orderedRecipeIds.length - 1 ? "default" : "pointer",
                             opacity: realIdx < 0 || realIdx >= orderedRecipeIds.length - 1 ? 0.25 : 0.8,
                             padding: 2
@@ -672,9 +730,11 @@ export const CookbookBuilderModal: FC<CookbookBuilderModalProps> = ({
                     onChange={(e): void => setFontSize(e.target.value as "compact" | "standard" | "large")}
                     style={{
                       width: "100%",
-                      padding: "4px 8px",
+                      padding: "6px 8px",
                       borderRadius: "var(--radius-sm)",
                       border: "1px solid var(--border)",
+                      background: "var(--surface-alt)",
+                      color: "var(--text)",
                       fontSize: "0.8125rem"
                     }}
                   >
@@ -702,149 +762,191 @@ export const CookbookBuilderModal: FC<CookbookBuilderModalProps> = ({
               style={{
                 maxWidth: "760px",
                 width: "100%",
-                background: "var(--surface)",
+                background: "#ffffff",
+                color: "#1c2826",
                 padding: "var(--space-8)",
-                boxShadow: "var(--shadow-md)",
-                borderRadius: "var(--radius-sm)",
-                border: "1px solid var(--border)",
-                boxSizing: "border-box"
+                boxShadow: "0 8px 30px rgba(0, 0, 0, 0.12)",
+                borderRadius: "4px",
+                border: "1px solid rgba(0,0,0,0.1)",
+                boxSizing: "border-box",
+                fontFamily: "Georgia, 'Times New Roman', serif"
               }}
             >
-              {/* Preview Cover */}
-              {includeCover && (
-                <div
-                  style={{
-                    minHeight: "360px",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    textAlign: "center",
-                    borderBottom: "2px dashed var(--border)",
-                    paddingBottom: "var(--space-8)",
-                    marginBottom: "var(--space-8)"
-                  }}
-                >
-                  <span style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.15em", color: "var(--muted)" }}>
-                    OpenRecipeBook Collection
-                  </span>
-                  <h1 style={{ fontFamily: "var(--font-serif)", fontSize: "2.4rem", margin: "12px 0 6px 0", color: "var(--accent)" }}>
-                    {currentOptions.title}
-                  </h1>
-                  {currentOptions.subtitle && (
-                    <p style={{ fontStyle: "italic", color: "var(--muted)", margin: "0 0 16px 0" }}>
-                      {currentOptions.subtitle}
-                    </p>
-                  )}
-                  <div style={{ width: "60px", height: "2px", background: "#ca6531", margin: "12px auto" }} />
-                  {currentOptions.author && (
-                    <p style={{ fontWeight: 600, fontSize: "0.9375rem", margin: "0 0 4px 0" }}>
-                      Curated by {currentOptions.author}
-                    </p>
-                  )}
-                  <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: 0 }}>
-                    {selectedRecipes.length} Recipes &bull; Ready to Print
+              {selectedRecipes.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "40px 20px", color: "#666" }}>
+                  <h3 style={{ margin: "0 0 8px 0" }}>No Recipes Selected</h3>
+                  <p style={{ margin: 0, fontSize: "0.875rem" }}>
+                    Select at least one recipe in the sidebar to preview and print your document.
                   </p>
                 </div>
-              )}
+              ) : (
+                <>
+                  {/* Preview Cover */}
+                  {includeCover && (
+                    <div
+                      style={{
+                        minHeight: "360px",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        textAlign: "center",
+                        borderBottom: "2px dashed #ccc",
+                        paddingBottom: "var(--space-8)",
+                        marginBottom: "var(--space-8)"
+                      }}
+                    >
+                      <span style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.15em", color: "#777" }}>
+                        OpenRecipeBook Collection
+                      </span>
+                      <h1 style={{ fontFamily: "Georgia, serif", fontSize: "2.4rem", margin: "12px 0 6px 0", color: "#1c3320" }}>
+                        {currentOptions.title}
+                      </h1>
+                      {currentOptions.subtitle && (
+                        <p style={{ fontStyle: "italic", color: "#555", margin: "0 0 16px 0" }}>
+                          {currentOptions.subtitle}
+                        </p>
+                      )}
+                      <div style={{ width: "60px", height: "2px", background: "#ca6531", margin: "12px auto" }} />
+                      {currentOptions.author && (
+                        <p style={{ fontWeight: 600, fontSize: "0.9375rem", margin: "0 0 4px 0", color: "#333" }}>
+                          Curated by {currentOptions.author}
+                        </p>
+                      )}
+                      <p style={{ fontSize: "0.8125rem", color: "#888", margin: 0 }}>
+                        {selectedRecipes.length} Recipes &bull; Ready to Print
+                      </p>
+                    </div>
+                  )}
 
-              {/* Preview Table of Contents */}
-              {includeToc && (
-                <div style={{ borderBottom: "1px solid var(--border)", paddingBottom: "var(--space-6)", marginBottom: "var(--space-6)" }}>
-                  <h3 style={{ fontFamily: "var(--font-serif)", fontSize: "1.3rem", margin: "0 0 12px 0" }}>
-                    Table of Contents
-                  </h3>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    {selectedRecipes.map((r, idx) => (
-                      <div key={r.id} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.875rem" }}>
-                        <span>
-                          <strong>{idx + 1}.</strong> {r.title}
-                        </span>
-                        <span style={{ color: "var(--muted)", fontStyle: "italic" }}>
-                          {r.courses.join(", ") || "General"}
-                        </span>
+                  {/* Preview Table of Contents */}
+                  {includeToc && (
+                    <div style={{ borderBottom: "1px solid #ddd", paddingBottom: "var(--space-6)", marginBottom: "var(--space-6)" }}>
+                      <h3 style={{ fontFamily: "Georgia, serif", fontSize: "1.3rem", margin: "0 0 12px 0", color: "#1c3320" }}>
+                        Table of Contents
+                      </h3>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {selectedRecipes.map((r, idx) => (
+                          <div key={r.id} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.875rem" }}>
+                            <span>
+                              <strong>{idx + 1}.</strong> {r.title}
+                            </span>
+                            <span style={{ color: "#777", fontStyle: "italic" }}>
+                              {r.courses.join(", ") || "General"}
+                            </span>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </div>
+                    </div>
+                  )}
+
+                  {/* Preview Recipe Pages */}
+                  {selectedRecipes.map((r, rIdx) => {
+                    const photoUrl = resolvePhotoUrl(r.photoIds?.[0]);
+
+                    return (
+                      <article
+                        key={r.id}
+                        style={{
+                          paddingBottom: "var(--space-8)",
+                          marginBottom: "var(--space-8)",
+                          borderBottom: rIdx < selectedRecipes.length - 1 ? "1px solid #eee" : "none"
+                        }}
+                      >
+                        <h2 style={{ fontFamily: "Georgia, serif", fontSize: "1.6rem", margin: "0 0 4px 0", color: "#1c3320" }}>
+                          {r.title}
+                        </h2>
+                        {r.description && (
+                          <p style={{ fontStyle: "italic", color: "#555", fontSize: "0.9rem", margin: "0 0 8px 0" }}>
+                            {r.description}
+                          </p>
+                        )}
+                        <div style={{ fontSize: "0.8125rem", color: "#666", marginBottom: "12px", borderTop: "1px solid #eee", borderBottom: "1px solid #eee", padding: "4px 0" }}>
+                          <span>Servings: {r.servings}</span>
+                          {r.prepMinutes && <span> &bull; Prep: {r.prepMinutes}m</span>}
+                          {r.cookMinutes && <span> &bull; Cook: {r.cookMinutes}m</span>}
+                          {r.courses.length > 0 && <span> &bull; {r.courses.join(", ")}</span>}
+                        </div>
+
+                        {includePhotos && photoUrl && (
+                          <div style={{ textAlign: "center", margin: "10px 0 14px" }}>
+                            <img
+                              src={photoUrl}
+                              alt={r.title}
+                              style={{ maxHeight: "160px", maxWidth: "100%", objectFit: "cover", borderRadius: "4px" }}
+                            />
+                          </div>
+                        )}
+
+                        <div
+                          style={{
+                            display: twoColumnLayout ? "grid" : "flex",
+                            gridTemplateColumns: twoColumnLayout ? "1fr 1.3fr" : undefined,
+                            flexDirection: twoColumnLayout ? undefined : "column",
+                            gap: "var(--space-6)"
+                          }}
+                        >
+                          <div>
+                            <h4 style={{ textTransform: "uppercase", fontSize: "0.8125rem", letterSpacing: "0.05em", color: "#263e28", margin: "0 0 6px 0" }}>
+                              Ingredients
+                            </h4>
+                            {r.ingredientGroups.map((g, gIdx) => (
+                              <div key={gIdx} style={{ marginBottom: 6 }}>
+                                {g.heading && <strong style={{ fontSize: "0.8125rem" }}>{g.heading}</strong>}
+                                <ul style={{ paddingLeft: "18px", margin: "2px 0 0 0", fontSize: "0.875rem" }}>
+                                  {g.items.map((i) => (
+                                    <li key={i.id} style={{ marginBottom: 2 }}>{i.raw}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ))}
+                          </div>
+
+                          <div>
+                            <h4 style={{ textTransform: "uppercase", fontSize: "0.8125rem", letterSpacing: "0.05em", color: "#263e28", margin: "0 0 6px 0" }}>
+                              Directions
+                            </h4>
+                            {r.directionGroups.map((g, gIdx) => (
+                              <div key={gIdx} style={{ marginBottom: 6 }}>
+                                {g.heading && <strong style={{ fontSize: "0.8125rem" }}>{g.heading}</strong>}
+                                <ol style={{ paddingLeft: "18px", margin: "2px 0 0 0", fontSize: "0.875rem" }}>
+                                  {g.steps.map((s) => (
+                                    <li key={s.id} style={{ marginBottom: 4 }}>
+                                      {s.text}
+                                      {s.note && <em style={{ color: "#666" }}> ({s.note})</em>}
+                                    </li>
+                                  ))}
+                                </ol>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {includeNotes && r.notes && (
+                          <div style={{ marginTop: "12px", paddingTop: "8px", borderTop: "1px dashed #ddd", fontSize: "0.85rem", color: "#333" }}>
+                            <strong>Cook&apos;s Notes:</strong> {r.notes}
+                          </div>
+                        )}
+
+                        {includeNutrition && r.nutrition && (
+                          <div style={{ marginTop: "8px", fontSize: "0.8rem", color: "#666", borderTop: "1px solid #eee", paddingTop: "4px" }}>
+                            <strong>Nutrition:</strong>{" "}
+                            {Object.entries(r.nutrition).map(([k, v]) => `${k}: ${v}`).join(" | ")}
+                          </div>
+                        )}
+
+                        {pageBreakAfterRecipe && rIdx < selectedRecipes.length - 1 && (
+                          <div style={{ margin: "24px 0 12px", textAlign: "center", borderTop: "1px dashed #ccc", position: "relative" }}>
+                            <span style={{ position: "relative", top: "-10px", background: "#ffffff", padding: "0 10px", fontSize: "0.75rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                              Page Break
+                            </span>
+                          </div>
+                        )}
+                      </article>
+                    );
+                  })}
+                </>
               )}
-
-              {/* Preview Recipe Pages */}
-              {selectedRecipes.map((r) => (
-                <article
-                  key={r.id}
-                  style={{
-                    paddingBottom: "var(--space-8)",
-                    marginBottom: "var(--space-8)",
-                    borderBottom: "1px solid var(--border)"
-                  }}
-                >
-                  <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "1.6rem", margin: "0 0 4px 0" }}>
-                    {r.title}
-                  </h2>
-                  {r.description && (
-                    <p style={{ fontStyle: "italic", color: "var(--muted)", fontSize: "0.9rem", margin: "0 0 8px 0" }}>
-                      {r.description}
-                    </p>
-                  )}
-                  <div style={{ fontSize: "0.8125rem", color: "var(--muted)", marginBottom: "12px", borderBottom: "1px solid var(--border)", paddingBottom: 4 }}>
-                    <span>Servings: {r.servings}</span>
-                    {r.prepMinutes && <span> &bull; Prep: {r.prepMinutes}m</span>}
-                    {r.cookMinutes && <span> &bull; Cook: {r.cookMinutes}m</span>}
-                    {r.courses.length > 0 && <span> &bull; {r.courses.join(", ")}</span>}
-                  </div>
-
-                  <div
-                    style={{
-                      display: twoColumnLayout ? "grid" : "flex",
-                      gridTemplateColumns: twoColumnLayout ? "1fr 1.3fr" : undefined,
-                      flexDirection: twoColumnLayout ? undefined : "column",
-                      gap: "var(--space-6)"
-                    }}
-                  >
-                    <div>
-                      <h4 style={{ textTransform: "uppercase", fontSize: "0.8125rem", letterSpacing: "0.05em", color: "var(--accent)", margin: "0 0 6px 0" }}>
-                        Ingredients
-                      </h4>
-                      {r.ingredientGroups.map((g, gIdx) => (
-                        <div key={gIdx} style={{ marginBottom: 6 }}>
-                          {g.heading && <strong style={{ fontSize: "0.8125rem" }}>{g.heading}</strong>}
-                          <ul style={{ paddingLeft: "18px", margin: "2px 0 0 0", fontSize: "0.875rem" }}>
-                            {g.items.map((i) => (
-                              <li key={i.id} style={{ marginBottom: 2 }}>{i.raw}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div>
-                      <h4 style={{ textTransform: "uppercase", fontSize: "0.8125rem", letterSpacing: "0.05em", color: "var(--accent)", margin: "0 0 6px 0" }}>
-                        Directions
-                      </h4>
-                      {r.directionGroups.map((g, gIdx) => (
-                        <div key={gIdx} style={{ marginBottom: 6 }}>
-                          {g.heading && <strong style={{ fontSize: "0.8125rem" }}>{g.heading}</strong>}
-                          <ol style={{ paddingLeft: "18px", margin: "2px 0 0 0", fontSize: "0.875rem" }}>
-                            {g.steps.map((s) => (
-                              <li key={s.id} style={{ marginBottom: 4 }}>
-                                {s.text}
-                                {s.note && <em style={{ color: "var(--muted)" }}> ({s.note})</em>}
-                              </li>
-                            ))}
-                          </ol>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {includeNotes && r.notes && (
-                    <div style={{ marginTop: "12px", paddingTop: "8px", borderTop: "1px dashed var(--border)", fontSize: "0.85rem", color: "var(--text)" }}>
-                      <strong>Cook&apos;s Notes:</strong> {r.notes}
-                    </div>
-                  )}
-                </article>
-              ))}
             </div>
           </div>
         </div>

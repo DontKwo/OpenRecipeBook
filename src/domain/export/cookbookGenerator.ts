@@ -269,13 +269,77 @@ export function generateCookbookHtml(
     }
     .page-break { page-break-after: always; break-after: page; }
     .avoid-break { page-break-inside: avoid; break-inside: avoid; }
+    .print-toolbar {
+      position: sticky;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: #1c3320;
+      color: #ffffff;
+      padding: 10px 18px;
+      display: flex;
+      justifyContent: space-between;
+      align-items: center;
+      z-index: 99999;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .print-toolbar-brand {
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .print-toolbar-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .print-toolbar .btn-print,
+    .print-toolbar .btn-pdf,
+    .print-toolbar .btn-close {
+      cursor: pointer;
+      user-select: none;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 6px;
+      padding: 7px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .print-toolbar .btn-print {
+      background: #ca6531;
+      color: #ffffff;
+    }
+    .print-toolbar .btn-pdf {
+      background: #2e593b;
+      color: #ffffff;
+    }
+    .print-toolbar .btn-close {
+      background: rgba(255, 255, 255, 0.15);
+      color: #ffffff;
+    }
     @media print {
       body { margin: 0; }
       .recipe { border-top: none; }
+      .no-print, .print-toolbar {
+        display: none !important;
+      }
     }
   </style>
 </head>
 <body>
+  <div class="print-toolbar no-print">
+    <div class="print-toolbar-brand">
+      <strong>OpenRecipeBook</strong> &bull; ${options.title}
+    </div>
+    <div class="print-toolbar-actions">
+      <span class="btn-print" onclick="window.print()">Print</span>
+      <span class="btn-pdf" onclick="window.print()" title="In printer destination, choose 'Save as PDF'">Save as PDF</span>
+      <span class="btn-close" onclick="window.close()">Close</span>
+    </div>
+  </div>
   ${coverHtml}
   ${tocHtml}
   ${recipesHtml}

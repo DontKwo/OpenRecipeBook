@@ -1,4 +1,4 @@
-import type { MealPlanEntry } from "../recipe/types";
+import type { MealPlanEntry, Recipe } from "../recipe/types";
 
 // Calculate Monday date of the week containing targetDate
 export function calculateWeekMonday(targetDate: Date): Date {
@@ -79,4 +79,40 @@ export function filterEntriesForMonth(
   const pad = (n: number): string => n.toString().padStart(2, "0");
   const prefix = `${year}-${pad(month + 1)}`;
   return entries.filter((e): boolean => e.date.startsWith(prefix));
+}
+
+// Check whether a recipe strictly matches a meal planner slot
+export function matchesSlotCategory(recipe: Partial<Recipe>, slot: string): boolean {
+  const normSlot = slot.toLowerCase().trim();
+  const isBreakfast = normSlot.includes("breakfast") || normSlot.includes("brunch");
+  const isLunch = normSlot.includes("lunch");
+  const isDinner = normSlot.includes("dinner") || normSlot.includes("supper");
+  const isSnack = normSlot.includes("snack") || normSlot.includes("treat");
+
+  const allTags = [
+    ...(recipe.courses || []),
+    ...(recipe.categories || []),
+    ...(recipe.tags || [])
+  ].map((t: string): string => t.toLowerCase().trim());
+
+  if (isBreakfast) {
+    return allTags.some((t: string): boolean => t === "breakfast" || t === "brunch");
+  }
+  if (isLunch) {
+    return allTags.some((t: string): boolean => t === "lunch" || t === "soup" || t === "salad");
+  }
+  if (isDinner) {
+    return allTags.some(
+      (t: string): boolean =>
+        t === "dinner" || t === "main" || t === "mains" || t === "entree" || t === "supper"
+    );
+  }
+  if (isSnack) {
+    return allTags.some(
+      (t: string): boolean =>
+        t === "snack" || t === "snacks" || t === "appetizer" || t === "appetizers" || t === "dessert"
+    );
+  }
+
+  return allTags.some((t: string): boolean => t.includes(normSlot) || normSlot.includes(t));
 }

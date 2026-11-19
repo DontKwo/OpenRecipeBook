@@ -208,7 +208,7 @@
     display: flex;
   }
   .mainContent {
-    padding-bottom: calc(56px + var(--safe-bottom));
+    padding-bottom: calc(64px + var(--safe-bottom, 0px));
   }
   .shellContainer {
     flex-direction: column;
