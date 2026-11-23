@@ -29,5 +29,5 @@ android/app/release-keystore.jks
 # Test coverage and temporary browser profiles
 coverage/
 test-results/
-screenshots/
+/screenshots/
 temp-*-profile/
