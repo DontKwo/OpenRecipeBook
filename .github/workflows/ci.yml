@@ -19,14 +19,12 @@ jobs:
       - name: Checkout OpenRecipeBook
         uses: actions/checkout@v4
 
-      - name: Checkout ai-dev-tools
-        uses: actions/checkout@v4
-        with:
-          repository: DontKwo/ai-dev-tools
-          path: _aitools
-
       - name: Setup uv
         uses: astral-sh/setup-uv@v5
+
+      - name: Clone ai-dev-tools
+        shell: bash
+        run: git clone --depth 1 https://github.com/DontKwo/ai-dev-tools.git "${{ runner.temp }}/_aitools"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -41,9 +39,13 @@ jobs:
         run: npm test
 
       - name: Run Strict Linter and Link Check
+        shell: bash
         run: |
-          uv run --no-project python _aitools/scripts/claudemd_linter.py . --level strict --full
-          uv run --no-project python _aitools/scripts/link_checker.py .
+          if ! uv run --no-project python "${{ runner.temp }}/_aitools/scripts/claudemd_linter.py" . --level strict --full --no-cache; then
+            cat "${{ runner.temp }}/_aitools/scripts"/lint_report_*.txt || true
+            exit 1
+          fi
+          uv run --no-project python "${{ runner.temp }}/_aitools/scripts/link_checker.py" .
 
   build-windows:
     needs: lint-and-test
