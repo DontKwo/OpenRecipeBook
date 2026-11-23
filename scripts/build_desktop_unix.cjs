@@ -51,6 +51,11 @@ function run() {
     return;
   }
 
+  const workDir = path.join(BUILD_DIR, "pyi-work");
+  const distOutDir = path.join(BUILD_DIR, "pyi-dist");
+  fs.mkdirSync(workDir, { recursive: true });
+  fs.mkdirSync(distOutDir, { recursive: true });
+
   const pyInstallerArgs = [
     "-m",
     "PyInstaller",
@@ -58,12 +63,14 @@ function run() {
     "--clean",
     "--onefile",
     "--noconsole",
+    "--workpath",
+    workDir,
     "--name",
     "OpenRecipeBook",
     "--add-data",
     `${DIST_DIR}:dist`,
     "--distpath",
-    BUILD_DIR,
+    distOutDir,
     HOST_SCRIPT
   ];
   const iconPath = path.join(ROOT_DIR, "assets", "icon.ico");
@@ -73,8 +80,8 @@ function run() {
   execFileSync(pythonBin, pyInstallerArgs, { stdio: "inherit" });
 
   if (platform === "macos") {
-    const appPath = path.join(BUILD_DIR, "OpenRecipeBook.app");
-    const binPath = path.join(BUILD_DIR, "OpenRecipeBook");
+    const appPath = path.join(distOutDir, "OpenRecipeBook.app");
+    const binPath = path.join(distOutDir, "OpenRecipeBook");
     const targetBin = fs.existsSync(appPath)
       ? path.join(appPath, "Contents", "MacOS", "OpenRecipeBook")
       : binPath;
@@ -83,12 +90,12 @@ function run() {
     }
     const zipTarget = path.join(BUILD_DIR, "OpenRecipeBook-macOS.zip");
     const itemToZip = fs.existsSync(appPath) ? "OpenRecipeBook.app" : "OpenRecipeBook";
-    execFileSync("zip", ["-r", zipTarget, itemToZip], { cwd: BUILD_DIR, stdio: "inherit" });
+    execFileSync("zip", ["-r", zipTarget, itemToZip], { cwd: distOutDir, stdio: "inherit" });
     console.log(`Built ${zipTarget}`);
     return;
   }
 
-  const linuxBin = path.join(BUILD_DIR, "OpenRecipeBook");
+  const linuxBin = path.join(distOutDir, "OpenRecipeBook");
   const renamedBin = path.join(BUILD_DIR, "OpenRecipeBook-Linux");
   if (fs.existsSync(linuxBin)) {
     fs.copyFileSync(linuxBin, renamedBin);
