@@ -125,7 +125,7 @@ export async function clearStoredDirectoryHandle(): Promise<void> {
 }
 
 export class FileSystemFolderBackupDestination implements BackupDestination {
-  name: string = "Synced Folder (Google Drive, Dropbox, OneDrive)";
+  name: string = "Synced Folder (Cloud Drive)";
   private cachedDirectoryHandle: FileSystemDirectoryHandle | null = null;
 
   public isAvailable(): boolean {

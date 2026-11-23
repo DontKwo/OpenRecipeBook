@@ -11,18 +11,23 @@ build/
 
 # Cache and temporary files
 .cache/
+.lint_cache.json
+.ruff_cache/
+lint_report*.txt
+scripts/lint_report*.txt
 *.log
 *.tsbuildinfo
 .DS_Store
 Thumbs.db
 
-# Environment variables and local configs
+# Environment variables, local configs, and release secrets
 .env
 .env.local
 *.local
+android/app/release-keystore.jks
 
-# Test coverage and results
+# Test coverage and temporary browser profiles
 coverage/
 test-results/
 screenshots/
-temp-chrome-profile/
+temp-*-profile/

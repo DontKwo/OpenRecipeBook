@@ -1,4 +1,4 @@
-# Third-Party Licenses and Data Sources
+# Third-Party Notices
 
 This document lists external dependencies, data sources, and open-source licenses used by OpenRecipeBook.
 
@@ -12,8 +12,16 @@ This document lists external dependencies, data sources, and open-source license
 - **vite-plugin-pwa**: MIT License. Copyright (c) 2020 Anthony Fu.
 - **workbox-build**: MIT License. Copyright (c) 2018 Google LLC.
 - **Vitest**: MIT License. Copyright (c) 2021-Present Anthony Fu, Matias Capeletto.
+- **AndroidX AppCompat, WebKit & Material Components**: Apache License 2.0. Copyright (c) The Android Open Source Project.
 
 ## Data Sources
 
 - **USDA FoodData Central**: Public Domain (U.S. Government Work). Density measurements for common cooking ingredients (flours, sugars, butters, milks, oils, salts) are sourced from the USDA FoodData Central database.
 - **Icons**: Original SVG iconography based on standard geometric line conventions, distributed under the MIT License.
+
+## Related Documentation
+
+- [Project Overview](README.md)
+- [System Architecture](docs/ARCHITECTURE.md)
+- [Security Policy](SECURITY.md)
+- [MIT License](LICENSE)

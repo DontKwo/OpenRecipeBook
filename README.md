@@ -1,62 +1,78 @@
 <p align="center">
-  <img src="logo.png" alt="OpenRecipeBook Logo" width="220" />
+  <img src="assets/logo.png" alt="OpenRecipeBook Logo" width="240" />
 </p>
 
 # OpenRecipeBook
 
-OpenRecipeBook is a free, open-source personal cookbook application for Windows PC and Android. It provides a local-first recipe keeper modeled on commercial cookbook apps, without subscriptions, accounts, or paywalls.
+**Save recipes locally, scale ingredients cleanly, plan weekly meals, and shop offline without accounts or subscriptions.**
 
-## Install and Download
+OpenRecipeBook is a free personal cookbook app for Windows, macOS, Linux, and Android. Every recipe stays on your own hardware as plain `.recipe.json` files alongside one-click backups.
 
-OpenRecipeBook runs strictly as a native desktop or mobile app with local file storage:
+---
 
-| Platform | Download / Link | Notes |
-|---|---|---|
-| **Windows PC (.exe)** | [Download Windows Executable](https://github.com/DontKwo/OpenRecipeBook/releases/latest/download/OpenRecipeBook-Windows.exe) | Standalone Windows executable storing recipes directly on disk (`Documents\OpenRecipeBook\recipes`) with unconstrained HTTP recipe URL importing. |
-| **Android (.apk)** | [Download Android APK](https://github.com/DontKwo/OpenRecipeBook/releases/latest/download/OpenRecipeBook-Android.apk) | Standalone native Android application (.apk). Direct install with local file storage (`Android/data/org.openrecipebook.app/files/recipes`), file picking, and native URL import. |
+## Download
 
-### Platform Details
+| Platform | Download | Setup Guide |
+| :--- | :--- | :--- |
+| Windows | [OpenRecipeBook-Windows.exe](https://github.com/DontKwo/OpenRecipeBook/releases/latest/download/OpenRecipeBook-Windows.exe) | [Windows Install Steps](docs/INSTALLATION.md#windows) |
+| macOS | [OpenRecipeBook-macOS.zip](https://github.com/DontKwo/OpenRecipeBook/releases/latest/download/OpenRecipeBook-macOS.zip) | [macOS Install Steps](docs/INSTALLATION.md#macos) |
+| Linux | [OpenRecipeBook-Linux.tar.gz](https://github.com/DontKwo/OpenRecipeBook/releases/latest/download/OpenRecipeBook-Linux.tar.gz) | [Linux Install Steps](docs/INSTALLATION.md#linux) |
+| Android | [OpenRecipeBook-Android.apk](https://github.com/DontKwo/OpenRecipeBook/releases/latest/download/OpenRecipeBook-Android.apk) | [Android APK Install Guide](docs/APK_INSTALLATION.md) |
 
-- **Windows Desktop:** Download and run `OpenRecipeBook-Windows.exe`. Recipes are stored directly as `.recipe.json` files inside your chosen recipe storage folder (`Documents\OpenRecipeBook\recipes` by default), independent of browser cookies or cache. Unsigned releases may show a standard Windows SmartScreen prompt on first run; click "More info" then "Run anyway".
-- **Android App:** Download the `.apk` file directly to your Android device and tap to install. Operates fully offline, uses native file and photo picking, stores recipe files in your app storage folder, and allows sharing recipe links from your browser straight into OpenRecipeBook.
-- **Bridging Devices:** Copy `.recipe.json` files directly from your storage folder or use the built-in full backup export (`.openrecipebook.zip`) to transfer recipes between Windows Desktop and Android.
+---
+
+## Screenshots
+
+<p align="center">
+  <img src="assets/screenshots/01_main.png" alt="OpenRecipeBook Desktop Library" width="760" />
+</p>
+
+---
+
+## How to Use
+
+1. Download OpenRecipeBook for your computer or Android device from the table above.
+2. Follow the [Desktop Installation Guide](docs/INSTALLATION.md) or [Android APK Installation Guide](docs/APK_INSTALLATION.md) if your device displays an unrecognized-app prompt.
+3. Add recipes manually, import web links or Recipe Keeper/Paprika exports, and arrange folders.
+4. Drag meals onto your weekly planner, sum ingredients in **Ingredient Totals**, or launch **Cook Mode**.
+
+---
 
 ## Key Features
 
-- **Direct On-Disk Recipe Storage:** View your recipe storage folder path, open the folder, see every `.recipe.json` or backup file inside it, and add recipe files on both Windows Desktop and Android.
-- **Folder Organization:** Create recipe folders, open any folder directly, and search or select recipes to add into it.
-- **Instant Scaling Engine:** Fast multipliers (0.5x, 1x, 2x, 3x, and custom) for ingredient quantities with fraction formatting, unit promotion (3 tsp -> 1 tbsp), and yield stepping.
-- **Ingredient Totals Tool:** Pick multiple recipes to compute combined ingredient requirements with exact rational arithmetic (e.g. 1 cup + 2/3 cup + 1/3 cup flour sums to 2 cups flour).
-- **Meal Planner:** Weekly calendar planner with Breakfast, Lunch, Dinner, and Snack slots. Add meals to your shopping list with a single click.
-- **Aisle-Grouped Shopping List:** Organize ingredients automatically by grocery aisle, tick off items in the store, and copy formatted lists to your clipboard.
-- **Interactive Cook Mode:** Full-screen step-by-step reading view with screen wake lock and one-tap concurrent cooking timers.
-- **Universal Importer:** Import from Recipe Keeper zip archives, Paprika exports, schema.org JSON-LD, plain text, and web pages.
+- **On-Disk Recipe Files**: Stores recipes directly as portable `.recipe.json` files on your device without browser storage lock-in.
+- **Instant Scaling & Totals**: Multiply servings with exact kitchen fractions and sum mixed units across recipes.
+- **Meal Planner & Shopping List**: Plan weekly menus and sort shopping ingredients automatically by grocery aisle.
 
-## Development Setup
+---
 
-Prerequisites: Node.js 18+ and npm.
+## Safety & Disclaimers
 
-```bash
-# Install dependencies
-npm install
+- **Official `main` Releases Only**: Download executables and APKs exclusively from [DontKwo/OpenRecipeBook Releases](https://github.com/DontKwo/OpenRecipeBook/releases/latest) (`main` branch). Never run forked builds unless you are sure they contain no malware; only official `main` releases are maintained by the author, and I make no promises.
+- **OS & Phone Security Warnings**: Windows SmartScreen, macOS Gatekeeper, and Android Play Protect will likely warn that independently signed apps or APK files are unrecognized or unsafe. Bypassing these warnings is strictly at your own discretion using [Desktop Installation Guide](docs/INSTALLATION.md) or [Android APK Installation Guide](docs/APK_INSTALLATION.md).
+- **Local File Modifications & AS-IS Warranty**: OpenRecipeBook writes recipe and backup files into folders you select. Provided "AS IS" under the [MIT License](LICENSE) with zero warranty or liability; you use this software entirely at your own risk.
 
-# Run Vitest unit test suite
-npm test
-
-# Build application assets
-npm run build
-
-# Build standalone Windows desktop executable (build/OpenRecipeBook.exe)
-npm run build:desktop
-```
+---
 
 ## Documentation
 
-- [DESIGN.md](DESIGN.md): Full architectural specification, requirements, and design notes.
-- [PROGRESS.md](PROGRESS.md): Live implementation tracker, handoff state, and technical notes.
-- [DECISIONS.md](DECISIONS.md): Architectural decision records.
-- [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md): Third-party open source licenses and USDA FoodData Central data citations.
+### User Documentation
+- [User Guide](docs/USER_GUIDE.md)
+- [Desktop Installation Guide](docs/INSTALLATION.md)
+- [Android APK Installation Guide](docs/APK_INSTALLATION.md)
+- [Frequently Asked Questions](docs/FAQ.md)
 
-## License
+### Developer Documentation
+- [Developer Guide](docs/DEVELOPMENT.md)
+- [Developer uv Installation](docs/UV_INSTALLATION.md)
+- [Packaging Guide](docs/PACKAGING.md)
 
-OpenRecipeBook is open-source software licensed under the [MIT License](LICENSE).
+### AI, Technical & Reference Documentation
+- [System Architecture](docs/ARCHITECTURE.md)
+- [File Format Specification](docs/FILE_FORMAT.md)
+- [AI Agent Reference](AGENTS.md)
+
+### Legal & Security Policies
+- [Security Policy](SECURITY.md)
+- [Third-Party Notices](THIRD_PARTY_NOTICES.md)
+- [MIT License](LICENSE)

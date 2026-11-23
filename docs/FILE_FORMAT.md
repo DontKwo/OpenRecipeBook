@@ -128,3 +128,12 @@ A full library or collection export is a standard zip archive containing:
 1. Zip readers must reject entry paths containing `..` or absolute path markers.
 2. Text fields are sanitized and rendered as plain text. Raw HTML is forbidden.
 3. Photo entries are bounded in dimension and file size to prevent memory exhaustion.
+
+## Related Documentation
+
+- [Project Overview](../README.md)
+- [User Guide](USER_GUIDE.md)
+- [System Architecture](ARCHITECTURE.md)
+- [Packaging Guide](PACKAGING.md)
+- [Developer Guide](DEVELOPMENT.md)
+- [Security Policy](../SECURITY.md)

@@ -3,7 +3,7 @@ const path = require("path");
 const os = require("os");
 const assert = require("assert");
 const http = require("http");
-const { spawn } = require("child_process");
+const { spawn, execFileSync } = require("child_process");
 
 const EXE_PATH = path.resolve(__dirname, "..", "build", "OpenRecipeBook.exe");
 
@@ -72,6 +72,9 @@ async function waitForServer(child) {
 
 async function run() {
   assert.ok(fs.existsSync(EXE_PATH), `Missing executable at ${EXE_PATH}`);
+
+  const selfTestOut = execFileSync(EXE_PATH, ["--self-test"], { encoding: "utf8" });
+  assert.ok(selfTestOut.includes("SELF_TEST_OK"), "Executable --self-test must pass");
 
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "orb-exe-test-"));
   const dataDir = path.join(tempRoot, "host-config");

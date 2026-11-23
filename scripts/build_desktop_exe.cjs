@@ -72,12 +72,17 @@ namespace OpenRecipeBookHost
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls;
 
             bool headless = false;
+            bool selfTest = false;
             int requestedPort = 0;
 
             for (int i = 0; i < args.Length; i++)
             {
                 string arg = args[i] ?? string.Empty;
-                if (arg == "--headless-server")
+                if (arg == "--self-test")
+                {
+                    selfTest = true;
+                }
+                else if (arg == "--headless-server")
                 {
                     headless = true;
                     if (i + 1 < args.Length)
@@ -120,6 +125,28 @@ namespace OpenRecipeBookHost
             Task serverTask = Task.Run(() => RunServerLoop(listener, cts.Token));
 
             string baseUrl = "http://127.0.0.1:" + _activePort + "/";
+            if (selfTest)
+            {
+                using (var http = new HttpClient())
+                {
+                    http.Timeout = TimeSpan.FromSeconds(5);
+                    string homeHtml = http.GetStringAsync(baseUrl).GetAwaiter().GetResult();
+                    if (string.IsNullOrEmpty(homeHtml) || !homeHtml.Contains("window.nativeApi"))
+                    {
+                        throw new InvalidOperationException("Self-test failed: bridge injection missing.");
+                    }
+                    string infoJson = http.GetStringAsync(baseUrl + "api/native/storage-info").GetAwaiter().GetResult();
+                    if (string.IsNullOrEmpty(infoJson) || !infoJson.Contains("\\"ok\\":true"))
+                    {
+                        throw new InvalidOperationException("Self-test failed: storage endpoint error.");
+                    }
+                }
+                Console.WriteLine("SELF_TEST_OK " + baseUrl);
+                Console.Out.Flush();
+                cts.Cancel();
+                try { listener.Stop(); } catch { }
+                return 0;
+            }
             if (headless)
             {
                 Console.WriteLine("READY " + baseUrl);
@@ -848,11 +875,12 @@ function buildDesktopExe() {
   fs.writeFileSync(CS_FILE, getDesktopHostCSharpSource(), "utf8");
 
   const icoPath = path.join(BUILD_DIR, "app.ico");
-  if (!fs.existsSync(icoPath)) {
-    const publicIco = path.join(ROOT_DIR, "public", "favicon.ico");
-    if (fs.existsSync(publicIco)) {
-      fs.copyFileSync(publicIco, icoPath);
-    }
+  const brandIco = path.join(ROOT_DIR, "assets", "icon.ico");
+  const publicIco = path.join(ROOT_DIR, "public", "favicon.ico");
+  if (fs.existsSync(brandIco)) {
+    fs.copyFileSync(brandIco, icoPath);
+  } else if (fs.existsSync(publicIco)) {
+    fs.copyFileSync(publicIco, icoPath);
   }
 
   const cscPath = findCscPath();
