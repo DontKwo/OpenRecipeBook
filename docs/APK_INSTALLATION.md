@@ -1,32 +1,88 @@
 # Android APK Installation Guide
 
-Install `OpenRecipeBook` directly on an Android phone or tablet using the signed `.apk` package.
-
-## Safety & Authenticity Warning
-
-- **Official `main` Releases Only**: Download `OpenRecipeBook-Android.apk` exclusively from [DontKwo/OpenRecipeBook Releases](https://github.com/DontKwo/OpenRecipeBook/releases/latest).
-- **Fork Warning**: Do **not** install APKs from forked repositories or third-party mirrors unless you have verified the source code yourself and confirmed they contain no malware. Only official `main` releases are maintained by the author, and I make no promises.
-- **Bypassing Security Prompts**: Android warns whenever you install an APK downloaded outside Google Play (and may label unknown apps "unsafe" or blocked by Google Play Protect). Bypassing these prompts is strictly at your own discretion, and `OpenRecipeBook` is provided "AS IS" with zero liability.
+Install `OpenRecipeBook` directly on your Android phone or tablet (Android 8 through Android 15, including Pixel and Samsung Galaxy One UI).
 
 ---
 
-## Step-by-Step Android Installation
+## Step 1: Download the Official APK
 
-1. On your Android device, open the [Latest Releases](https://github.com/DontKwo/OpenRecipeBook/releases/latest) page and download `OpenRecipeBook-Android.apk`.
-2. Tap the downloaded `OpenRecipeBook-Android.apk` notification (or open your phone's **Files** app -> **Downloads** and tap the APK).
-3. When Android asks to allow installing unknown apps from your browser or file manager:
-   - Tap **Settings** in the prompt.
-   - Turn on **Allow from this source** for that browser or file manager.
-   - Return to the installer and tap **Install**.
-4. If **Google Play Protect** displays *"Unsafe app blocked"* or *"App not recognized"*:
-   - Tap **More details** -> **Install anyway** (or allow Play Protect to **Scan app** first if offered).
-   - Proceed strictly at your own discretion after confirming the APK came from `DontKwo/OpenRecipeBook`.
-5. **Samsung Galaxy (One UI 6+ Auto Blocker Note)**:
-   - If installation is blocked completely with *"For your security, your phone isn't allowed to install unknown apps"*, open **Settings** -> **Security and privacy** -> **Auto Blocker** and turn it off temporarily while installing, or review Samsung App Protection settings. Re-enable Auto Blocker afterward if desired.
+1. Open [DontKwo/OpenRecipeBook Releases](https://github.com/DontKwo/OpenRecipeBook/releases/latest) on your phone's browser.
+2. Tap `OpenRecipeBook-Android.apk` to download it.
+3. If your browser asks *"File might be harmful. Download anyway?"*, confirm the URL shows `github.com/DontKwo/OpenRecipeBook` and tap **Download anyway**.
+
+---
+
+## Step 2: Samsung Galaxy Only (Disable Auto Blocker Temporarily)
+
+Samsung phones running **One UI 6 or newer** turn on **Auto Blocker** by default, which overrides standard sideload permissions and blocks APK installs:
+
+1. Open **Settings** -> **Security and privacy**.
+2. Tap **Auto Blocker**.
+3. Toggle **Auto Blocker** to **Off** temporarily (you will turn it back on after installation finishes).
+
+---
+
+## Step 3: Allow "Install Unknown Apps" for Your Browser or File Manager
+
+Android grants APK installation permission per opener app (for example **Chrome**, **Firefox**, **Samsung Internet**, **Files by Google**, or **Samsung My Files**):
+
+- **Pixel / Stock Android (Android 8-15)**:
+  1. Open **Settings** -> **Apps** -> **Special app access** -> **Install unknown apps**.
+  2. Tap your browser (or file manager) and turn on **Allow from this source**.
+- **Samsung Galaxy**:
+  1. Open **Settings** -> **Security and privacy** -> **More security settings** -> **Install unknown apps**.
+  2. Tap your browser (or **My Files**) and turn on **Allow from this source**.
+
+---
+
+## Step 4: Install & Handle Google Play Protect Warnings
+
+1. Tap the completed `OpenRecipeBook-Android.apk` notification or open it in **Files** / **My Files** -> **Downloads**.
+2. Tap **Install**.
+3. If **Google Play Protect** displays a warning dialog (*"Unsafe app blocked"* or *"Play Protect doesn't recognize this app's developer"*):
+   - Tap **More details** (or the small arrow next to the warning).
+   - Tap **Install anyway** at your own discretion.
+4. If Play Protect blocks installation without an **Install anyway** button:
+   - Open **Google Play Store** -> tap your **Profile icon** (top right) -> **Play Protect** -> **Settings gear** (top right).
+   - Temporarily switch **Scan apps with Play Protect** to **Off**, install the APK, and immediately return to turn **Scan apps with Play Protect** back **On**.
+
+---
+
+## Step 5: Android 13-15 "Restricted Settings" (If Needed Later)
+
+On Android 13, 14, and 15, sideloaded apps may show *"For your security, this setting is currently unavailable"* for sensitive permissions:
+
+1. Trigger the permission request inside `OpenRecipeBook` once so Android registers the request.
+2. Open **Settings** -> **Apps** -> **See all apps** -> **`OpenRecipeBook`**.
+3. Tap the **three-dot menu** in the top-right corner -> **Allow restricted settings** -> confirm with your PIN, pattern, or fingerprint.
+4. Grant the requested permission inside App Info -> **Permissions**.
+
+---
+
+## Step 6: Re-Enable Device Protections
+
+After `OpenRecipeBook` finishes installing:
+
+1. Turn **Allow from this source** back **Off** for your browser or file manager.
+2. Confirm **Google Play Protect** scanning is **On**.
+3. On Samsung Galaxy devices, turn **Auto Blocker** back **On**.
+
+---
 
 ## Updating OpenRecipeBook on Android
 
 Download the newer `OpenRecipeBook-Android.apk` from [Latest Releases](https://github.com/DontKwo/OpenRecipeBook/releases/latest) and tap **Update**. Your recipes and settings stay intact across official `main` releases signed with the same key.
+
+---
+
+## Safety & Authenticity Warning
+
+- **Security Prompts Are Expected**: Your phone will likely tell you the app is unrecognized, unverified, or potentially unsafe because this `.apk` is distributed directly from GitHub outside the Google Play Store.
+- **Official `main` Releases Only**: Only `.apk` files published on the official [DontKwo/OpenRecipeBook Releases](https://github.com/DontKwo/OpenRecipeBook/releases/latest) page (`main` branch) are maintained by the author.
+- **Fork Warning**: Never download forked `.apk` releases unless you are completely sure they do not contain malware. Only official `main` releases have no malware to the best of the author's knowledge, and I still make no promises.
+- **Your Discretion & Zero Liability**: Bypassing Android security prompts is strictly at your own discretion. This software is provided "AS IS" with zero liability.
+
+---
 
 ## Related Documentation
 

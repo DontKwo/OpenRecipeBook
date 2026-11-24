@@ -2,7 +2,9 @@
 
 `uv` is only needed by developers and CI workflows running repository lint checks (`ai-dev-tools`). Regular users should download the prebuilt desktop executable or Android APK from [Latest Releases](https://github.com/DontKwo/OpenRecipeBook/releases/latest).
 
-## Windows
+## Platform Instructions
+
+### Windows
 
 Choose the PowerShell standalone installer or winget:
 
@@ -11,7 +13,7 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 winget install --id=astral-sh.uv -e
 ```
 
-## macOS
+### macOS
 
 Choose the standalone installer or Homebrew:
 
@@ -20,7 +22,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 brew install uv
 ```
 
-## Linux
+### Linux
 
 Use the official standalone installer (`curl` or `wget`):
 

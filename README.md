@@ -24,7 +24,11 @@ OpenRecipeBook is a free personal cookbook app for Windows, macOS, Linux, and An
 ## Screenshots
 
 <p align="center">
-  <img src="assets/screenshots/01_main.png" alt="OpenRecipeBook Desktop Library" width="760" />
+  <img src="assets/screenshots/01_main.png" alt="OpenRecipeBook Desktop Library" width="540" />
+  <img src="assets/screenshots/03_mobile.png" alt="OpenRecipeBook Android Mobile View" width="210" />
+</p>
+<p align="center">
+  <img src="assets/screenshots/02_meal_planner.png" alt="OpenRecipeBook Weekly Meal Planner" width="760" />
 </p>
 
 ---
@@ -46,14 +50,6 @@ OpenRecipeBook is a free personal cookbook app for Windows, macOS, Linux, and An
 
 ---
 
-## Safety & Disclaimers
-
-- **Official `main` Releases Only**: Download executables and APKs exclusively from [DontKwo/OpenRecipeBook Releases](https://github.com/DontKwo/OpenRecipeBook/releases/latest) (`main` branch). Never run forked builds unless you are sure they contain no malware; only official `main` releases are maintained by the author, and I make no promises.
-- **OS & Phone Security Warnings**: Windows SmartScreen, macOS Gatekeeper, and Android Play Protect will likely warn that independently signed apps or APK files are unrecognized or unsafe. Bypassing these warnings is strictly at your own discretion using [Desktop Installation Guide](docs/INSTALLATION.md) or [Android APK Installation Guide](docs/APK_INSTALLATION.md).
-- **Local File Modifications & AS-IS Warranty**: OpenRecipeBook writes recipe and backup files into folders you select. Provided "AS IS" under the [MIT License](LICENSE) with zero warranty or liability; you use this software entirely at your own risk.
-
----
-
 ## Documentation
 
 ### User Documentation
@@ -67,7 +63,7 @@ OpenRecipeBook is a free personal cookbook app for Windows, macOS, Linux, and An
 - [Developer uv Installation](docs/UV_INSTALLATION.md)
 - [Packaging Guide](docs/PACKAGING.md)
 
-### AI, Technical & Reference Documentation
+### AI & Technical Documentation
 - [System Architecture](docs/ARCHITECTURE.md)
 - [File Format Specification](docs/FILE_FORMAT.md)
 - [AI Agent Reference](AGENTS.md)
@@ -76,3 +72,11 @@ OpenRecipeBook is a free personal cookbook app for Windows, macOS, Linux, and An
 - [Security Policy](SECURITY.md)
 - [Third-Party Notices](THIRD_PARTY_NOTICES.md)
 - [MIT License](LICENSE)
+
+---
+
+## Safety & Disclaimers
+
+- **Official `main` Releases Only**: Download executables and APKs exclusively from [DontKwo/OpenRecipeBook Releases](https://github.com/DontKwo/OpenRecipeBook/releases/latest) (`main` branch). Never run forked builds unless you are sure they contain no malware; only official `main` releases are maintained by the author, and I make no promises.
+- **OS & Phone Security Warnings**: Windows SmartScreen, macOS Gatekeeper, and Android Play Protect will likely warn that independently signed apps or APK files are unrecognized or unsafe. Bypassing these warnings is strictly at your own discretion using [Desktop Installation Guide](docs/INSTALLATION.md) or [Android APK Installation Guide](docs/APK_INSTALLATION.md).
+- **Local File Modifications & AS-IS Warranty**: OpenRecipeBook writes recipe and backup files into folders you select. Provided "AS IS" under the [MIT License](LICENSE) with zero warranty or liability; you use this software entirely at your own risk.

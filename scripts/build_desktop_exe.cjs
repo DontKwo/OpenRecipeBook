@@ -73,6 +73,7 @@ namespace OpenRecipeBookHost
 
             bool headless = false;
             bool selfTest = false;
+            string screenshotPath = null;
             int requestedPort = 0;
 
             for (int i = 0; i < args.Length; i++)
@@ -81,6 +82,14 @@ namespace OpenRecipeBookHost
                 if (arg == "--self-test")
                 {
                     selfTest = true;
+                }
+                else if (arg == "--screenshot" && i + 1 < args.Length)
+                {
+                    screenshotPath = args[++i];
+                }
+                else if (arg.StartsWith("--screenshot=", StringComparison.OrdinalIgnoreCase))
+                {
+                    screenshotPath = arg.Substring("--screenshot=".Length).Trim();
                 }
                 else if (arg == "--headless-server")
                 {
@@ -147,6 +156,13 @@ namespace OpenRecipeBookHost
                 try { listener.Stop(); } catch { }
                 return 0;
             }
+            if (!string.IsNullOrEmpty(screenshotPath))
+            {
+                CaptureHeadlessScreenshot(baseUrl, screenshotPath);
+                cts.Cancel();
+                try { listener.Stop(); } catch { }
+                return 0;
+            }
             if (headless)
             {
                 Console.WriteLine("READY " + baseUrl);
@@ -170,6 +186,53 @@ namespace OpenRecipeBookHost
             cts.Cancel();
             try { listener.Stop(); } catch { }
             return 0;
+        }
+
+        private static void CaptureHeadlessScreenshot(string baseUrl, string outputPath)
+        {
+            string browserExe = FindAppShellBrowser();
+            if (string.IsNullOrEmpty(browserExe))
+            {
+                throw new InvalidOperationException("No Chromium or Edge executable available for --screenshot.");
+            }
+            string fullOut = Path.GetFullPath(outputPath);
+            string targetPng = fullOut.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
+                ? fullOut
+                : Path.Combine(fullOut, "01_main.png");
+            string parentDir = Path.GetDirectoryName(targetPng);
+            if (!string.IsNullOrEmpty(parentDir))
+            {
+                Directory.CreateDirectory(parentDir);
+            }
+            string tempProfile = Path.Combine(Path.GetTempPath(), "orb-shot-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempProfile);
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = browserExe,
+                    Arguments = "--headless=new --disable-gpu --no-sandbox --hide-scrollbars --virtual-time-budget=3000 --user-data-dir=\\"" + tempProfile + "\\" --window-size=1440,900 --screenshot=\\"" + targetPng + "\\" " + baseUrl,
+                    UseShellExecute = false
+                };
+                using (Process proc = Process.Start(psi))
+                {
+                    if (proc == null)
+                    {
+                        throw new InvalidOperationException("Failed to launch headless browser.");
+                    }
+                    proc.WaitForExit(45000);
+                }
+            }
+            finally
+            {
+                try { Directory.Delete(tempProfile, true); } catch { }
+            }
+            if (!File.Exists(targetPng) || new FileInfo(targetPng).Length < 1000)
+            {
+                throw new InvalidOperationException("Screenshot output missing or empty: " + targetPng);
+            }
+            Console.WriteLine("SCREENSHOT_OK " + targetPng);
+            Console.Out.Flush();
         }
 
         private static string GetConfigPath()
