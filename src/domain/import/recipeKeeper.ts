@@ -1,7 +1,7 @@
 import { unzipSync, strFromU8 } from "fflate";
 import type { Recipe, Step, RecipeRating, IngredientGroup, DirectionGroup } from "../recipe/types";
 import { normalizeRecipe } from "../recipe/normalize";
-import { parseIsoDuration } from "./jsonld";
+import { parseIsoDuration, unescapeHtmlEntities } from "./jsonld";
 
 export interface ImportedPhotoRecord {
   id: string;
@@ -287,21 +287,37 @@ export function parseRecipeKeeperHtml(
     const courses = categoryMatch ? [categoryMatch[1].trim()] : [];
 
     const rawIngredients: string[] = [];
-    const ingRegex = /<li[^>]*itemprop=["']recipeIngredient["'][^>]*>([^<]+)<\/li>/gi;
+    const stripTags = (rawHtml: string): string =>
+      unescapeHtmlEntities(rawHtml.replace(/<br\s*\/?>/gi, " ").replace(/<[^>]+>/g, " "))
+        .replace(/\s+/g, " ")
+        .trim();
+
+    const ingRegex = /<(?:li|p|div)[^>]*itemprop=["']recipeIngredient["'][^>]*>([\s\S]*?)<\/(?:li|p|div)>/gi;
     let ingMatch: RegExpExecArray | null;
     while ((ingMatch = ingRegex.exec(block)) !== null) {
-      rawIngredients.push(ingMatch[1].trim());
+      const cleaned = stripTags(ingMatch[1]);
+      if (cleaned) rawIngredients.push(cleaned);
     }
 
     const rawSteps: string[] = [];
-    const stepRegex = /<li[^>]*itemprop=["']recipeInstructions["'][^>]*>([^<]+)<\/li>/gi;
+    const stepRegex = /<(?:li|p|div)[^>]*itemprop=["']recipeInstructions["'][^>]*>([\s\S]*?)<\/(?:li|p|div)>/gi;
     let stepMatch: RegExpExecArray | null;
     while ((stepMatch = stepRegex.exec(block)) !== null) {
-      rawSteps.push(stepMatch[1].trim());
+      const cleaned = stripTags(stepMatch[1]);
+      if (cleaned) rawSteps.push(cleaned);
     }
 
-    const notesMatch = /<div class=["']notes["'][^>]*>([^<]+)<\/div>/i.exec(block);
-    const notes = notesMatch ? notesMatch[1].trim() : undefined;
+    const ratingMatch = /<[^>]+itemprop=["']ratingValue["'][^>]*(?:content=["']([^"']+)["']|>([^<]+)<)/i.exec(block);
+    let rating: RecipeRating = 0;
+    if (ratingMatch) {
+      const val = parseFloat((ratingMatch[1] || ratingMatch[2] || "").trim());
+      if (!isNaN(val)) {
+        rating = Math.min(5, Math.max(0, Math.round(val))) as RecipeRating;
+      }
+    }
+
+    const notesMatch = /<div class=["']notes["'][^>]*>([\s\S]*?)<\/div>/i.exec(block);
+    const notes = notesMatch ? stripTags(notesMatch[1]) || undefined : undefined;
 
     const recipeId = `rk-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
     const photoIds: string[] = [];
@@ -324,8 +340,8 @@ export function parseRecipeKeeperHtml(
 
     const recipe: Recipe = {
       id: recipeId,
-      title,
-      description,
+      title: unescapeHtmlEntities(title),
+      description: description ? unescapeHtmlEntities(description) : undefined,
       servings: Math.max(1, servings),
       prepMinutes,
       cookMinutes,
@@ -337,7 +353,7 @@ export function parseRecipeKeeperHtml(
       categories: [],
       collectionIds: [],
       tags: [],
-      rating: 5,
+      rating,
       favorite: false,
       photoIds,
       createdAt: new Date().toISOString(),

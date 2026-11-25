@@ -509,12 +509,15 @@ public class MainActivity extends AppCompatActivity {
 
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
+                conn.setInstanceFollowRedirects(true);
                 conn.setConnectTimeout(12000);
                 conn.setReadTimeout(12000);
                 conn.setRequestProperty(
                     "User-Agent",
-                    "OpenRecipeBook-Android/0.1.4 (+https://github.com/DontKwo/OpenRecipeBook)"
+                    "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36"
                 );
+                conn.setRequestProperty("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+                conn.setRequestProperty("Accept-Language", "en-US,en;q=0.9");
                 int status = conn.getResponseCode();
                 InputStream in = (status >= 200 && status < 400) ? conn.getInputStream() : conn.getErrorStream();
                 StringBuilder sb = new StringBuilder();
@@ -531,6 +534,9 @@ public class MainActivity extends AppCompatActivity {
                 res.put("ok", status >= 200 && status < 300);
                 res.put("status", status);
                 res.put("html", sb.toString());
+                if (status < 200 || status >= 300) {
+                    res.put("error", "HTTP " + status);
+                }
                 return res.toString();
             } catch (Exception e) {
                 String msg = e.getMessage() != null ? e.getMessage() : "Network error";

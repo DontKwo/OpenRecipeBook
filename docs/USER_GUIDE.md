@@ -16,9 +16,22 @@ Learn how to organize recipes, plan meals, scale ingredients, and move your cook
 
 ## Importing & Exporting Recipes
 
-- **Web URLs**: Paste any recipe webpage URL into the importer to extract structured recipe data automatically. On Android, use your browser's **Share** menu and pick **OpenRecipeBook**.
+- **Web URLs**: Paste any recipe webpage URL into the importer to extract structured recipe data automatically. If a site requires a subscription or blocks automated requests, paste copied recipe text directly into the fallback box. On Android, use your browser's **Share** menu and pick **OpenRecipeBook**.
 - **Archives & Text**: Import `.recipe.json`, `.openrecipebook.zip` backups, Recipe Keeper zip archives, `.paprikarecipes` exports, JSON-LD files, or plain text.
 - **Full Library Backups**: Export a `.openrecipebook.zip` archive from **Settings** or pick a local cloud-synced backup folder for one-click snapshots.
+
+## Migrating from Paprika and Recipe Keeper
+
+1. **From Paprika (Desktop or Mobile)**:
+   - In Paprika, open **File** -> **Export** (or **Settings** -> **Export Recipes**) and choose **Paprika Recipe Format (`.paprikarecipes`)**.
+   - In OpenRecipeBook, open **Settings** -> **Data Backup & Import** -> click **Import Paprika / Recipe Keeper / File** (or drag the `.paprikarecipes` file anywhere onto the window) and confirm your imported recipes.
+2. **From Recipe Keeper (Desktop or Mobile)**:
+   - In Recipe Keeper, open **Export** -> select **HTML (`.zip`)** so all recipe photos and text are exported together.
+   - In OpenRecipeBook, open **Settings** -> **Data Backup & Import** -> click **Import Paprika / Recipe Keeper / File**, pick your Recipe Keeper `.zip`, and review the imported recipes and attached photos.
+
+## Syncing Across Devices
+
+- Open **Settings** -> **Recipe Storage Location** -> click **Sync Across Devices** inside the app for step-by-step Windows, macOS/Linux, and Android instructions using Syncthing, cloud-synced folders, or portable `.openrecipebook.zip` backups.
 
 ## Meal Planner, Ingredient Totals & Shopping List
 

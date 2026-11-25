@@ -114,8 +114,15 @@ export const UNIT_CANONICAL_MAP: Record<string, string> = {
   envelopes: "packet"
 };
 
+const UNICODE_FRAC_CHARS = Object.keys(UNICODE_FRACTION_MAP).join("");
+const RANGE_DASH_PATTERN = ["-", "\u2013", "\u2014", "to"].join("|");
+
+function normalizeFractionText(input: string): string {
+  return input.replace(/\u2044/g, "/");
+}
+
 export function parseNumberToken(token: string): number | null {
-  const trimmedToken = token.trim();
+  const trimmedToken = normalizeFractionText(token.trim()).replace(/\s*\/\s*/g, "/");
   if (trimmedToken in UNICODE_FRACTION_MAP) {
     return UNICODE_FRACTION_MAP[trimmedToken];
   }
@@ -148,15 +155,17 @@ export function parseNumberToken(token: string): number | null {
 }
 
 export function parseQuantityPrefix(sourceText: string): { quantity?: Quantity; remainingText: string } {
-  let cleaned = sourceText.trim();
+  const cleaned = normalizeFractionText(sourceText.trim());
+  const qtyAtom = `(?:\\d+(?:[\\s-]+\\d+\\s*/\\s*\\d+|\\s*/\\s*\\d+|\\.\\d+|\\s*[${UNICODE_FRAC_CHARS}])?|[${UNICODE_FRAC_CHARS}])`;
 
-  // Range matching: e.g. "2-3", "2 to 3", "1 1/2 - 2", "1/2 to 3/4"
-  const rangePattern = /^(\d+(?:\s+\d+\/\d+|\/\d+|\.\d+|[\u00BD\u00BC\u00BE\u2153\u2154\u215B\u215C\u215D\u215E])?)\s*(?:-|to)\s*(\d+(?:\s+\d+\/\d+|\/\d+|\.\d+|[\u00BD\u00BC\u00BE\u2153\u2154\u215B\u215C\u215D\u215E])?)\b\s*/i;
+  // Range matching: e.g. "2-3", "2 to 3", "1 1/2 - 2", "1/2 to 3/4", "1/2-3/4" (reject "1-1/2" mixed numbers)
+  const rangePattern = new RegExp(`^(${qtyAtom})\\s*(?:${RANGE_DASH_PATTERN})\\s*(${qtyAtom})(?=\\s|$|[^\\w/])\\s*`, "i");
   const rangeMatch = rangePattern.exec(cleaned);
   if (rangeMatch) {
     const minimumValue = parseSingleQuantityString(rangeMatch[1]);
     const maximumValue = parseSingleQuantityString(rangeMatch[2]);
-    if (minimumValue !== null && maximumValue !== null) {
+    const isHyphenMixed = /^\d+-\d+\s*\/\s*\d+/.test(cleaned) && minimumValue !== null && maximumValue !== null && maximumValue < 1 && maximumValue <= minimumValue;
+    if (!isHyphenMixed && minimumValue !== null && maximumValue !== null) {
       return {
         quantity: { kind: "range", min: minimumValue, max: maximumValue },
         remainingText: cleaned.substring(rangeMatch[0].length).trim()
@@ -164,8 +173,8 @@ export function parseQuantityPrefix(sourceText: string): { quantity?: Quantity; 
     }
   }
 
-  // Mixed number pattern: e.g. "1 1/2" or "1 3/4"
-  const mixedPattern = /^(\d+)\s+(\d+\/\d+|[\u00BD\u00BC\u00BE\u2153\u2154\u215B\u215C\u215D\u215E])\b\s*/;
+  // Mixed number pattern: e.g. "1 1/2", "1-1/2", or "1 ½"
+  const mixedPattern = new RegExp(`^(\\d+)(?:\\s+|-)(\\d+\\s*/\\s*\\d+|[${UNICODE_FRAC_CHARS}])(?=\\s|$|[^\\w/])\\s*`);
   const mixedMatch = mixedPattern.exec(cleaned);
   if (mixedMatch) {
     const wholeNumber = parseInt(mixedMatch[1], 10);
@@ -192,8 +201,10 @@ export function parseQuantityPrefix(sourceText: string): { quantity?: Quantity; 
     };
   }
 
-  // Single quantity token
-  const singleTokenPattern = /^(\d+\/\d+|\d+(\.\d+)?|[\u00BD\u00BC\u00BE\u2153\u2154\u215B\u215C\u215D\u215E]|\d+[\u00BD\u00BC\u00BE\u2153\u2154\u215B\u215C\u215D\u215E]|[a-zA-Z]+)\b\s*/;
+  // Single quantity token (handles slash fractions, unicode fractions, decimals, and words)
+  const singleTokenPattern = new RegExp(
+    `^(\\d+\\s*/\\s*\\d+|\\d+(?:\\.\\d+)?|\\d+[${UNICODE_FRAC_CHARS}]|[${UNICODE_FRAC_CHARS}]|[a-zA-Z]+)(?=\\s|$|[^\\w/])\\s*`
+  );
   const singleMatch = singleTokenPattern.exec(cleaned);
   if (singleMatch) {
     const parsedNumber = parseNumberToken(singleMatch[1]);
@@ -209,13 +220,14 @@ export function parseQuantityPrefix(sourceText: string): { quantity?: Quantity; 
 }
 
 function parseSingleQuantityString(expression: string): number | null {
-  const mixedMatch = /^(\d+)\s+(\d+\/\d+|[\u00BD\u00BC\u00BE\u2153\u2154\u215B\u215C\u215D\u215E])$/.exec(expression.trim());
+  const normalized = normalizeFractionText(expression.trim());
+  const mixedMatch = new RegExp(`^(\\d+)[\\s-]+(\\d+\\s*/\\s*\\d+|[${UNICODE_FRAC_CHARS}])$`).exec(normalized);
   if (mixedMatch) {
     const wholeValue = parseInt(mixedMatch[1], 10);
     const fractionValue = parseNumberToken(mixedMatch[2]);
     return fractionValue !== null ? wholeValue + fractionValue : null;
   }
-  return parseNumberToken(expression);
+  return parseNumberToken(normalized);
 }
 
 export function parseIngredient(rawText: string, ingredientIdentifier: string = ""): ParsedIngredientResult {

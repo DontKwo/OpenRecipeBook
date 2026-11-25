@@ -728,20 +728,31 @@ namespace OpenRecipeBookHost
                 if (reqPath.Equals("/api/native/fetch-page", StringComparison.OrdinalIgnoreCase))
                 {
                     string url = GetStr(payload, "url");
-                    using (var http = new HttpClient())
+                    var handler = new HttpClientHandler
+                    {
+                        AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate,
+                        AllowAutoRedirect = true
+                    };
+                    using (var http = new HttpClient(handler))
                     {
                         http.Timeout = TimeSpan.FromSeconds(15);
                         http.DefaultRequestHeaders.TryAddWithoutValidation(
                             "User-Agent",
-                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) OpenRecipeBook/0.2.0"
+                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
                         );
+                        http.DefaultRequestHeaders.TryAddWithoutValidation(
+                            "Accept",
+                            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+                        );
+                        http.DefaultRequestHeaders.TryAddWithoutValidation("Accept-Language", "en-US,en;q=0.9");
                         var resp = http.GetAsync(url).GetAwaiter().GetResult();
                         string html = resp.Content.ReadAsStringAsync().GetAwaiter().GetResult();
                         return ser.Serialize(new Dictionary<string, object>
                         {
                             { "ok", resp.IsSuccessStatusCode },
                             { "status", (int)resp.StatusCode },
-                            { "html", html }
+                            { "html", html },
+                            { "error", resp.IsSuccessStatusCode ? "" : ("HTTP " + (int)resp.StatusCode) }
                         });
                     }
                 }

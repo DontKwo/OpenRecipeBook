@@ -9,6 +9,7 @@ export interface PaprikaRawRecipeJson {
   servings?: string | number;
   prep_time?: string;
   cook_time?: string;
+  total_time?: string;
   description?: string;
   notes?: string;
   categories?: string[];
@@ -41,10 +42,76 @@ export function parsePaprikaDurationMinutes(timeStr?: string): number | undefine
   return totalMinutes > 0 ? totalMinutes : undefined;
 }
 
+function isPaprikaHeading(line: string): string | null {
+  const boldMatch = /^\*\*(.+?)\*\*:?$/.exec(line);
+  if (boldMatch) return boldMatch[1].replace(/:$/, "").trim();
+  if (line.endsWith(":") && line.length < 60 && !/^\d/.test(line)) {
+    return line.replace(/:$/, "").trim();
+  }
+  return null;
+}
+
+function splitPaprikaIngredients(rawText: string): IngredientGroup[] {
+  const lines = rawText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const groups: IngredientGroup[] = [];
+  let heading: string | undefined;
+  let items: { id: string; raw: string; scalable: boolean }[] = [];
+
+  for (const line of lines) {
+    const detected = isPaprikaHeading(line);
+    if (detected !== null) {
+      if (items.length > 0) {
+        groups.push({ heading, items });
+        items = [];
+      }
+      heading = detected;
+      continue;
+    }
+    items.push({ id: `ing-${groups.length + 1}-${items.length + 1}`, raw: line, scalable: true });
+  }
+  if (items.length > 0) {
+    groups.push({ heading, items });
+  }
+  return groups.length > 0 ? groups : [{ items: [] }];
+}
+
+function splitPaprikaDirections(rawText: string): DirectionGroup[] {
+  const lines = rawText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const groups: DirectionGroup[] = [];
+  let heading: string | undefined;
+  let steps: Step[] = [];
+
+  for (const line of lines) {
+    const detected = isPaprikaHeading(line);
+    if (detected !== null) {
+      if (steps.length > 0) {
+        groups.push({ heading, steps });
+        steps = [];
+      }
+      heading = detected;
+      continue;
+    }
+    steps.push({ id: `step-${groups.length + 1}-${steps.length + 1}`, text: line });
+  }
+  if (steps.length > 0) {
+    groups.push({ heading, steps });
+  }
+  return groups.length > 0 ? groups : [{ steps: [] }];
+}
+
+function buildPhotoDataUri(photoData?: string): string[] {
+  if (!photoData || typeof photoData !== "string") return [];
+  const trimmed = photoData.trim().replace(/\s+/g, "");
+  if (!trimmed) return [];
+  if (trimmed.startsWith("data:image/")) return [trimmed];
+  if (trimmed.length < 16) return [];
+  const mime = trimmed.startsWith("iVBOR") ? "image/png" : "image/jpeg";
+  return [`data:${mime};base64,${trimmed}`];
+}
+
 export function convertPaprikaJsonToRecipe(data: PaprikaRawRecipeJson): Recipe {
   const title = data.name ? data.name.trim() : "Untitled Paprika Recipe";
 
-  // Parse servings
   let servings = 4;
   if (typeof data.servings === "number") {
     servings = data.servings;
@@ -55,38 +122,13 @@ export function convertPaprikaJsonToRecipe(data: PaprikaRawRecipeJson): Recipe {
     }
   }
 
-  // Parse ingredients
-  const rawIngredients = (data.ingredients || "")
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean);
-
-  const ingredientGroups: IngredientGroup[] = [
-    {
-      items: rawIngredients.map((raw, idx) => ({
-        id: `ing-${idx + 1}`,
-        raw,
-        scalable: true
-      }))
-    }
-  ];
-
-  // Parse directions
-  const rawDirections = (data.directions || "")
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean);
-
-  const steps: Step[] = rawDirections.map((text, idx) => ({
-    id: `step-${idx + 1}`,
-    text
-  }));
-
-  const directionGroups: DirectionGroup[] = [{ steps }];
-
+  const ingredientGroups = splitPaprikaIngredients(data.ingredients || "");
+  const directionGroups = splitPaprikaDirections(data.directions || "");
   const prepMinutes = parsePaprikaDurationMinutes(data.prep_time);
   const cookMinutes = parsePaprikaDurationMinutes(data.cook_time);
+  const totalMinutes = parsePaprikaDurationMinutes(data.total_time);
   const rating = (data.rating ? Math.min(5, Math.max(0, Math.round(data.rating))) : 0) as RecipeRating;
+  const photoIds = buildPhotoDataUri(data.photo_data);
 
   const recipe: Recipe = {
     id: `paprika-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
@@ -97,6 +139,7 @@ export function convertPaprikaJsonToRecipe(data: PaprikaRawRecipeJson): Recipe {
     servings: Math.max(1, servings),
     prepMinutes,
     cookMinutes,
+    totalMinutes,
     ingredientGroups,
     directionGroups,
     notes: data.notes ? data.notes.trim() : undefined,
@@ -107,7 +150,7 @@ export function convertPaprikaJsonToRecipe(data: PaprikaRawRecipeJson): Recipe {
     tags: [],
     rating,
     favorite: false,
-    photoIds: [],
+    photoIds,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     schemaVersion: 1
@@ -127,7 +170,6 @@ export function parsePaprikaRecipesZip(zipBytes: Uint8Array): Recipe[] {
         if (entryPath.endsWith(".json")) {
           jsonStr = strFromU8(entryBytes);
         } else {
-          // Gzipped entry
           const gunzipped = gunzipSync(entryBytes);
           jsonStr = strFromU8(gunzipped);
         }

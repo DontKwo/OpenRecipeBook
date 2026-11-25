@@ -11,7 +11,7 @@ import { normalizeRecipe } from "../recipe/normalize";
 import { exportRecipeToJson, importBackupZip, importRecipeFromJson } from "../export/ownFormat";
 import { parseSchemaRecipeJsonLd } from "../import/jsonld";
 import { parsePaprikaRecipesZip } from "../import/paprika";
-import { parseRecipeKeeperZip } from "../import/recipeKeeper";
+import { parseRecipeKeeperZip, type ImportedPhotoRecord } from "../import/recipeKeeper";
 import { parsePlainTextRecipe } from "../import/textRecipeParser";
 
 export type StorageFileKind = "recipe" | "archive" | "text" | "metadata" | "other";
@@ -48,6 +48,7 @@ export interface AddStorageFilesResult {
   addedFiles: string[];
   importedRecipes: Recipe[];
   reviewCandidates: Recipe[];
+  importedPhotos?: ImportedPhotoRecord[];
   errors: string[];
 }
 
@@ -163,6 +164,12 @@ function getNativeApi(): NativeApiBridge | null {
     };
   }
   return null;
+}
+
+export function isBrowserDemoMode(): boolean {
+  const win = getWindowRef();
+  if (!win) return false;
+  return !win.nativeApi && !win.AndroidBridge;
 }
 
 export function detectPlatform(): "desktop" | "android" {
@@ -285,6 +292,9 @@ async function getVirtualStoragePath(): Promise<string> {
   }
   if (memoryVirtualPath) {
     return memoryVirtualPath;
+  }
+  if (isBrowserDemoMode()) {
+    return "Browser Storage (IndexedDB)";
   }
   return detectPlatform() === "android" ? DEFAULT_ANDROID_FALLBACK_PATH : DEFAULT_DESKTOP_FALLBACK_PATH;
 }
@@ -724,6 +734,9 @@ async function processRawFilePayload(
         try {
           const rk = parseRecipeKeeperZip(bytes);
           result.reviewCandidates.push(...rk.recipes);
+          if (rk.photos.length > 0) {
+            result.importedPhotos = [...(result.importedPhotos || []), ...rk.photos];
+          }
         } catch {
           const backup = importBackupZip(bytes);
           result.reviewCandidates.push(...backup.recipes);

@@ -23,6 +23,7 @@ import styles from "./RecipeEditor.module.css";
 
 export interface RecipeEditorProps {
   initialRecipe?: Recipe;
+  initialImportUrl?: string;
   collections?: Collection[];
   userIngredients?: DictionaryIngredient[];
   onSave: (recipe: Recipe) => void;
@@ -127,6 +128,7 @@ const buildInitialDirections = (recipe?: Recipe): DirectionRow[] => {
 
 export const RecipeEditor: FC<RecipeEditorProps> = ({
   initialRecipe,
+  initialImportUrl,
   collections,
   onSave,
   onCancel
@@ -159,11 +161,11 @@ export const RecipeEditor: FC<RecipeEditorProps> = ({
   const [hasRestoredDraft, setHasRestoredDraft] = useState<boolean>(false);
 
   // Quick import state
-  const [showUrlModal, setShowUrlModal] = useState<boolean>(false);
-  const [importUrl, setImportUrl] = useState<string>("");
+  const [showUrlModal, setShowUrlModal] = useState<boolean>(Boolean(initialImportUrl));
+  const [importUrl, setImportUrl] = useState<string>(initialImportUrl || "");
   const [isFetchingUrl, setIsFetchingUrl] = useState<boolean>(false);
   const [urlError, setUrlError] = useState<string | null>(null);
-  const [corsBlocked, setCorsBlocked] = useState<boolean>(false);
+  const [showUrlFallback, setShowUrlFallback] = useState<boolean>(false);
   const [pastedHtmlSource, setPastedHtmlSource] = useState<string>("");
 
   const [showPasteModal, setShowPasteModal] = useState<boolean>(false);
@@ -318,60 +320,24 @@ export const RecipeEditor: FC<RecipeEditorProps> = ({
     }
   };
 
-  const handleFetchUrl = async (): Promise<void> => {
-    if (!importUrl.trim()) return;
-    setIsFetchingUrl(true);
-    setUrlError(null);
-    setCorsBlocked(false);
-
-    try {
-      const result = await importRecipesFromUrl(importUrl.trim());
-      if (result.ok && result.recipes.length > 0) {
-        populateFromParsedRecipe(result.recipes[0]);
-        setShowUrlModal(false);
-        setImportUrl("");
-      } else if (result.unsupportedInBrowser) {
-        setCorsBlocked(true);
-        setUrlError(result.error || "Direct URL fetch is blocked by browser CORS restrictions.");
-      } else {
-        setUrlError(result.error || "No recipe found at this URL.");
-      }
-    } catch (err: unknown) {
-      setUrlError(err instanceof Error ? err.message : "Failed to fetch webpage");
-    } finally {
-      setIsFetchingUrl(false);
+  useEffect(() => {
+    if (initialImportUrl && !initialRecipe) {
+      setImportUrl(initialImportUrl);
+      setShowUrlModal(true);
+      setUrlError(null);
+      setShowUrlFallback(false);
     }
-  };
+  }, [initialImportUrl, initialRecipe]);
 
-  const handleParsePastedHtml = (): void => {
-    if (!pastedHtmlSource.trim()) return;
-    const recipes = extractRecipesFromHtml(pastedHtmlSource);
-    if (recipes.length > 0) {
-      const rec = recipes[0];
-      if (importUrl.trim()) rec.sourceUrl = importUrl.trim();
-      populateFromParsedRecipe(rec);
-      setShowUrlModal(false);
-      setPastedHtmlSource("");
-      setImportUrl("");
-      setCorsBlocked(false);
-    } else {
-      setUrlError("No recipe schema found in the pasted HTML.");
-    }
-  };
-
-  const handleApplyPasteAll = (): void => {
-    if (!pastedBlob.trim()) {
-      setShowPasteModal(false);
-      return;
-    }
-    const parsed = parsePlainTextRecipe(pastedBlob);
+  const applyParsedPlainText = (rawText: string, overrideSourceUrl?: string): void => {
+    const parsed = parsePlainTextRecipe(rawText);
     populateFromParsedRecipe({
       title: parsed.title && parsed.title !== "Untitled Recipe" ? parsed.title : undefined,
       description: parsed.description,
       servings: parsed.servings,
       prepMinutes: parsed.prepMinutes,
       cookMinutes: parsed.cookMinutes,
-      sourceUrl: parsed.sourceUrl,
+      sourceUrl: overrideSourceUrl || parsed.sourceUrl,
       notes: parsed.notes,
       ingredientGroups: parsed.ingredientGroups.map((group) => ({
         heading: group.heading,
@@ -390,6 +356,70 @@ export const RecipeEditor: FC<RecipeEditorProps> = ({
         }))
       }))
     });
+  };
+
+  const handleFetchUrl = async (): Promise<void> => {
+    if (!importUrl.trim()) return;
+    setIsFetchingUrl(true);
+    setUrlError(null);
+    setShowUrlFallback(false);
+
+    try {
+      const result = await importRecipesFromUrl(importUrl.trim());
+      if (result.ok && result.recipes.length > 0) {
+        populateFromParsedRecipe(result.recipes[0]);
+        setShowUrlModal(false);
+        setImportUrl("");
+      } else {
+        setShowUrlFallback(true);
+        setUrlError(result.error || "Could not extract recipe automatically. Paste the recipe text below.");
+      }
+    } catch (err: unknown) {
+      setShowUrlFallback(true);
+      setUrlError(err instanceof Error ? err.message : "Failed to fetch webpage. Paste the recipe text below.");
+    } finally {
+      setIsFetchingUrl(false);
+    }
+  };
+
+  const handleParsePastedHtml = (): void => {
+    if (!pastedHtmlSource.trim()) return;
+    const trimmedSourceUrl = importUrl.trim() || undefined;
+    const looksLikeHtmlOrJson = /<script\b|<html\b|itemtype\s*=|"@type"\s*:\s*"Recipe"/i.test(pastedHtmlSource);
+    if (looksLikeHtmlOrJson) {
+      const recipes = extractRecipesFromHtml(pastedHtmlSource);
+      if (recipes.length > 0) {
+        const rec = recipes[0];
+        if (trimmedSourceUrl) rec.sourceUrl = trimmedSourceUrl;
+        populateFromParsedRecipe(rec);
+        setShowUrlModal(false);
+        setPastedHtmlSource("");
+        setImportUrl("");
+        setShowUrlFallback(false);
+        return;
+      }
+    }
+    const plain = parsePlainTextRecipe(pastedHtmlSource);
+    const hasPlainItems =
+      plain.ingredientGroups.some((g) => g.items.length > 0) ||
+      plain.directionGroups.some((g) => g.steps.length > 0);
+    if (hasPlainItems) {
+      applyParsedPlainText(pastedHtmlSource, trimmedSourceUrl);
+      setShowUrlModal(false);
+      setPastedHtmlSource("");
+      setImportUrl("");
+      setShowUrlFallback(false);
+      return;
+    }
+    setUrlError("Could not detect ingredients or instructions in the pasted content.");
+  };
+
+  const handleApplyPasteAll = (): void => {
+    if (!pastedBlob.trim()) {
+      setShowPasteModal(false);
+      return;
+    }
+    applyParsedPlainText(pastedBlob);
     setShowPasteModal(false);
     setPastedBlob("");
   };
@@ -1223,12 +1253,12 @@ export const RecipeEditor: FC<RecipeEditorProps> = ({
         onClose={(): void => {
           setShowUrlModal(false);
           setUrlError(null);
-          setCorsBlocked(false);
+          setShowUrlFallback(false);
         }}
       >
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
           <p style={{ margin: 0, color: "var(--muted)", fontSize: "0.875rem" }}>
-            Paste a recipe URL to extract ingredients and directions.
+            Paste a recipe webpage URL to extract ingredients and directions automatically.
           </p>
           <div style={{ display: "flex", gap: "8px" }}>
             <input
@@ -1252,27 +1282,31 @@ export const RecipeEditor: FC<RecipeEditorProps> = ({
           {urlError && (
             <div style={{ color: "var(--danger)", fontSize: "0.875rem" }}>
               {urlError}
-              {corsBlocked && (
-                <div style={{ marginTop: "8px" }}>
-                  <textarea
-                    rows={4}
-                    className={styles.stepTextarea}
-                    placeholder="Paste page HTML source (Ctrl+U or right click -> View Page Source)..."
-                    value={pastedHtmlSource}
-                    onChange={(e: ChangeEvent<HTMLTextAreaElement>): void => setPastedHtmlSource(e.target.value)}
-                  />
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={handleParsePastedHtml}
-                    disabled={!pastedHtmlSource.trim()}
-                    style={{ marginTop: "8px" }}
-                  >
-                    Parse HTML
-                  </Button>
-                </div>
-              )}
+            </div>
+          )}
+          {showUrlFallback && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <span style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
+                Fallback: select and copy the recipe text on the website (or page HTML source) and paste it here. The source URL above will be saved automatically.
+              </span>
+              <textarea
+                rows={6}
+                className={styles.stepTextarea}
+                placeholder={"Paste copied recipe text (Ingredients + Directions) or page HTML source..."}
+                value={pastedHtmlSource}
+                onChange={(e: ChangeEvent<HTMLTextAreaElement>): void => setPastedHtmlSource(e.target.value)}
+              />
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleParsePastedHtml}
+                  disabled={!pastedHtmlSource.trim()}
+                >
+                  Parse Pasted Recipe
+                </Button>
+              </div>
             </div>
           )}
         </div>

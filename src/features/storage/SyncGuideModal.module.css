@@ -1,0 +1,62 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  color: var(--text);
+}
+
+.intro {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.card {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.cardTitle {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.steps {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.codeLine {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  word-break: break-all;
+}
+
+.noteBox {
+  border-left: 3px solid var(--accent);
+  background: var(--surface-alt);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: 0.8125rem;
+  color: var(--muted);
+  line-height: 1.5;
+}

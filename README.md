@@ -14,6 +14,7 @@ OpenRecipeBook is a free personal cookbook app for Windows, macOS, Linux, and An
 
 | Platform | Download | Setup Guide |
 | :--- | :--- | :--- |
+| Live Web Demo | [Open in Browser](https://dontkwo.github.io/OpenRecipeBook/) | Instant IndexedDB browser demo |
 | Windows | [OpenRecipeBook-Windows.exe](https://github.com/DontKwo/OpenRecipeBook/releases/latest/download/OpenRecipeBook-Windows.exe) | [Windows Install Steps](docs/INSTALLATION.md#windows) |
 | macOS | [OpenRecipeBook-macOS.zip](https://github.com/DontKwo/OpenRecipeBook/releases/latest/download/OpenRecipeBook-macOS.zip) | [macOS Install Steps](docs/INSTALLATION.md#macos) |
 | Linux | [OpenRecipeBook-Linux.tar.gz](https://github.com/DontKwo/OpenRecipeBook/releases/latest/download/OpenRecipeBook-Linux.tar.gz) | [Linux Install Steps](docs/INSTALLATION.md#linux) |
@@ -37,7 +38,7 @@ OpenRecipeBook is a free personal cookbook app for Windows, macOS, Linux, and An
 
 1. Download OpenRecipeBook for your computer or Android device from the table above.
 2. Follow the [Desktop Installation Guide](docs/INSTALLATION.md) or [Android APK Installation Guide](docs/APK_INSTALLATION.md) if your device displays an unrecognized-app prompt.
-3. Add recipes manually, import web links or Recipe Keeper/Paprika exports, and arrange folders.
+3. Add recipes manually, import web links or see [Migrating from Paprika & Recipe Keeper](docs/USER_GUIDE.md#migrating-from-paprika-and-recipe-keeper), and arrange folders.
 4. Drag meals onto your weekly planner, sum ingredients in **Ingredient Totals**, or launch **Cook Mode**.
 
 ---

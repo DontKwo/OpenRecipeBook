@@ -1,0 +1,1 @@
+Offline-first personal cookbook with scaling, meal planning, and shopping lists.

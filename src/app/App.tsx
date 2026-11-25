@@ -23,6 +23,8 @@ import {
 import { parseRecipeKeeperZip } from "../domain/import/recipeKeeper";
 import { parsePaprikaRecipesZip } from "../domain/import/paprika";
 import { parseSchemaRecipeJsonLd } from "../domain/import/jsonld";
+import { parsePlainTextRecipe } from "../domain/import/textRecipeParser";
+import { hydratePhotoUrlCache, saveImportedPhotosToDb } from "../domain/recipe/photoPipeline";
 import {
   createDefaultShoppingList,
   buildShoppingItemFromIngredient,
@@ -100,6 +102,7 @@ function AppContent(): ReactElement {
   const [activeTab, setActiveTab] = useState<ActiveTab>("library");
   const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null);
   const [editingRecipe, setEditingRecipe] = useState<Recipe | undefined>(undefined);
+  const [sharedImportUrl, setSharedImportUrl] = useState<string | undefined>(undefined);
   const [cookModeRecipe, setCookModeRecipe] = useState<Recipe | null>(null);
   const [cookModeMultiplier, setCookModeMultiplier] = useState<number>(1);
   const [importCandidates, setImportCandidates] = useState<Recipe[] | null>(null);
@@ -128,6 +131,7 @@ function AppContent(): ReactElement {
   const refreshAllData = async (): Promise<void> => {
     try {
       await runRecipeCleanupMigration();
+      await hydratePhotoUrlCache();
 
       let allStored = await db.recipes.toArray();
       const syncResult = await syncLibraryWithStorage(allStored);
@@ -247,44 +251,117 @@ function AppContent(): ReactElement {
     }
   };
 
+  const processImportFile = async (file: File): Promise<void> => {
+    const lower = file.name.toLowerCase();
+    try {
+      if (lower.endsWith(".json") || lower.endsWith(".jsonld")) {
+        const text = await file.text();
+        const parsed = JSON.parse(text) as Record<string, unknown>;
+        if (parsed && typeof parsed === "object" && ("@context" in parsed || "@graph" in parsed)) {
+          const imported = parseSchemaRecipeJsonLd(parsed);
+          if (imported.length > 0) {
+            setImportCandidates(imported);
+          } else {
+            showToast("No recipe entries found in JSON-LD file.");
+          }
+        } else {
+          const parsedRecipe = importRecipeFromJson(text);
+          await saveRecipe(parsedRecipe.recipe);
+          await writeRecipeToStorage(parsedRecipe.recipe);
+          await refreshAllData();
+          setSelectedRecipeId(parsedRecipe.recipe.id);
+          setActiveTab("recipe-view");
+          showToast(`Imported "${parsedRecipe.recipe.title}"`);
+        }
+      } else if (lower.endsWith(".zip") || lower.endsWith(".paprikarecipes")) {
+        const buffer = await file.arrayBuffer();
+        const bytes = new Uint8Array(buffer);
+        if (lower.endsWith(".paprikarecipes")) {
+          const recipesFromZip = parsePaprikaRecipesZip(bytes);
+          if (recipesFromZip.length === 0) {
+            showToast("No recipes found in .paprikarecipes archive.");
+            return;
+          }
+          setImportCandidates(recipesFromZip);
+        } else {
+          try {
+            const rkResult = parseRecipeKeeperZip(bytes);
+            await saveImportedPhotosToDb(rkResult.photos);
+            setImportCandidates(rkResult.recipes);
+          } catch {
+            const backupData = importBackupZip(bytes);
+            await saveImportedPhotosToDb(backupData.photos || []);
+            setImportCandidates(backupData.recipes);
+          }
+        }
+      } else if (lower.endsWith(".txt") || lower.endsWith(".md")) {
+        const text = await file.text();
+        const parsed = parsePlainTextRecipe(text);
+        const nowIso = new Date().toISOString();
+        setImportCandidates([
+          {
+            id: `text-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            title: parsed.title,
+            description: parsed.description,
+            sourceUrl: parsed.sourceUrl,
+            servings: parsed.servings || 4,
+            prepMinutes: parsed.prepMinutes,
+            cookMinutes: parsed.cookMinutes,
+            totalMinutes: parsed.totalMinutes,
+            ingredientGroups: parsed.ingredientGroups.map((g) => ({
+              heading: g.heading,
+              items: g.items.map((raw, idx) => ({ id: `ing-${idx + 1}`, raw, scalable: true }))
+            })),
+            directionGroups: parsed.directionGroups.map((g) => ({
+              heading: g.heading,
+              steps: g.steps.map((stepText, idx) => ({ id: `step-${idx + 1}`, text: stepText }))
+            })),
+            notes: parsed.notes,
+            cookLog: [],
+            courses: ["Dinner"],
+            categories: [],
+            collectionIds: [],
+            tags: [],
+            rating: 0,
+            favorite: false,
+            photoIds: [],
+            createdAt: nowIso,
+            updatedAt: nowIso,
+            schemaVersion: 1
+          }
+        ]);
+      } else {
+        showToast("Unsupported file format. Choose .paprikarecipes, .zip, .recipe.json, .json, .txt, or .md.");
+      }
+    } catch (err: unknown) {
+      showToast("Failed to read file: " + (err instanceof Error ? err.message : String(err)));
+    }
+  };
+
+  useEffect(() => {
+    const consumeShareHash = (): void => {
+      const hash = window.location.hash || "";
+      if (hash.startsWith("#import-url=")) {
+        const encoded = hash.slice("#import-url=".length);
+        const decoded = decodeURIComponent(encoded);
+        if (decoded) {
+          setEditingRecipe(undefined);
+          setSharedImportUrl(decoded);
+          setActiveTab("editor");
+          window.history.replaceState(null, "", window.location.pathname + window.location.search);
+        }
+      }
+    };
+    consumeShareHash();
+    window.addEventListener("hashchange", consumeShareHash);
+    return (): void => window.removeEventListener("hashchange", consumeShareHash);
+  }, []);
+
   useEffect(() => {
     refreshAllData();
 
     const handleProcessImportFile = async (file: File): Promise<void> => {
-      const lower = file.name.toLowerCase();
-      try {
-        if (lower.endsWith(".json")) {
-          const text = await file.text();
-          const parsed = JSON.parse(text);
-          if (parsed && typeof parsed === "object" && "@context" in parsed) {
-            const imported = parseSchemaRecipeJsonLd(parsed);
-            if (imported.length > 0) setImportCandidates(imported);
-          } else {
-            const parsedRecipe = importRecipeFromJson(text);
-            await saveRecipe(parsedRecipe.recipe);
-            await refreshAllData();
-            setSelectedRecipeId(parsedRecipe.recipe.id);
-            setActiveTab("recipe-view");
-            showToast(`Imported "${parsedRecipe.recipe.title}"`);
-          }
-        } else if (lower.endsWith(".zip") || lower.endsWith(".paprikarecipes")) {
-          const buffer = await file.arrayBuffer();
-          if (lower.endsWith(".paprikarecipes")) {
-            const recipesFromZip = parsePaprikaRecipesZip(new Uint8Array(buffer));
-            setImportCandidates(recipesFromZip);
-          } else {
-            try {
-              const rkRecipes = parseRecipeKeeperZip(new Uint8Array(buffer));
-              setImportCandidates(rkRecipes.recipes);
-            } catch {
-              const backupData = importBackupZip(new Uint8Array(buffer));
-              setImportCandidates(backupData.recipes);
-            }
-          }
-        }
-      } catch (err: unknown) {
-        showToast("Failed to read file: " + (err instanceof Error ? err.message : String(err)));
-      }
+      await processImportFile(file);
     };
 
     const handleDragOver = (e: DragEvent): void => {
@@ -623,6 +700,9 @@ function AppContent(): ReactElement {
   };
 
   const handleStorageFilesImported = async (result: AddStorageFilesResult): Promise<void> => {
+    if (result.importedPhotos && result.importedPhotos.length > 0) {
+      await saveImportedPhotosToDb(result.importedPhotos);
+    }
     for (const rec of result.importedRecipes) {
       await saveRecipe(rec);
       await writeRecipeToStorage(rec);
@@ -981,10 +1061,17 @@ function AppContent(): ReactElement {
         {activeTab === "editor" && (
           <RecipeEditor
             initialRecipe={editingRecipe}
+            initialImportUrl={sharedImportUrl}
             collections={collections}
             userIngredients={userIngredients}
-            onSave={handleSaveRecipe}
-            onCancel={(): void => setActiveTab(editingRecipe ? "recipe-view" : "library")}
+            onSave={async (savedRecipe: Recipe): Promise<void> => {
+              setSharedImportUrl(undefined);
+              await handleSaveRecipe(savedRecipe);
+            }}
+            onCancel={(): void => {
+              setSharedImportUrl(undefined);
+              setActiveTab(editingRecipe ? "recipe-view" : "library");
+            }}
           />
         )}
 
@@ -1109,20 +1196,28 @@ function AppContent(): ReactElement {
               URL.revokeObjectURL(url);
             }}
             onRestoreFullBackup={async (file: File): Promise<void> => {
-              const buffer = await file.arrayBuffer();
-              const backupData = importBackupZip(new Uint8Array(buffer));
-              for (const r of backupData.recipes) {
-                const saved = await saveRecipe(r);
-                await writeRecipeToStorage(saved);
+              try {
+                const buffer = await file.arrayBuffer();
+                const backupData = importBackupZip(new Uint8Array(buffer));
+                await saveImportedPhotosToDb(backupData.photos || []);
+                for (const r of backupData.recipes) {
+                  const saved = await saveRecipe(r);
+                  await writeRecipeToStorage(saved);
+                }
+                for (const c of backupData.collections) await db.collections.put(c);
+                for (const m of backupData.mealPlan || []) await db.mealPlan.put(m);
+                for (const s of backupData.shoppingLists || []) await db.shoppingLists.put(s);
+                for (const combo of backupData.combos || []) await db.combos.put(combo);
+                for (const ing of backupData.userIngredients || []) await db.userIngredients.put(ing);
+                await persistMetadataToStorage();
+                await refreshAllData();
+                showToast("Backup restored successfully");
+              } catch {
+                await processImportFile(file);
               }
-              for (const c of backupData.collections) await db.collections.put(c);
-              for (const m of backupData.mealPlan || []) await db.mealPlan.put(m);
-              for (const s of backupData.shoppingLists || []) await db.shoppingLists.put(s);
-              for (const combo of backupData.combos || []) await db.combos.put(combo);
-              for (const ing of backupData.userIngredients || []) await db.userIngredients.put(ing);
-              await persistMetadataToStorage();
-              await refreshAllData();
-              showToast("Backup restored successfully");
+            }}
+            onImportRecipes={async (file: File): Promise<void> => {
+              await processImportFile(file);
             }}
             onOpenUserIngredients={(): void => setShowUserIngredientsModal(true)}
             onOpenStorageModal={(): void => setShowStorageModal(true)}
@@ -1150,8 +1245,8 @@ function AppContent(): ReactElement {
                 collections,
                 mealPlan: mealPlanEntries,
                 shoppingLists,
-                combos: [],
-                userIngredients: []
+                combos,
+                userIngredients
               };
               const zipBytes = exportBackupZip(payload);
               return destination.saveBackupWithRotation(zipBytes);

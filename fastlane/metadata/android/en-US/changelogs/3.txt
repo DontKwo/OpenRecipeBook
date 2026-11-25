@@ -1,0 +1,1 @@
+- Add in-app Sync Across Devices guide, Paprika and Recipe Keeper migration polish, and improved URL/text recipe parsing.

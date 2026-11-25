@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, type FC, type ReactElement, type ChangeEvent } from "react";
 import type { Recipe } from "../../domain/recipe/types";
 import { BRAND } from "../../config/brand";
-import { DownloadIcon, UploadIcon, TrashIcon, FolderIcon } from "../../ui/icons";
+import { DownloadIcon, UploadIcon, TrashIcon, FolderIcon, SyncIcon } from "../../ui/icons";
 import { Button, IconButton } from "../../ui/Button";
 import { applyThemeAndAccent } from "../../styles/themeManager";
 import { TRUSTED_CONVERSION_SOURCES } from "../../domain/scaling/customConversions";
 import { UnitConversionsManagerModal } from "./UnitConversionsManagerModal";
+import { SyncGuideModal } from "../storage/SyncGuideModal";
 import {
   FileSystemFolderBackupDestination,
   clearStoredDirectoryHandle,
@@ -14,6 +15,7 @@ import {
 import {
   getStorageLocationInfo,
   openSystemStorageFolder,
+  isBrowserDemoMode,
   type StorageLocationInfo
 } from "../../domain/storage/recipeStorageService";
 import styles from "./SettingsView.module.css";
@@ -21,6 +23,7 @@ import styles from "./SettingsView.module.css";
 export interface SettingsViewProps {
   onExportFullBackup: () => void;
   onRestoreFullBackup: (file: File) => void;
+  onImportRecipes?: (file: File) => void;
   onOpenUserIngredients: () => void;
   onOpenStorageModal?: () => void;
   recipes?: Recipe[];
@@ -35,6 +38,7 @@ export interface SettingsViewProps {
 export const SettingsView: FC<SettingsViewProps> = ({
   onExportFullBackup,
   onRestoreFullBackup,
+  onImportRecipes,
   onOpenUserIngredients,
   onOpenStorageModal,
   recipes = [],
@@ -52,6 +56,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
     return saved.startsWith("#") ? saved : "#3d7250";
   });
   const [showConversionsModal, setShowConversionsModal] = useState<boolean>(false);
+  const [showSyncGuideModal, setShowSyncGuideModal] = useState<boolean>(false);
   const [storageInfo, setStorageInfo] = useState<StorageLocationInfo | null>(null);
   const [folderStatus, setFolderStatus] = useState<string | null>(null);
   const [folderName, setFolderName] = useState<string | null>(null);
@@ -59,6 +64,8 @@ export const SettingsView: FC<SettingsViewProps> = ({
   const [backupFeedback, setBackupFeedback] = useState<string | null>(null);
   const [isBackingUp, setIsBackingUp] = useState<boolean>(false);
   const restoreInputRef = useRef<HTMLInputElement | null>(null);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
+  const browserDemo = isBrowserDemoMode();
 
   useEffect(() => {
     const destination = new FileSystemFolderBackupDestination();
@@ -135,6 +142,19 @@ export const SettingsView: FC<SettingsViewProps> = ({
     if (file) {
       onRestoreFullBackup(file);
     }
+    e.target.value = "";
+  };
+
+  const handleImportRecipesInput = (e: ChangeEvent<HTMLInputElement>): void => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (onImportRecipes) {
+        onImportRecipes(file);
+      } else {
+        onRestoreFullBackup(file);
+      }
+    }
+    e.target.value = "";
   };
 
   return (
@@ -238,7 +258,9 @@ export const SettingsView: FC<SettingsViewProps> = ({
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Recipe Storage Location</h2>
         <p className={styles.sectionText}>
-          Recipes are stored directly on your device as <code>.recipe.json</code> files, independent of browser cookies or cache.
+          {browserDemo
+            ? "Web demo stores recipes privately inside this browser's IndexedDB. Install the Windows, macOS, Linux, or Android app to store plain .recipe.json files directly in local folders."
+            : "Recipes are stored directly on your device as .recipe.json files, independent of browser cookies or cache."}
         </p>
         <div
           style={{
@@ -254,7 +276,9 @@ export const SettingsView: FC<SettingsViewProps> = ({
           {storageInfo ? storageInfo.storagePath : "Loading storage folder..."}
         </div>
         <div style={{ fontSize: "0.875rem", color: "var(--muted)" }}>
-          {storageInfo ? `${storageInfo.files.length} file(s) in storage folder` : ""}
+          {storageInfo
+            ? `${storageInfo.files.length} file(s) in ${browserDemo ? "browser storage" : "storage folder"}`
+            : ""}
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
           {onOpenStorageModal && (
@@ -268,15 +292,26 @@ export const SettingsView: FC<SettingsViewProps> = ({
               Browse & Add Recipe Files
             </Button>
           )}
+          {storageInfo?.canOpenSystemFolder && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={(): void => {
+                void handleOpenSystemFolder();
+              }}
+            >
+              Open Folder Location
+            </Button>
+          )}
           <Button
             type="button"
             variant="secondary"
             size="sm"
-            onClick={(): void => {
-              void handleOpenSystemFolder();
-            }}
+            icon={<SyncIcon width={15} height={15} />}
+            onClick={(): void => setShowSyncGuideModal(true)}
           >
-            Open Folder Location
+            Sync Across Devices
           </Button>
         </div>
         {folderStatus && (
@@ -288,9 +323,9 @@ export const SettingsView: FC<SettingsViewProps> = ({
 
       {/* Backup and Restore */}
       <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>Data Backup & Restore</h2>
+        <h2 className={styles.sectionTitle}>Data Backup & Import</h2>
         <p className={styles.sectionText}>
-          Export full zip backups of your recipes, folders, meal plans, and shopping lists for safekeeping or moving between Windows Desktop and Android.
+          Export full zip backups of your recipes, folders, meal plans, and shopping lists, or import collections from Paprika (.paprikarecipes), Recipe Keeper (.zip), JSON, or text files.
         </p>
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-3)", marginTop: "var(--space-2)" }}>
@@ -305,7 +340,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
           <input
             ref={restoreInputRef}
             type="file"
-            accept=".zip,.json"
+            accept=".zip,.openrecipebook.zip,.json"
             onChange={handleFileInput}
             style={{ display: "none" }}
           />
@@ -315,6 +350,21 @@ export const SettingsView: FC<SettingsViewProps> = ({
             onClick={(): void => restoreInputRef.current?.click()}
           >
             <UploadIcon width={16} height={16} /> Restore from Backup (.zip)
+          </Button>
+
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".paprikarecipes,.zip,.openrecipebook.zip,.recipe.json,.json,.jsonld,.txt,.md"
+            onChange={handleImportRecipesInput}
+            style={{ display: "none" }}
+          />
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={(): void => importInputRef.current?.click()}
+          >
+            <UploadIcon width={16} height={16} /> Import Paprika / Recipe Keeper / File
           </Button>
         </div>
 
@@ -332,10 +382,10 @@ export const SettingsView: FC<SettingsViewProps> = ({
           }}
         >
           <div style={{ fontWeight: 600, fontSize: "0.9375rem" }}>
-            Local Folder Sync (Auto-Backups)
+            Local Folder Snapshots
           </div>
           <p style={{ margin: 0, fontSize: "0.8125rem", color: "var(--muted)" }}>
-            Select a folder on your computer (e.g. inside Google Drive or Dropbox). Every recipe change will automatically write a stamped backup zip.
+            Link a local or synced folder on your computer to save rotating stamped backup archives whenever you click Backup Now.
           </p>
 
           {isFolderBackupAvailable ? (
@@ -581,7 +631,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
           <div>
             <h2 className={styles.sectionTitle} style={{ margin: 0 }}>About {BRAND.appName}</h2>
             <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: "4px 0 0" }}>
-              Package ID: <code>{BRAND.packageId}</code> · Version 0.1.0
+              Package ID: <code>{BRAND.packageId}</code> · Version 0.1.3
             </p>
           </div>
         </div>
@@ -593,6 +643,14 @@ export const SettingsView: FC<SettingsViewProps> = ({
       {showConversionsModal && (
         <UnitConversionsManagerModal
           onClose={(): void => setShowConversionsModal(false)}
+        />
+      )}
+
+      {showSyncGuideModal && (
+        <SyncGuideModal
+          storagePath={storageInfo?.storagePath}
+          initialTab={storageInfo?.platform === "android" ? "android" : "windows"}
+          onClose={(): void => setShowSyncGuideModal(false)}
         />
       )}
     </div>

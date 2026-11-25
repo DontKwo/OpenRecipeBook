@@ -713,6 +713,15 @@
         "clipped": []
       },
       "screenshot": "settings_1440x900_dark.png"
+    },
+    {
+      "control_id": "sync_guide.close_btn",
+      "input_kind": "mouse",
+      "trusted": true,
+      "control_state": "enabled",
+      "test_node_id": "playwright::sync_guide::sync_guide.close_btn",
+      "sequence_number": 999,
+      "screen_state_id": "sync_guide"
     }
   ]
 }

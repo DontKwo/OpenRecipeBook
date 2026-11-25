@@ -18,6 +18,7 @@ import {
   deleteStorageFile,
   readStorageFileText,
   parseRecipeFromStorageText,
+  isBrowserDemoMode,
   type StorageFileEntry,
   type StorageLocationInfo,
   type AddStorageFilesResult
@@ -30,11 +31,13 @@ import {
   CopyIcon,
   DownloadIcon,
   FileTextIcon,
+  SyncIcon,
   XIcon
 } from "../../ui/icons";
 import { Dialog } from "../../ui/Dialog";
 import { Button, IconButton } from "../../ui/Button";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
+import { SyncGuideModal } from "./SyncGuideModal";
 import styles from "./StorageLocationModal.module.css";
 
 export interface StorageLocationModalProps {
@@ -68,6 +71,8 @@ export const StorageLocationModal: FC<StorageLocationModalProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [fileToDelete, setFileToDelete] = useState<StorageFileEntry | null>(null);
+  const [showSyncGuide, setShowSyncGuide] = useState<boolean>(false);
+  const browserDemo = isBrowserDemoMode();
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -302,22 +307,28 @@ export const StorageLocationModal: FC<StorageLocationModalProps> = ({
 
           <div className={styles.pathCard}>
             <span className={styles.pathLabel}>
-              {info?.platform === "android" ? "Android Recipe Folder" : "Desktop Recipe Folder"}
+              {browserDemo
+                ? "Browser Web Storage"
+                : info?.platform === "android"
+                  ? "Android Recipe Folder"
+                  : "Desktop Recipe Folder"}
             </span>
             <div className={styles.pathValue} data-testid="storage-path-value">
               {loading ? "Loading storage path..." : info?.storagePath || "Unavailable"}
             </div>
             <div className={styles.pathActions}>
-              <Button
-                variant="primary"
-                size="sm"
-                icon={<FolderIcon width={15} height={15} />}
-                onClick={(): void => {
-                  void handleOpenFolder();
-                }}
-              >
-                Open Folder
-              </Button>
+              {info?.canOpenSystemFolder && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={<FolderIcon width={15} height={15} />}
+                  onClick={(): void => {
+                    void handleOpenFolder();
+                  }}
+                >
+                  Open Folder
+                </Button>
+              )}
               {info?.canChooseFolder && (
                 <Button
                   variant="secondary"
@@ -349,6 +360,14 @@ export const StorageLocationModal: FC<StorageLocationModalProps> = ({
                 }}
               >
                 Rescan
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<SyncIcon width={14} height={14} />}
+                onClick={(): void => setShowSyncGuide(true)}
+              >
+                Sync Across Devices
               </Button>
             </div>
           </div>
@@ -488,6 +507,14 @@ export const StorageLocationModal: FC<StorageLocationModalProps> = ({
             void handleConfirmDeleteFile();
           }}
           onCancel={(): void => setFileToDelete(null)}
+        />
+      )}
+
+      {showSyncGuide && (
+        <SyncGuideModal
+          storagePath={info?.storagePath}
+          initialTab={info?.platform === "android" ? "android" : "windows"}
+          onClose={(): void => setShowSyncGuide(false)}
         />
       )}
     </>

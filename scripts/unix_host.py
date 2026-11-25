@@ -22,7 +22,10 @@ import webbrowser
 
 
 APP_TITLE: str = "OpenRecipeBook"
-USER_AGENT: str = "Mozilla/5.0 (X11; Linux x86_64) OpenRecipeBook/1.0"
+USER_AGENT: str = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+)
 ALLOWED_EXTENSIONS: tuple[str, ...] = (".json", ".zip", ".paprikarecipes", ".txt", ".md", ".jsonld")
 
 
@@ -266,10 +269,22 @@ def handle_native_post(req_path: str, body: dict[str, Any], recipes_dir: Path) -
         return {"ok": True}
     if req_path == "/api/native/fetch-page":
         url = str(body.get("url", ""))
-        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+        headers = {
+            "User-Agent": USER_AGENT,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+        }
+        req = urllib.request.Request(url, headers=headers)
         try:
             with urllib.request.urlopen(req, timeout=15) as resp:
                 return {"ok": 200 <= resp.status < 300, "status": resp.status, "html": resp.read().decode("utf-8", "replace")}
+        except urllib.error.HTTPError as exc:
+            err_html = ""
+            try:
+                err_html = exc.read().decode("utf-8", "replace")
+            except Exception:  # noqa: 10
+                err_html = ""
+            return {"ok": False, "status": exc.code, "html": err_html, "error": f"HTTP {exc.code}: {exc.reason}"}
         except Exception as exc:
             return {"ok": False, "error": str(exc)}
     return {"ok": False, "error": f"Unknown endpoint: {req_path}"}

@@ -9,6 +9,70 @@ export interface ProcessedPhotoResult {
   height: number;
 }
 
+export interface ImportedBinaryPhoto {
+  id: string;
+  recipeId?: string;
+  filename?: string;
+  blob: Uint8Array;
+}
+
+const hydratedPhotoUrls = new Map<string, string>();
+
+export function registerResolvedPhotoUrl(photoId: string, url: string): void {
+  hydratedPhotoUrls.set(photoId, url);
+}
+
+export async function hydratePhotoUrlCache(): Promise<void> {
+  if (typeof URL === "undefined" || typeof URL.createObjectURL !== "function") {
+    return;
+  }
+  try {
+    const records = await db.photos.toArray();
+    for (const rec of records) {
+      if (!hydratedPhotoUrls.has(rec.id)) {
+        const blob = rec.hero || rec.thumb;
+        if (blob instanceof Blob) {
+          hydratedPhotoUrls.set(rec.id, URL.createObjectURL(blob));
+        }
+      }
+    }
+  } catch {
+    // IndexedDB unavailable in Node test runtime
+  }
+}
+
+export async function saveImportedPhotosToDb(photos: ImportedBinaryPhoto[]): Promise<void> {
+  if (photos.length === 0 || typeof Blob === "undefined") return;
+  for (const item of photos) {
+    const ext = (item.filename || item.id || "").toLowerCase();
+    const mime = ext.endsWith(".png")
+      ? "image/png"
+      : ext.endsWith(".webp")
+        ? "image/webp"
+        : ext.endsWith(".gif")
+          ? "image/gif"
+          : "image/jpeg";
+    const copy = new Uint8Array(item.blob.byteLength);
+    copy.set(item.blob);
+    const blob = new Blob([copy], { type: mime });
+    try {
+      await db.photos.put({
+        id: item.id,
+        recipeId: item.recipeId || "",
+        hero: blob,
+        thumb: blob,
+        width: 0,
+        height: 0
+      });
+    } catch {
+      // Skip IndexedDB write if unavailable in unit tests
+    }
+    if (typeof URL !== "undefined" && typeof URL.createObjectURL === "function") {
+      registerResolvedPhotoUrl(item.id, URL.createObjectURL(blob));
+    }
+  }
+}
+
 export async function processAndSavePhoto(
   file: Blob,
   recipeId: string,
@@ -20,7 +84,6 @@ export async function processAndSavePhoto(
   const originalWidth = bitmap.width;
   const originalHeight = bitmap.height;
 
-  // 1. Create 1600px max edge hero
   const maxHeroEdge = 1600;
   const scaleRatio = Math.min(1, maxHeroEdge / Math.max(originalWidth, originalHeight));
   const heroWidth = Math.round(originalWidth * scaleRatio);
@@ -42,7 +105,6 @@ export async function processAndSavePhoto(
     );
   });
 
-  // 2. Create 480px square thumbnail
   const thumbSize = 480;
   const thumbCanvas = document.createElement("canvas");
   thumbCanvas.width = thumbSize;
@@ -86,6 +148,9 @@ export async function processAndSavePhoto(
   };
 
   await db.photos.put(photoRecord);
+  if (typeof URL !== "undefined" && typeof URL.createObjectURL === "function") {
+    registerResolvedPhotoUrl(photoId, URL.createObjectURL(heroBlob));
+  }
 
   return {
     photoId,
@@ -98,6 +163,9 @@ export async function processAndSavePhoto(
 
 export function resolvePhotoUrl(photoId?: string): string | undefined {
   if (!photoId) return undefined;
+  const hydrated = hydratedPhotoUrls.get(photoId);
+  if (hydrated) return hydrated;
+
   if (
     photoId.startsWith("http://") ||
     photoId.startsWith("https://") ||
@@ -107,7 +175,6 @@ export function resolvePhotoUrl(photoId?: string): string | undefined {
     return photoId;
   }
 
-  // Handle local bundled public recipe photo paths
   if (photoId.startsWith("/recipe-photos/") || photoId.startsWith("./recipe-photos/") || photoId.startsWith("recipe-photos/")) {
     const clean = photoId.replace(/^\.?\//, "");
     return `./${clean}`;
@@ -118,5 +185,5 @@ export function resolvePhotoUrl(photoId?: string): string | undefined {
     return `./recipe-photos/${filename}`;
   }
 
-  return `/api/photos/${photoId}`;
+  return undefined;
 }

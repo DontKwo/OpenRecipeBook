@@ -1,0 +1,8 @@
+OpenRecipeBook is a free, open-source, offline-first personal cookbook manager with zero accounts, zero ads, and zero cloud lock-in.
+
+Key features:
+- Plain .recipe.json local recipe storage plus one-click full library .zip backups.
+- Clean ingredient scaling using exact kitchen fractions (1/2, 1/3, 3/4) and combined multi-recipe ingredient totals.
+- Interactive Cook Mode with screen wake lock, ingredient checkoffs, and concurrent countdown timers.
+- Weekly and monthly meal planner that populates grocery-aisle shopping lists in one tap.
+- Import recipes from web links, Android Share sheet, Paprika (.paprikarecipes), Recipe Keeper (.zip), JSON-LD, or plain text.
